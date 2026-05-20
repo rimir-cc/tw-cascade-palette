@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/entries/recent
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Recent Tiddlers…
+ca-hint: Drill into recently-modified tiddlers
+ca-kind: drill
+ca-order: 40
+type: text/vnd.tiddlywiki
+ca-next-scope: [!is[system]!sort[modified]limit[30]]
+ca-next-title: Recent
+ca-next-entity-type: tiddler

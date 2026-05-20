@@ -1,0 +1,86 @@
+title: $:/plugins/rimir/cascade-palette/doc/architecture
+tags: $:/tags/rimir/doc-template
+rdt.plugin-name: cascade palette
+rdt.section: architecture
+rdt.section-order: 40
+rdt.title: Architecture
+type: text/vnd.tiddlywiki
+
+! Components
+
+* ''Widget'' (`widgets/cascade-palette-widget.js`) — implements the palette: stage stack, keyboard router, result rendering, action invocation.
+* ''Startup module'' (`widgets/cascade-palette-startup.js`) — mounts the widget into `document.body` at boot via `<$cascade-palette/>`. Independent of any page template tag so the palette works in any UI mode (default wiki, appify, custom themes).
+* ''Hotkey binding'' (`config/shortcut-binding.tid` + `config/shortcut-key.tid`) — standard TW keyboard shortcut machinery. Press the configured key (default Ctrl-Space) and TW dispatches the `rimir-cascade-palette-open` message that the widget catches via `$tw.rootWidget`.
+
+! Stage stack
+
+The palette is a stack of stages, growing on Tab, shrinking on Esc. Stage shapes:
+
+;`kind: "root"`
+:The initial stage. Items come from tiddlers tagged `$:/tags/rimir/cascade-palette/entry`, sorted by `ca-order` then `ca-name`.
+;`kind: "filter"`
+:A stage scoped by a filter expression. Pushed when the user drills from a `ca-kind: drill` entry or action. Items are dynamic — tiddler titles (or bare strings) returned by `ca-next-scope`.
+;`kind: "actions"`
+:An action-menu stage. Pushed when the user Tab's on a dynamic entity item in a filter stage. Items are tiddlers tagged `$:/tags/rimir/cascade-palette/action` whose `ca-entity-type` matches the dynamic item's type (plus globals tagged `ca-entity-type: *`).
+
+The keyboard router does one of:
+
+* ''Type'' → update current stage's `query`, recompute items.
+* ''Up/Down'' → move `selectedIndex`.
+* ''Tab'' → drill from the selected item (push new stage).
+* ''Enter'' → fire the selected item's default behaviour (leaf action OR push if drill).
+* ''Esc'' → pop top stage; if stack depth == 1, close the palette entirely.
+
+! Variable substitution
+
+Filter and action wikitext receives a synthetic widget context that exposes:
+
+* `<<query>>` — current input
+* `<<picked>>` — the item picked in the current stage (for actions; empty during scope evaluation)
+* `<<parent-picked>>` — the item picked in the parent stage
+* `<<stage-N-picked>>` — the item picked at stage index N (root = 0)
+
+The widget assembles these via `buildStageVariables()` walking the stack.
+
+! Navigator routing
+
+The widget mounts in `document.body` via the startup module, so it lives OUTSIDE the page template's main widget subtree. Without intervention, actions invoked from the palette (e.g. `<$action-navigate>`, `tm-edit-tiddler`) would bubble up through the widget's only parent (`$tw.rootWidget`) and stop — never reaching the navigator widget that lives inside the page tree.
+
+The fix lives in `invokeViaNavigator()`: at action-fire time the widget searches `$tw.pageWidgetNode`'s subtree for the navigator (a `<$navigator>` widget) and constructs the action widget tree with the navigator as its parent. Events then bubble naturally into the navigator's handlers.
+
+Falls back to `$tw.rootWidget` if no navigator is found, so messages with global root-level handlers (`tm-save-wiki`, custom messages) still work even without a navigator.
+
+! Action discovery
+
+At every keystroke / stage push, the widget runs cheap filter queries to populate items:
+
+* Entries: `[all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/entry]]`
+* Actions for type T: `[all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/action]]` filtered to `ca-entity-type === T` ⋃ `ca-entity-type === "*"`
+
+There is no caching — adding/removing action tiddlers takes effect immediately (the next palette open or stage push picks them up). Performance is fine for catalogues of a few hundred tiddlers; if your catalogue grows much larger consider adding a result cache keyed on `wiki.getChangeCount()`.
+
+! What lives where
+
+```
+$:/plugins/rimir/cascade-palette/
+├── plugin.info
+├── widgets/
+│   ├── cascade-palette-widget.js      # the widget — render, stack, keyboard, actions
+│   └── cascade-palette-startup.js     # mounts the widget in document.body at boot
+├── config/
+│   ├── shortcut-key.tid               # $:/config/shortcuts/rimir-cascade-palette-open
+│   ├── shortcut-binding.tid           # tagged $:/tags/KeyboardShortcut, body fires the open message
+│   └── shortcut-info.tid              # help text for the shortcut listing
+├── entries/                            # demo entries (Control Panel, Save Wiki, ...)
+├── actions/global/                     # demo globals (Edit raw, Copy title)
+├── styles.tid                          # popup CSS
+└── doc/                                # doc-template doc tiddlers (overview, protocol, examples, ...)
+```
+
+! Extending
+
+Two kinds of extension:
+
+''Adding cascade edges'' — write entry / action tiddlers in your own plugin or in user tiddler space. Tag with the right tag, set `ca-*` fields, save. No JS, no widget changes. See the ''Protocol'' and ''Examples'' tabs.
+
+''Modifying engine behaviour'' — fork the plugin. The widget is ~500 LOC of self-contained JS. Common extension points: a new stage kind (e.g. ''form'' for multi-field input), a new selection gesture, or a custom item renderer.

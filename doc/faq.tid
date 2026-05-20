@@ -1,0 +1,42 @@
+title: $:/plugins/rimir/cascade-palette/doc/faq
+tags: $:/tags/rimir/doc-template
+rdt.plugin-name: cascade palette
+rdt.section: faq
+rdt.section-order: 50
+rdt.title: FAQ
+type: text/vnd.tiddlywiki
+
+! FAQ
+
+;Why isn't this just a fork of souk21/commandpalette?
+:Souk21's data model is flat — one input, one list, terminal Enter. The cascade model is a stack of stages with right-arrow / Tab drilling and per-entity action menus. Retrofitting a stage stack into souk21's widget meant fighting its assumptions on every change. Building fresh ended up smaller (~500 LOC vs souk21's 1100) and the data model is the protocol.
+
+;How does this differ from a flat command palette?
+:Flat palettes (souk21, VS Code's Cmd-P) treat every option as a terminal action: pick → fire → done. Cascading palettes treat picks as ''entry points into a graph''. Pick a person → see what you can do with them. Pick "Assigned Teams" → see their teams. Pick a team → see what you can do with that team. The graph composes — you discover what's possible by drilling, not by memorizing.
+
+;Can I have a flat-palette mode where Enter on a result just navigates without showing the action menu?
+:Yes — that's already the default. Enter fires the entity type's `ca-default: yes` action (typically "Open"). Tab opens the action menu. The flat-palette feel is preserved for users who just want to navigate; the cascade is available when they want it.
+
+;Does the palette work in [[appify|$:/plugins/rimir/appify]] mode?
+:Yes. The widget mounts in `document.body` via a startup module rather than via `$:/tags/AboveStory`, so it's independent of the page template — including appify's substituted UI.
+
+;Can I rebind the hotkey?
+:Edit `$:/config/shortcuts/rimir-cascade-palette-open`. Default is `ctrl+space`. ''Important:'' the tiddler body must have no trailing newline (TW's keyboard parser reads the raw text including the `\n`). When editing via the wiki UI this is usually handled, but if you edit the file directly, verify with `xxd`.
+
+;Why is the engine generic — no orga knowledge?
+:So the same widget can serve multiple domain catalogues. The orga-data-model catalogue ships in `rimir/orga-palette`. A private-data-model catalogue could ship in `rimir/priv-palette`. Both depend on `rimir/cascade-palette`. No engine changes needed to add a new domain.
+
+;Will my custom actions break when this plugin updates?
+:Action tiddlers tagged `$:/tags/rimir/cascade-palette/action` and using the documented `ca-*` field schema are part of the public API. Field schema changes will go through semver — breaking changes only in a major version bump.
+
+;How do I debug a cascade that "doesn't fire"?
+:Open the browser console. The widget logs at three checkpoints during boot (mount, hotkey listener register) and one on every successful open-message dispatch. If actions silently no-op, look for the `[cascade-palette] action invocation failed:` error. Most common causes: filter syntax error in `ca-next-scope`, wikitext error in `ca-actions`, or trying to dispatch a navigator-routed message from a context with no navigator under `$tw.pageWidgetNode`.
+
+;Does it work offline / standalone?
+:Yes. The engine and catalogue are pure plugins; they work in any TW edition (Node.js server, standalone HTML, browser-only).
+
+;Can I customise the look?
+:Override the styles in `$:/plugins/rimir/cascade-palette/styles` (e.g. via a real-tiddler with the same title) or ship your own stylesheet tagged `$:/tags/Stylesheet`. All classnames are prefixed `rcp-` (rimir cascade palette).
+
+;What's coming in future versions?
+:The next milestone is ''context-driven actions'' — actions that operate on the entity currently selected in the running orga app (no need to re-pick). Also ''form stages'' for multi-field input (e.g. ''New Project'' with name + description + due-date inline). And eventually a builder UI so users can author action tiddlers without editing wikitext.

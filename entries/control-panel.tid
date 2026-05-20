@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/entries/control-panel
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Open Control Panel
+ca-hint: Show the TiddlyWiki control panel
+ca-kind: leaf
+ca-order: 10
+type: text/vnd.tiddlywiki
+ca-actions: <$action-navigate $to="$:/ControlPanel"/>

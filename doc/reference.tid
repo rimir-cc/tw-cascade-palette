@@ -1,0 +1,77 @@
+title: $:/plugins/rimir/cascade-palette/doc/reference
+tags: $:/tags/rimir/doc-template
+rdt.plugin-name: cascade palette
+rdt.section: reference
+rdt.section-order: 60
+rdt.title: Reference
+type: text/vnd.tiddlywiki
+
+! Hotkey
+
+|!Key |!Action |
+|''Ctrl-Space'' |Open the palette |
+|''Up / Down'' |Move selection within the current stage |
+|''Tab'' |Drill into the selected item — push a new stage |
+|''Enter'' |Fire the selected item and close the palette |
+|''Shift-Enter'' |Fire the selected item but keep the palette open (current stage refreshes to reflect any changes) |
+|''Esc'' |Pop one stage; if at root, close the palette |
+|''Shift-Tab'' |Same as Esc — pop one stage, close at root |
+|''Click'' on a result row |Same as selecting + Enter |
+|''Click'' on a breadcrumb segment |Pop back to that stage |
+
+The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
+
+! Tags
+
+|!Tag |!Purpose |
+|`$:/tags/rimir/cascade-palette/entry` |Root-stage menu item |
+|`$:/tags/rimir/cascade-palette/action` |Per-entity-type action menu item |
+
+! Fields
+
+|!Field |!Type |!Where |!Purpose |
+|`ca-name` |string |entry, action |Display name in the row |
+|`ca-hint` |string |entry, action |Subtitle / right-aligned hint |
+|`ca-icon` |string |entry, action |Single character or emoji prefix |
+|`ca-order` |number |entry, action |Sort key (lower = higher in list, default 100) |
+|`ca-kind` |`leaf`\|`drill` |entry, action |Leaf fires actions, drill pushes next stage |
+|`ca-actions` |wikitext |leaf items |Fired on Enter |
+|`ca-entity-type` |string\|`*` |action |Entity type this action applies to, or `*` for global |
+|`ca-default` |`yes`\|empty |action |Marks the "Enter on entity result" default action |
+|`ca-next-scope` |filter |drill items |Filter expression for the new stage's items |
+|`ca-next-title` |string |drill items |Title shown in breadcrumb for the new stage |
+|`ca-next-entity-type` |string |drill items |Sets the next stage's entity type (enables action-menu drilling on Tab) |
+|`ca-next-default-action` |wikitext |drill items |Fired on Enter in the next stage when no entity default exists |
+
+! Settings
+
+|!Tiddler |!Default |!Effect |
+|`$:/config/shortcuts/rimir-cascade-palette-open` |`ctrl+space` |Hotkey to open the palette |
+|`$:/config/rimir/cascade-palette/max-results` |`30` |Cap on items shown per stage |
+
+! JavaScript message
+
+|!Message |!Dispatched from |!Handled by |
+|`rimir-cascade-palette-open` |Keyboard shortcut binding or any wikitext via `$action-sendmessage` |The widget's listener on `$tw.rootWidget` |
+
+! Filter substitution variables
+
+|!Variable |!Available in |!Value |
+|`<<query>>` |scope, action |Current input text |
+|`<<picked>>` |action |Title of the item just picked |
+|`<<parent-picked>>` |scope, action |Title picked in the parent stage |
+|`<<stage-N-picked>>` |scope, action |Title picked at stage index N (root = 0) |
+
+! Mount point
+
+The widget is injected into `document.body` at boot via the startup module `widgets/cascade-palette-startup.js`. Mount-point ID: `rimir-cascade-palette-mount`. To inspect: `document.getElementById("rimir-cascade-palette-mount")`.
+
+! Console diagnostics
+
+The widget logs at boot:
+
+* `[cascade-palette] startup mount complete — widget in document.body` — startup module ran successfully
+* `[cascade-palette] widget render() — mounting` — widget's render method ran
+* `[cascade-palette] hotkey listener registered on rootWidget` — message handler wired
+* `[cascade-palette] open message received` — fires every time the palette opens (via hotkey or programmatic dispatch)
+* `[cascade-palette] action invocation failed: ...` — fires when `invokeViaNavigator()` throws (most likely cause: filter or wikitext error in `ca-actions` / `ca-next-scope` / `ca-next-default-action`)

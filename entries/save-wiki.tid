@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/entries/save-wiki
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Save Wiki
+ca-hint: Trigger a wiki save
+ca-kind: leaf
+ca-order: 20
+type: text/vnd.tiddlywiki
+ca-actions: <$action-sendmessage $message="tm-save-wiki"/>

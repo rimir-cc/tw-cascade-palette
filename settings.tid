@@ -1,0 +1,19 @@
+title: $:/plugins/rimir/cascade-palette/settings
+tags: $:/tags/rimir/plugins/settings
+caption: Cascade Palette
+type: text/vnd.tiddlywiki
+
+\whitespace trim
+
+! Cascade Palette
+
+;Hotkey
+:The palette opens with the shortcut configured at <code>$:/config/shortcuts/rimir-cascade-palette-open</code>. Default: ''Ctrl-Space''. Edit that tiddler to rebind.
+
+;Behaviour
+:* ''Max results per stage'' — caps the number of items rendered per stage. Default 30. Configured at <code>$:/config/rimir/cascade-palette/max-results</code>.
+:* ''Soft depth warning'' — engine logs a warning to the console if stack depth exceeds this. Default 10. Configured at <code>$:/config/rimir/cascade-palette/soft-depth-warning</code>. No hard cap.
+
+;Diagnostics
+:* See all loaded entries: <$button>List entries<$action-navigate $to="$:/temp/cascade-palette/entries-listing"/></$button>
+:* See all loaded actions: list any tiddler tagged ''`$:/tags/rimir/cascade-palette/action`''.

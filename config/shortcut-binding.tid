@@ -1,0 +1,6 @@
+title: $:/plugins/rimir/cascade-palette/config/shortcut-binding
+tags: $:/tags/KeyboardShortcut
+key: ((rimir-cascade-palette-open))
+type: text/vnd.tiddlywiki
+
+<$action-sendmessage $message="rimir-cascade-palette-open"/>

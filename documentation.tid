@@ -1,0 +1,9 @@
+title: $:/plugins/rimir/cascade-palette/documentation
+type: text/vnd.tiddlywiki
+
+\whitespace trim
+
+<$list filter="[[$:/plugins/rimir/doc-template/hub]is[shadow]] [[$:/plugins/rimir/doc-template/hub]is[tiddler]] +[limit[1]]" variable="_"
+       emptyMessage="""<div class="rr-callout-info">Install the [[doc-template plugin|$:/plugins/rimir/doc-template]] for branded docs. Until then, see the [[readme|$:/plugins/rimir/cascade-palette/readme]] tab.</div>""">
+<$transclude $tiddler="$:/plugins/rimir/doc-template/hub" plugin="$:/plugins/rimir/cascade-palette"/>
+</$list>

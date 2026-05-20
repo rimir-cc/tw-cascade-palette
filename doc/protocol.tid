@@ -1,0 +1,156 @@
+title: $:/plugins/rimir/cascade-palette/doc/protocol
+tags: $:/tags/rimir/doc-template
+rdt.plugin-name: cascade palette
+rdt.section: protocol
+rdt.section-order: 20
+rdt.title: Protocol
+type: text/vnd.tiddlywiki
+
+! The cascade-palette protocol
+
+A cascade is a graph of ''entries'' (root-stage items) and ''actions'' (items in the per-entity-type action menu). The engine walks this graph as the user types and presses Tab/Esc/Enter. Adding a new cascade edge is one tiddler.
+
+Each tiddler has a tag and a small set of `ca-*` fields. The engine reads them at every palette-open.
+
+! Tags
+
+* ''`$:/tags/rimir/cascade-palette/entry`'' — root-stage menu item
+* ''`$:/tags/rimir/cascade-palette/action`'' — appears in the action menu for one entity type
+
+! Fields
+
+;`ca-name`
+:Display text in the result row. Required.
+;`ca-hint`
+:Subtitle / right-aligned hint text. Optional.
+;`ca-icon`
+:Single character or emoji shown to the left of the name. Optional.
+;`ca-kind`
+:`leaf` or `drill`. Default: `leaf`. A leaf fires `ca-actions` on Enter and closes the palette. A drill pushes a new stage on Tab or Enter.
+;`ca-order`
+:Numeric sort key. Default: `100`. Lower numbers appear higher in the list. Ties break by `ca-name` (alphabetical).
+;`ca-entity-type` (actions only)
+:Which entity type this action applies to. The engine matches `rrt.type` of dynamic items against this field. Use ''`*`'' to make the action global (appears for any entity type).
+;`ca-default` (actions only)
+:Set to ''`yes`'' on the action that should fire when the user hits Enter on a dynamic entity result (without first opening the action menu via Tab). Usually the ''Open'' action. Exactly one per entity type.
+;`ca-actions` (leaf only)
+:Wikitext fired on Enter. Receives `<<picked>>` and `<<parent-picked>>` in scope. Typically a single action widget like `<$action-navigate $to=<<picked>>/>` or a setfield.
+;`ca-next-scope` (drill only)
+:Filter expression for the next stage's items. Can reference `<<query>>` (current input), `<<parent-picked>>`, and `<<stage-N-picked>>`. Examples: `[rrt.type[person]search<query>]`, `[[low]] [[normal]] [[high]] [[critical]]`, `[<parent-picked>get[team-member-of]enlist-input[]]`.
+;`ca-next-title` (drill only)
+:Title shown in the breadcrumb for the new stage. Can use `<<parent-picked>>` to reference what was picked.
+;`ca-next-entity-type` (drill only)
+:Sets the next stage's entity type. The engine uses this to discover action tiddlers if the user Tab's on a result. Omit when the picker shouldn't have its own action menu (e.g. an enum picker that should just fire a setfield).
+;`ca-next-default-action` (drill only)
+:Wikitext fired when the user picks an item in the new stage if no entity-type default action exists. Typical use: an enum picker where the items are bare strings and you want Enter to act on the parent.
+
+! Substitution variables
+
+Available inside `ca-next-scope`, `ca-actions`, and `ca-next-default-action`:
+
+;`<<query>>`
+:Current text typed in the current stage's input. Use to filter the next stage by user input.
+;`<<picked>>`
+:For ''action invocation'': the title of the item just picked. In an action-menu stage, this is the entity the menu acts on (i.e. the parent-picked). In a filter stage's default action, it's the picked item.
+;`<<parent-picked>>`
+:Title picked in the parent stage (one back).
+;`<<stage-N-picked>>`
+:Title picked in stage N (0 = root). For deeper chains.
+
+! Worked example 1 — A leaf entry that opens a fixed tiddler
+
+```
+title: $:/plugins/example/entries/control-panel
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Open Control Panel
+ca-kind: leaf
+ca-order: 10
+ca-actions: <$action-navigate $to="$:/ControlPanel"/>
+```
+
+! Worked example 2 — A drill entry into a type-scoped search
+
+```
+title: $:/plugins/example/entries/persons
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Persons
+ca-icon: 🙍
+ca-kind: drill
+ca-order: 30
+ca-next-scope: [rrt.type[person]search<query>]
+ca-next-title: Persons
+ca-next-entity-type: person
+```
+
+Tab into "Persons" → palette shows persons filtered by your input. Enter on a person fires the person type's default action (typically Open). Tab on a person opens the action menu.
+
+! Worked example 3 — A type's default action (Open)
+
+```
+title: $:/plugins/example/actions/person/open
+tags: $:/tags/rimir/cascade-palette/action
+ca-entity-type: person
+ca-name: Open
+ca-kind: leaf
+ca-default: yes
+ca-order: 10
+ca-actions: <$action-navigate $to=<<picked>>/>
+```
+
+! Worked example 4 — A drill action into related entities
+
+```
+title: $:/plugins/example/actions/person/teams
+tags: $:/tags/rimir/cascade-palette/action
+ca-entity-type: person
+ca-name: Assigned Teams
+ca-kind: drill
+ca-order: 20
+ca-next-scope: [<parent-picked>get[team-member-of]enlist-input[]search<query>]
+ca-next-title: Teams of <<parent-picked>>
+ca-next-entity-type: team
+```
+
+The chain works: Persons → pick Alice → action menu → Tab "Assigned Teams" → stage shows Alice's teams → Tab a team to see TEAM actions, or Enter to open the team.
+
+! Worked example 5 — Drill-then-act (enum picker)
+
+When you want a sub-pick that just sets a field (no further drilling), use `ca-next-default-action`:
+
+```
+title: $:/plugins/example/actions/task/set-priority
+tags: $:/tags/rimir/cascade-palette/action
+ca-entity-type: task
+ca-name: Set Priority…
+ca-kind: drill
+ca-order: 60
+ca-next-scope: [[low]] [[normal]] [[high]] [[critical]]
+ca-next-title: Priority for <<parent-picked>>
+ca-next-default-action: <$action-setfield $tiddler=<<parent-picked>> priority=<<picked>>/>
+```
+
+Note: ''no'' `ca-next-entity-type` — the four enum strings aren't entity tiddlers, so we don't want the engine to try to open an action menu when the user picks one. The `ca-next-default-action` fires on Enter.
+
+! Worked example 6 — A global action (applies to any entity type)
+
+```
+title: $:/plugins/example/actions/global/edit
+tags: $:/tags/rimir/cascade-palette/action
+ca-entity-type: *
+ca-name: Edit raw tiddler
+ca-kind: leaf
+ca-order: 200
+ca-actions: <$action-sendmessage $message="tm-edit-tiddler" $param=<<picked>>/>
+```
+
+! Tips
+
+* Trailing newlines in `.tid` config tiddlers consumed by the engine (especially `$:/config/shortcuts/rimir-cascade-palette-open`) ''break'' parsing — write the body with no terminator and omit the `type` field. See [[feedback-tid-vs-txt-meta]] in `.claude/memory/`.
+* Filter operands cannot contain literal `[...]` brackets. To reference a nested filter result in `ca-next-scope`, use variable indirection: `[subfilter<myvar>]` where `myvar` is declared via `<$let>` in the calling context (or assemble the subfilter in a `\function`).
+* `<<picked>>` is empty inside `ca-next-scope` (nothing has been picked in the new stage yet) — use `<<parent-picked>>` to scope the new stage by the previous pick.
+* If your action depends on TW's navigator (`<$action-navigate>`, `tm-edit-tiddler`, `tm-close-tiddler`), the engine routes them through the navigator widget found under `$tw.pageWidgetNode`. Messages with global rootWidget handlers (`tm-save-wiki`, custom messages) work without any routing.
+* To find every action tiddler your wiki currently ships, filter for `[all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/action]]`.
+
+! Sensitivity of stage-state
+
+Stages are populated by re-running `ca-next-scope` whenever the user types in the input. Filters that hit ''many'' tiddlers can be slow if you're searching the entire wiki on every keystroke — prefer a tighter base set (`[rrt.type[...]]` first, then `+[search<query>]`) over a broad search of all titles.

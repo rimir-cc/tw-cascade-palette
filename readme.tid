@@ -1,0 +1,33 @@
+title: $:/plugins/rimir/cascade-palette/readme
+type: text/vnd.tiddlywiki
+
+! What it does
+
+A keyboard-driven cascading command palette for TiddlyWiki. Hit one hotkey (default: ''Ctrl-Space'') to open. Type to filter a stage. ''Tab'' drills into a stage. ''Esc'' goes back. ''Enter'' fires the selected action. Domain plugins (e.g. `rimir/orga-palette`) extend the palette by shipping declarative ''entry'' and ''action'' tiddlers — no widget code required.
+
+! Key features
+
+* ''Cascading stages'' — every drill pushes a new stage; back-arrow / Esc pops. Breadcrumb shows where you are.
+* ''Declarative protocol'' — adding a new cascade is one tiddler. Tag, fields, done.
+* ''Generic engine'' — no domain knowledge baked in. Same widget serves any catalogue plugin.
+* ''Filter substitution'' — `<<query>>`, `<<picked>>`, `<<parent-picked>>` available in every filter and action.
+* ''Keyboard-first'' — Up/Down to select, Tab to drill, Esc to back out (closes at root), Enter to fire. Left/Right preserve normal cursor behaviour.
+
+! Prerequisites
+
+* TiddlyWiki ≥ 5.4.0
+
+! Quick start
+
+Install the plugin, restart. Ctrl-Space opens the palette. Out of the box you get four demo entries (Open Control Panel, Save Wiki, Advanced Search, Recent Tiddlers…) so you can confirm it's working. The real value is in shipping your own ''entry'' and ''action'' tiddlers — see the [[Documentation]] tab for the protocol.
+
+To rebind, edit the tiddler `$:/config/shortcuts/rimir-cascade-palette-open`.
+
+! Extending: the action-tiddler protocol
+
+* ''Entry tiddlers'' — root-stage menu items. Tagged `$:/tags/rimir/cascade-palette/entry`.
+* ''Action tiddlers'' — what appears in the action menu for a picked entity. Tagged `$:/tags/rimir/cascade-palette/action`, scoped via `ca-entity-type` field.
+
+Each tiddler declares whether it's a ''leaf'' (fires actions on Enter and closes) or a ''drill'' (pushes a new stage). Cascades form an implicit graph: a drill from type A → type B is just a tiddler with `ca-entity-type: A` and `ca-next-entity-type: B`. Add a new edge by writing one tiddler.
+
+See the Documentation tab's ''Protocol'' section for full schema and worked examples.

@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/entries/advanced-search
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Advanced Search
+ca-hint: Open the standard search modal
+ca-kind: leaf
+ca-order: 30
+type: text/vnd.tiddlywiki
+ca-actions: <$action-navigate $to="$:/AdvancedSearch"/>

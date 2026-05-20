@@ -1,0 +1,31 @@
+title: $:/plugins/rimir/cascade-palette/doc/overview
+tags: $:/tags/rimir/doc-template
+rdt.plugin-name: cascade palette
+rdt.section: overview
+rdt.section-order: 10
+rdt.title: Overview
+type: text/vnd.tiddlywiki
+
+! What it is
+
+A keyboard-driven, ''cascading'' command palette engine. The user opens it with one hotkey, types to filter a menu, and uses ''Tab / Esc / Enter'' to navigate stages of progressively narrower choices.
+
+The novelty (vs. flat palettes like souk21/commandpalette or VS Code's Cmd-P) is that picking an item ''drills'' into a new stage — and that stage's items can be follow-up actions on the picked entity, or further drills into related sets. The result feels like Raycast on macOS, but powered by declarative tiddler data instead of code.
+
+! What it gives you
+
+* ''Generic engine'' — no domain knowledge. The same widget serves any catalogue plugin that ships ''entry'' and ''action'' tiddlers.
+* ''Declarative cascades'' — extending the palette is writing one tiddler per cascade edge. No JS. No widget changes.
+* ''Filter substitution'' — `<<query>>`, `<<picked>>`, `<<parent-picked>>` available in any filter or action wikitext.
+* ''Keyboard-first'' — Up/Down/Tab/Esc/Enter. Left/Right keep normal cursor semantics inside the input.
+
+! Catalogue plugins
+
+The cascade engine on its own ships only a couple of generic demo entries (Search all, Recent tiddlers). The real value comes from ''catalogue plugins'' that depend on this one and ship orga-specific / domain-specific entries and actions:
+
+* ''`rimir/orga-palette`'' — orga-data-model entry types (Persons, Projects, Tasks, Meetings, …) with per-type action menus (Open, Assigned Teams, Mark Done, …).
+* (future) ''`rimir/priv-palette`'' — analogous catalogue for `private-data-model`.
+
+! Prerequisites
+
+* TiddlyWiki ≥ 5.4.0

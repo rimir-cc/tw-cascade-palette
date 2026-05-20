@@ -1,0 +1,106 @@
+title: $:/plugins/rimir/cascade-palette/doc/examples
+tags: $:/tags/rimir/doc-template
+rdt.plugin-name: cascade palette
+rdt.section: examples
+rdt.section-order: 30
+rdt.title: Examples
+type: text/vnd.tiddlywiki
+
+! Patterns to copy
+
+! 1. "Run a command" leaf — like souk21 / VS Code's command palette
+
+```
+title: $:/plugins/example/entries/save-wiki
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Save Wiki
+ca-icon: 💾
+ca-kind: leaf
+ca-order: 10
+ca-actions: <$action-sendmessage $message="tm-save-wiki"/>
+```
+
+Type "save", Enter, done. No drills.
+
+! 2. "Open a specific tiddler" via prefilled filter
+
+A drill entry whose `ca-next-scope` returns a specific subset:
+
+```
+title: $:/plugins/example/entries/drafts
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Drafts
+ca-icon: 📝
+ca-kind: drill
+ca-order: 50
+ca-next-scope: [has:field[draft.of]search<query>]
+ca-next-title: Drafts
+```
+
+Tab in, type to narrow, Enter on a draft → standard tm-navigate opens it.
+
+! 3. Type-narrowed search
+
+```
+title: $:/plugins/example/entries/persons
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Persons
+ca-kind: drill
+ca-next-scope: [rrt.type[person]search<query>]
+ca-next-entity-type: person
+```
+
+Paired with action tiddlers having `ca-entity-type: person`, Tab on a person opens the action menu.
+
+! 4. Cross-entity drill chain
+
+Persons → action menu → "Assigned Teams" (drill into person's teams) → Tab a team → team's action menu → "Members" (drill into team's members) → Tab a member → person's action menu (again, but for the new person).
+
+The graph composes — no need to write a "Tasks of team members" macro; just hop through the existing edges.
+
+! 5. Drill-then-act enum picker (mutation)
+
+```
+title: $:/plugins/example/actions/task/set-priority
+tags: $:/tags/rimir/cascade-palette/action
+ca-entity-type: task
+ca-name: Set Priority…
+ca-kind: drill
+ca-next-scope: [[low]] [[normal]] [[high]] [[critical]]
+ca-next-default-action: <$action-setfield $tiddler=<<parent-picked>> priority=<<picked>>/>
+```
+
+User: Tasks → drill → highlight task → Tab → "Set Priority…" → pick "high" → Enter → task.priority = "high".
+
+! 6. List-append (multi-value field) mutation
+
+```
+title: $:/plugins/example/actions/meeting/add-participant
+tags: $:/tags/rimir/cascade-palette/action
+ca-entity-type: meeting
+ca-name: Add Participant…
+ca-kind: drill
+ca-next-scope: [rrt.type[person]search<query>]
+ca-next-default-action: <$action-listops $tiddler=<<parent-picked>> $field="participants" $subfilter="+[append<picked>]"/>
+```
+
+Uses `$action-listops` instead of `$action-setfield` to append rather than overwrite.
+
+! 7. Section navigation (orga-apps / appify)
+
+```
+title: $:/plugins/example/entries/go-to-section
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Go to Section…
+ca-kind: drill
+ca-next-scope: [[dashboard]] [[projects]] [[people]] [[orgas]]
+ca-next-default-action: <$action-statewrap-navigate label=<<picked>> section=<<picked>>/>
+```
+
+The bare-string filter approach works for any small, static enumeration.
+
+! What's NOT recommended
+
+* ''Heavy filters in `ca-next-scope`'' — re-runs on every keystroke. If you can't avoid an expensive filter, cache the result in a state tiddler at palette-open time and have the scope read from the cache.
+* ''Nested `$navigator` widgets in `ca-actions`'' — the engine already routes actions through the page's existing navigator. Wrapping your own navigator inside `ca-actions` won't change behaviour but adds noise.
+* ''Side effects in `ca-next-scope` filters'' — TW filter operators are pure functions of tiddler state; don't try to write tiddlers from inside a scope filter. Use `ca-actions` / `ca-next-default-action` for mutations.
