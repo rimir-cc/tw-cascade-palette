@@ -300,10 +300,32 @@ filtered by `ca-entity-type`) land in task 6.
     CascadePaletteWidget.prototype.applyQueryToStage = function (stage) {
         var filtered = this.filterByQuery(stage.items, stage.query);
         var maxResults = this.getMaxResults();
-        stage.results = filtered.slice(0, maxResults);
+        // Reorder into visual (grouped) sequence so keyboard nav's linear
+        // `selectedIndex` matches the rendered row order. Items keep their
+        // intra-group sort; group order = first-seen (== lowest order member
+        // because `items` arrives pre-sorted by ca-order then name).
+        stage.results = this.reorderByGroup(filtered).slice(0, maxResults);
         if (stage.selectedIndex >= stage.results.length) {
             stage.selectedIndex = Math.max(0, stage.results.length - 1);
         }
+    };
+
+    CascadePaletteWidget.prototype.reorderByGroup = function (items) {
+        var groupOrder = [];
+        var buckets = Object.create(null);
+        items.forEach(function (item) {
+            var g = item.group || "";
+            if (!(g in buckets)) {
+                buckets[g] = [];
+                groupOrder.push(g);
+            }
+            buckets[g].push(item);
+        });
+        var out = [];
+        groupOrder.forEach(function (g) {
+            for (var i = 0; i < buckets[g].length; i++) out.push(buckets[g][i]);
+        });
+        return out;
     };
 
     CascadePaletteWidget.prototype.loadEntries = function () {
@@ -358,6 +380,7 @@ filtered by `ca-entity-type`) land in task 6.
             icon: f["ca-icon"] || "",
             kind: f["ca-kind"] || "leaf",
             order: order,
+            group: this.resolveGroup(title, f),
             actions: f["ca-actions"] || "",
             nextScope: f["ca-next-scope"] || "",
             nextTitle: f["ca-next-title"] || "",
@@ -365,6 +388,24 @@ filtered by `ca-entity-type`) land in task 6.
             nextDefaultAction: f["ca-next-default-action"] || "",
             isItem: false       // entries / actions vs dynamic items
         };
+    };
+
+    // Resolve the cluster label for an item. Explicit `ca-group` wins.
+    // Otherwise derive from the shadow source: look up the owning plugin
+    // tiddler and use its `name` field (the lowercase short name from
+    // plugin.info). Falls back to the plugin title with the `$:/plugins/`
+    // prefix stripped if the plugin has no `name`. Non-shadow (user-
+    // authored) tiddlers get "" — they share an unnamed cluster which
+    // renders as "Other" when mixed with named groups.
+    CascadePaletteWidget.prototype.resolveGroup = function (title, fields) {
+        if (fields && fields["ca-group"]) return fields["ca-group"];
+        var src = this.wiki.getShadowSource ? this.wiki.getShadowSource(title) : null;
+        if (!src) return "";
+        var pluginTid = this.wiki.getTiddler(src);
+        if (pluginTid && pluginTid.fields && pluginTid.fields.name) {
+            return pluginTid.fields.name;
+        }
+        return src.replace(/^\$:\/plugins\//, "");
     };
 
     CascadePaletteWidget.prototype.evaluateFilterStage = function (stage) {
@@ -405,6 +446,7 @@ filtered by `ca-entity-type`) land in task 6.
                 hint: "",
                 kind: "item",
                 order: DEFAULT_ORDER,
+                group: self.resolveGroup(title, fields),
                 isItem: true
             };
         });
@@ -617,62 +659,86 @@ filtered by `ca-entity-type`) land in task 6.
         }
         var self = this;
         this._selectedRowEl = null;
+
+        // Headers suppressed when all results belong to a single group
+        // (matches breadcrumb-hide-on-root behaviour). `stage.results` is
+        // already reordered into visual-group sequence by `applyQueryToStage`,
+        // so a single pass with prev-group tracking is enough.
+        var distinct = {};
+        var distinctCount = 0;
+        stage.results.forEach(function (item) {
+            var g = item.group || "";
+            if (!(g in distinct)) { distinct[g] = true; distinctCount++; }
+        });
+        var showHeaders = distinctCount > 1;
+        var prevGroup = null;
+
         stage.results.forEach(function (item, i) {
-            var rowEl = self.document.createElement("li");
-            rowEl.className =
-                "rcp-row" + (i === stage.selectedIndex ? " rcp-row-selected" : "");
-            if (item.kind === "drill") rowEl.classList.add("rcp-row-drill");
-
-            if (item.icon) {
-                var iconEl = self.document.createElement("span");
-                iconEl.className = "rcp-row-icon";
-                iconEl.textContent = item.icon;
-                rowEl.appendChild(iconEl);
+            var g = item.group || "";
+            if (showHeaders && g !== prevGroup) {
+                var headerEl = self.document.createElement("li");
+                headerEl.className = "rcp-group-header";
+                headerEl.textContent = g || "Other";
+                self.resultsEl.appendChild(headerEl);
+                prevGroup = g;
             }
-
-            var nameEl = self.document.createElement("span");
-            nameEl.className = "rcp-row-name";
-            nameEl.textContent = item.name;
-            rowEl.appendChild(nameEl);
-
-            // For entries/actions: optional hint (subtitle) right of the name.
-            // For dynamic items: the right-aligned dimmed title column instead.
-            if (item.isItem && item.rawTitle && item.rawTitle !== item.name) {
-                var titleEl = self.document.createElement("span");
-                titleEl.className = "rcp-row-title";
-                titleEl.textContent = item.rawTitle;
-                titleEl.title = item.rawTitle;  // full title on hover
-                rowEl.appendChild(titleEl);
-            } else if (item.hint) {
-                var hintEl = self.document.createElement("span");
-                hintEl.className = "rcp-row-hint";
-                hintEl.textContent = item.hint;
-                rowEl.appendChild(hintEl);
-            }
-
-            if (item.kind === "drill") {
-                var chevronEl = self.document.createElement("span");
-                chevronEl.className = "rcp-row-chevron";
-                chevronEl.textContent = "›";
-                rowEl.appendChild(chevronEl);
-            }
-
-            rowEl.addEventListener("mousedown", function (e) {
-                e.preventDefault();
-                stage.selectedIndex = i;
-                self.fireSelected(e.shiftKey);
-            });
-
-            if (i === stage.selectedIndex) {
-                self._selectedRowEl = rowEl;
-            }
-            self.resultsEl.appendChild(rowEl);
+            self._appendResultRow(item, i, stage);
         });
 
-        // Scroll the selected row into view if it's outside the viewport.
         if (self._selectedRowEl && self._selectedRowEl.scrollIntoView) {
             self._selectedRowEl.scrollIntoView({ block: "nearest" });
         }
+    };
+
+    CascadePaletteWidget.prototype._appendResultRow = function (item, i, stage) {
+        var self = this;
+        var rowEl = self.document.createElement("li");
+        rowEl.className =
+            "rcp-row" + (i === stage.selectedIndex ? " rcp-row-selected" : "");
+        if (item.kind === "drill") rowEl.classList.add("rcp-row-drill");
+
+        if (item.icon) {
+            var iconEl = self.document.createElement("span");
+            iconEl.className = "rcp-row-icon";
+            iconEl.textContent = item.icon;
+            rowEl.appendChild(iconEl);
+        }
+
+        var nameEl = self.document.createElement("span");
+        nameEl.className = "rcp-row-name";
+        nameEl.textContent = item.name;
+        rowEl.appendChild(nameEl);
+
+        if (item.isItem && item.rawTitle && item.rawTitle !== item.name) {
+            var titleEl = self.document.createElement("span");
+            titleEl.className = "rcp-row-title";
+            titleEl.textContent = item.rawTitle;
+            titleEl.title = item.rawTitle;
+            rowEl.appendChild(titleEl);
+        } else if (item.hint) {
+            var hintEl = self.document.createElement("span");
+            hintEl.className = "rcp-row-hint";
+            hintEl.textContent = item.hint;
+            rowEl.appendChild(hintEl);
+        }
+
+        if (item.kind === "drill") {
+            var chevronEl = self.document.createElement("span");
+            chevronEl.className = "rcp-row-chevron";
+            chevronEl.textContent = "›";
+            rowEl.appendChild(chevronEl);
+        }
+
+        rowEl.addEventListener("mousedown", function (e) {
+            e.preventDefault();
+            stage.selectedIndex = i;
+            self.fireSelected(e.shiftKey);
+        });
+
+        if (i === stage.selectedIndex) {
+            self._selectedRowEl = rowEl;
+        }
+        self.resultsEl.appendChild(rowEl);
     };
 
     /* ---------- keyboard ---------- */

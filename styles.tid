@@ -155,6 +155,33 @@ type: text/css
     font-style: italic;
 }
 
+.rcp-group-header {
+    padding: 6px 14px 2px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #9ca3af;
+    user-select: none;
+    pointer-events: none;
+    background: transparent;
+}
+
+.rcp-group-header:not(:first-child) {
+    margin-top: 4px;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .rcp-group-header {
+        color: #6b7280;
+    }
+    .rcp-group-header:not(:first-child) {
+        border-top-color: #374151;
+    }
+}
+
 .rcp-hint {
     padding: 6px 14px;
     background: #f4f5f7;

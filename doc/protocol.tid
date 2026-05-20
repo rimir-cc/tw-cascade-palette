@@ -151,6 +151,21 @@ ca-actions: <$action-sendmessage $message="tm-edit-tiddler" $param=<<picked>>/>
 * If your action depends on TW's navigator (`<$action-navigate>`, `tm-edit-tiddler`, `tm-close-tiddler`), the engine routes them through the navigator widget found under `$tw.pageWidgetNode`. Messages with global rootWidget handlers (`tm-save-wiki`, custom messages) work without any routing.
 * To find every action tiddler your wiki currently ships, filter for `[all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/action]]`.
 
+! Visual grouping (clusters)
+
+The engine clusters items in the result list by their contributing plugin so that, e.g., orga-palette entries are visually separated from appify entries in the root stage. The cluster label is derived as:
+
+# Explicit `ca-group` field on the entry/action, if present.
+# Otherwise the contributing plugin's `name` field (looked up via `$tw.wiki.getShadowSource(title)` → plugin tiddler → `name`).
+# Falls back to the plugin title with `$:/plugins/` stripped, or `""` for user-authored (non-shadow) tiddlers.
+
+Headers are ''suppressed'' when a stage contains only one cluster — so a single-plugin action menu still looks like a flat list. Use `ca-group` to override:
+
+* Group items from several plugins under a shared header: set the same `ca-group: Mutations` on each of them.
+* Push items from one plugin into a different cluster: set `ca-group` to that cluster's label.
+
+Cluster ordering follows the lowest `ca-order` member of each cluster — the same single-knob ordering model as un-grouped items.
+
 ! Sensitivity of stage-state
 
 Stages are populated by re-running `ca-next-scope` whenever the user types in the input. Filters that hit ''many'' tiddlers can be slow if you're searching the entire wiki on every keystroke — prefer a tighter base set (`[rrt.type[...]]` first, then `+[search<query>]`) over a broad search of all titles.

@@ -42,6 +42,8 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-next-title` |string |drill items |Title shown in breadcrumb for the new stage |
 |`ca-next-entity-type` |string |drill items |Sets the next stage's entity type (enables action-menu drilling on Tab) |
 |`ca-next-default-action` |wikitext |drill items |Fired on Enter in the next stage when no entity default exists |
+|`ca-group` |string |entry, action |Override the visual cluster label. Defaults to the contributing plugin's `name`. Headers are suppressed when only one cluster is present in a stage. |
+|`ca-visibility-filter` |filter |entry |If present and returns no results, the entry is hidden from the root menu |
 
 ! Settings
 
