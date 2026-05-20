@@ -183,6 +183,34 @@ type: text/css
     transition: width 0.1s ease-out;
 }
 
+.rcp-row-value-text {
+    /* Bound text values can be longer than numbers — let them take up to
+       half the row and ellipsis the rest. */
+    max-width: 50%;
+}
+
+/* Edit-mode visual: dim the result list so attention is on the input. */
+.rcp-popup.rcp-editing .rcp-results {
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+.rcp-popup.rcp-editing .rcp-input {
+    background: #fef3c7;
+    color: #1a1a1a;
+    border-bottom-color: #f59e0b;
+    box-shadow: inset 0 -2px 0 0 #f59e0b;
+}
+
+@media (prefers-color-scheme: dark) {
+    .rcp-popup.rcp-editing .rcp-input {
+        background: #422006;
+        color: #fef3c7;
+        border-bottom-color: #d97706;
+        box-shadow: inset 0 -2px 0 0 #d97706;
+    }
+}
+
 .rcp-row-selected .rcp-row-slider {
     background: rgba(255, 255, 255, 0.25);
 }

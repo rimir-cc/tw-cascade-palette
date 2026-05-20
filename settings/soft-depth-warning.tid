@@ -1,0 +1,14 @@
+title: $:/plugins/rimir/cascade-palette/settings/soft-depth-warning
+tags: $:/tags/rimir/cascade-palette/setting
+ca-name: Soft depth warning
+ca-hint: Stage-stack depth that triggers a console warning (possible cascade loop). +/- adjust, Shift = 5, Ctrl = 20.
+ca-kind: number
+ca-order: 30
+ca-bind-tiddler: $:/config/rimir/cascade-palette/soft-depth-warning
+ca-bind-field: text
+ca-min: 3
+ca-max: 30
+ca-step: 1
+ca-step-medium: 5
+ca-step-large: 20
+ca-default-value: 10

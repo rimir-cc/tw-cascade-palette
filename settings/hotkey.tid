@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/settings/hotkey
+tags: $:/tags/rimir/cascade-palette/setting
+ca-name: Hotkey
+ca-hint: Key combination that opens the palette. Space to edit, Enter to commit. Format: ctrl+space, alt+p, etc.
+ca-kind: text
+ca-order: 40
+ca-bind-tiddler: $:/config/shortcuts/rimir-cascade-palette-open
+ca-bind-field: text

@@ -22,6 +22,8 @@ type: text/vnd.tiddlywiki
 |''+ / -'' on a number row |Increment/decrement the bound number by `ca-step` (default 1) |
 |''Shift-+ / Shift--'' on a number row |Adjust by `ca-step-medium` (default 5) |
 |''Ctrl-+ / Ctrl--'' on a number row |Adjust by `ca-step-large` (default 20). Matched on physical key (Equal/NumpadAdd/Minus/NumpadSubtract) so layout is irrelevant. |
+|''Space'' on a text/number row |Enter edit mode — bound value pushed into the input, ready to type. Enter commits, Esc cancels. |
+|''Hover'' on any row |Native browser tooltip shows the row's `ca-hint` text. |
 
 The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 
@@ -39,7 +41,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-hint` |string |entry, action |Subtitle / right-aligned hint |
 |`ca-icon` |string |entry, action |Single character or emoji prefix |
 |`ca-order` |number |entry, action |Sort key (lower = higher in list, default 100) |
-|`ca-kind` |`leaf`\|`drill`\|`toggle`\|`number` |entry, action, setting |Leaf fires actions, drill pushes next stage, toggle flips a bound boolean, number adjusts a bound numeric value via `+/-` |
+|`ca-kind` |`leaf`\|`drill`\|`toggle`\|`number`\|`text` |entry, action, setting |Leaf fires actions, drill pushes next stage, toggle flips a bound boolean, number adjusts via `+/-` (or Space to type-set), text edits a string via Space → type → Enter |
 |`ca-actions` |wikitext |leaf items |Fired on Enter |
 |`ca-entity-type` |string\|`*` |action |Entity type this action applies to, or `*` for global |
 |`ca-default` |`yes`\|empty |action |Marks the "Enter on entity result" default action |
@@ -67,6 +69,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`$:/config/shortcuts/rimir-cascade-palette-open` |`ctrl+space` |Hotkey to open the palette |
 |`$:/config/rimir/cascade-palette/max-results` |`30` |Cap on items shown per stage |
 |`$:/config/rimir/cascade-palette/grouping-enabled` |`yes` |Cluster result rows by contributing plugin with section headers. Toggle live via Settings → Grouping. |
+|`$:/config/rimir/cascade-palette/soft-depth-warning` |`10` |Stage-stack depth that triggers a console warning. Adjust live via Settings → Soft depth warning. |
 
 ! JavaScript message
 

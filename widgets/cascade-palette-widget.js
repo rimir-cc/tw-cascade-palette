@@ -25,9 +25,12 @@ filtered by `ca-entity-type`) land in task 6.
     var ACTION_TAG = "$:/tags/rimir/cascade-palette/action";
     var SETTING_TAG = "$:/tags/rimir/cascade-palette/setting";
     var GROUPING_CONFIG = "$:/config/rimir/cascade-palette/grouping-enabled";
+    var SOFT_DEPTH_CONFIG = "$:/config/rimir/cascade-palette/soft-depth-warning";
     var DEFAULT_ORDER = 100;
     var DEFAULT_MAX_RESULTS = 30;
-    var SOFT_DEPTH_WARNING = 10;
+    var DEFAULT_SOFT_DEPTH = 10;
+    var HINT_NORMAL = "↑↓ select · Tab drill · Esc back · ↵ fire · Shift-↵ fire+stay · Space toggle · +/- adjust";
+    var HINT_EDIT = "↵ commit · Esc cancel";
     var DEFAULT_TRUE_VALUE = "yes";
     var DEFAULT_FALSE_VALUE = "no";
     var DEFAULT_STEP = 1;
@@ -38,6 +41,10 @@ filtered by `ca-entity-type`) land in task 6.
         this.initialise(parseTreeNode, options);
         this.open = false;
         this.stack = [];
+        // editMode is non-null while the user is editing a bound text/number
+        // value directly in the search input. Shape: { item, savedQuery,
+        // savedSelectedIndex }. Set by enterEditMode, cleared by exitEditMode.
+        this.editMode = null;
     };
 
     CascadePaletteWidget.prototype = Object.create(Widget.prototype);
@@ -60,6 +67,7 @@ filtered by `ca-entity-type`) land in task 6.
 
         var popup = this.document.createElement("div");
         popup.className = "rcp-popup";
+        this.popupEl = popup;
 
         this.breadcrumbEl = this.document.createElement("div");
         this.breadcrumbEl.className = "rcp-breadcrumb";
@@ -76,7 +84,7 @@ filtered by `ca-entity-type`) land in task 6.
 
         this.hintEl = this.document.createElement("div");
         this.hintEl.className = "rcp-hint";
-        this.hintEl.textContent = "↑↓ select · Tab drill · Esc back · ↵ fire · Shift-↵ fire+stay · Space toggle · +/- adjust";
+        this.hintEl.textContent = HINT_NORMAL;
 
         popup.appendChild(this.breadcrumbEl);
         popup.appendChild(this.inputEl);
@@ -88,6 +96,9 @@ filtered by `ca-entity-type`) land in task 6.
         this.domNodes.push(this.backdropEl);
 
         this.inputEl.addEventListener("input", function () {
+            // While editing a bound value, the input IS the value editor —
+            // typing must not re-filter the results.
+            if (self.editMode) return;
             var stage = self.topStage();
             if (!stage) return;
             stage.query = self.inputEl.value;
@@ -159,14 +170,21 @@ filtered by `ca-entity-type`) land in task 6.
 
     CascadePaletteWidget.prototype.pushStage = function (stage) {
         this.stack.push(stage);
-        if (this.stack.length > SOFT_DEPTH_WARNING && console && console.warn) {
+        var softDepth = this.getSoftDepthWarning();
+        if (this.stack.length > softDepth && console && console.warn) {
             console.warn(
                 "[cascade-palette] stack depth", this.stack.length,
-                "— possible cascade loop?"
+                "exceeds soft warning", softDepth, "— possible cascade loop?"
             );
         }
         this.recomputeStage(stage);
         this.renderStage();
+    };
+
+    CascadePaletteWidget.prototype.getSoftDepthWarning = function () {
+        var raw = this.wiki.getTiddlerText(SOFT_DEPTH_CONFIG, String(DEFAULT_SOFT_DEPTH));
+        var n = parseInt(raw, 10);
+        return isNaN(n) || n < 1 ? DEFAULT_SOFT_DEPTH : n;
     };
 
     CascadePaletteWidget.prototype.popStage = function () {
@@ -853,6 +871,11 @@ filtered by `ca-entity-type`) land in task 6.
             "rcp-row" + (i === stage.selectedIndex ? " rcp-row-selected" : "");
         if (item.kind === "drill") rowEl.classList.add("rcp-row-drill");
         if (item.kind === "toggle") rowEl.classList.add("rcp-row-toggle");
+        // Hover help — ca-hint is shown as a subtitle in some rows but is
+        // ALSO surfaced as the native HTML tooltip on every row, so even
+        // settings rows (which use the right slot for the bound value) get
+        // discoverable help text.
+        if (item.hint) rowEl.title = item.hint;
 
         // For toggles, the checkbox glyph replaces the icon slot (so the
         // checkbox sits in the same column as plugin icons elsewhere).
@@ -886,6 +909,14 @@ filtered by `ca-entity-type`) land in task 6.
             valueEl.className = "rcp-row-value";
             valueEl.textContent = displayed;
             rowEl.appendChild(valueEl);
+        } else if (item.kind === "text") {
+            var tRaw = this.readBoundValue(item);
+            var tText = tRaw === undefined || tRaw === null ? "(unset)" : String(tRaw);
+            var tValueEl = self.document.createElement("span");
+            tValueEl.className = "rcp-row-value rcp-row-value-text";
+            tValueEl.textContent = tText;
+            tValueEl.title = tText;  // full value on hover when truncated
+            rowEl.appendChild(tValueEl);
         } else if (item.kind === "number") {
             var nVal = this.readNumberValue(item);
             var hasRange = item.minValue !== null && item.maxValue !== null
@@ -943,6 +974,22 @@ filtered by `ca-entity-type`) land in task 6.
     CascadePaletteWidget.prototype.handleKeydown = function (e) {
         var stage = this.topStage();
         if (!stage) return;
+        // Edit mode short-circuit: only Enter (commit) and Esc (cancel) are
+        // hot. Everything else (typing, cursor keys inside the input, etc.)
+        // falls through to the native input behaviour.
+        if (this.editMode) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                this.exitEditMode(true);
+                return;
+            }
+            if (e.key === "Escape") {
+                e.preventDefault();
+                this.exitEditMode(false);
+                return;
+            }
+            return;
+        }
         if (e.key === "Escape") {
             e.preventDefault();
             this.popStage();
@@ -978,15 +1025,22 @@ filtered by `ca-entity-type`) land in task 6.
             this.fireSelected(e.shiftKey);  // shift-enter → keep palette open
             return;
         }
-        // Space on a toggle row → flip the value WITHOUT closing the palette.
-        // On any other kind, Space falls through to the input field (where
-        // it inserts a literal space into the query).
+        // Space → kind-specific edit gestures. Toggle flips the value
+        // inline; text/number enter edit mode (input becomes a value
+        // editor). Anything else falls through to the input.
         if (e.key === " " || e.code === "Space") {
             var picked = stage.results[stage.selectedIndex];
-            if (picked && picked.kind === "toggle") {
-                e.preventDefault();
-                this.fireToggle(stage, picked, true);  // keepOpen
-                return;
+            if (picked) {
+                if (picked.kind === "toggle") {
+                    e.preventDefault();
+                    this.fireToggle(stage, picked, true);  // keepOpen
+                    return;
+                }
+                if (picked.kind === "text" || picked.kind === "number") {
+                    e.preventDefault();
+                    this.enterEditMode(picked);
+                    return;
+                }
             }
         }
         // +/- on a number row — adjust by step (Shift = mid, Ctrl = large).
@@ -1090,6 +1144,77 @@ filtered by `ca-entity-type`) land in task 6.
         this.writeBoundValue(item, String(next));
         // Value read live in _appendResultRow; just re-render.
         this.renderResults();
+    };
+
+    /* ---------- edit mode (text + direct-set numbers) ----------
+
+    Enter edit mode by hitting Space on a `text` or `number` row. The
+    palette's input element repurposes itself as a value editor:
+      - the current bound value is pushed into the input
+      - the input text gets selected for quick-replace
+      - normal filter-on-type is suspended
+      - the hint footer changes to "↵ commit · Esc cancel"
+      - the result list dims (rcp-editing class on popup)
+
+    Enter writes the value back (with clamping for numbers) and exits.
+    Esc discards and exits. Tab/arrows are inert in edit mode.
+
+    \---------------------------------------------------------- */
+
+    CascadePaletteWidget.prototype.enterEditMode = function (item) {
+        var stage = this.topStage();
+        if (!stage) return;
+        var raw = this.readBoundValue(item);
+        var initial = "";
+        if (item.kind === "number") {
+            initial = String(this.readNumberValue(item));
+        } else if (raw !== undefined && raw !== null) {
+            initial = String(raw);
+        }
+        this.editMode = {
+            item: item,
+            savedQuery: stage.query || "",
+            savedSelectedIndex: stage.selectedIndex
+        };
+        this.inputEl.value = initial;
+        this.inputEl.placeholder = "Editing: " + (item.name || item.title);
+        this.popupEl.classList.add("rcp-editing");
+        this.hintEl.textContent = HINT_EDIT;
+        // Select-all so a single keypress replaces the value, but the user
+        // can also use Home/End/arrows to position the cursor for partial
+        // edits.
+        var self = this;
+        setTimeout(function () { self.inputEl.select(); }, 0);
+    };
+
+    CascadePaletteWidget.prototype.exitEditMode = function (commit) {
+        if (!this.editMode) return;
+        var em = this.editMode;
+        var raw = this.inputEl.value;
+        this.editMode = null;
+        if (commit) {
+            if (em.item.kind === "number") {
+                var n = parseFloat(raw);
+                if (!isNaN(n)) {
+                    this.writeBoundValue(em.item, String(this.clampNumber(em.item, n)));
+                }
+                // If unparseable, silently discard — feels safer than writing
+                // garbage to a config tiddler.
+            } else {
+                this.writeBoundValue(em.item, raw);
+            }
+        }
+        var stage = this.topStage();
+        if (stage) {
+            stage.query = em.savedQuery;
+            stage.selectedIndex = em.savedSelectedIndex;
+            this.recomputeStage(stage);
+        }
+        this.inputEl.value = em.savedQuery;
+        this.inputEl.placeholder = "Type to filter…";
+        this.popupEl.classList.remove("rcp-editing");
+        this.hintEl.textContent = HINT_NORMAL;
+        this.renderStage();
     };
 
     CascadePaletteWidget.prototype.fireLeafAction = function (stage, action, keepOpen) {
