@@ -23,9 +23,16 @@ filtered by `ca-entity-type`) land in task 6.
     var OPEN_MESSAGE = "rimir-cascade-palette-open";
     var ENTRY_TAG = "$:/tags/rimir/cascade-palette/entry";
     var ACTION_TAG = "$:/tags/rimir/cascade-palette/action";
+    var SETTING_TAG = "$:/tags/rimir/cascade-palette/setting";
+    var GROUPING_CONFIG = "$:/config/rimir/cascade-palette/grouping-enabled";
     var DEFAULT_ORDER = 100;
     var DEFAULT_MAX_RESULTS = 30;
     var SOFT_DEPTH_WARNING = 10;
+    var DEFAULT_TRUE_VALUE = "yes";
+    var DEFAULT_FALSE_VALUE = "no";
+    var DEFAULT_STEP = 1;
+    var DEFAULT_STEP_MEDIUM = 5;
+    var DEFAULT_STEP_LARGE = 20;
 
     var CascadePaletteWidget = function (parseTreeNode, options) {
         this.initialise(parseTreeNode, options);
@@ -69,7 +76,7 @@ filtered by `ca-entity-type`) land in task 6.
 
         this.hintEl = this.document.createElement("div");
         this.hintEl.className = "rcp-hint";
-        this.hintEl.textContent = "↑↓ select · Tab drill · Esc back · ↵ fire · Shift-↵ fire+stay";
+        this.hintEl.textContent = "↑↓ select · Tab drill · Esc back · ↵ fire · Shift-↵ fire+stay · Space toggle · +/- adjust";
 
         popup.appendChild(this.breadcrumbEl);
         popup.appendChild(this.inputEl);
@@ -300,14 +307,20 @@ filtered by `ca-entity-type`) land in task 6.
     CascadePaletteWidget.prototype.applyQueryToStage = function (stage) {
         var filtered = this.filterByQuery(stage.items, stage.query);
         var maxResults = this.getMaxResults();
-        // Reorder into visual (grouped) sequence so keyboard nav's linear
-        // `selectedIndex` matches the rendered row order. Items keep their
-        // intra-group sort; group order = first-seen (== lowest order member
-        // because `items` arrives pre-sorted by ca-order then name).
-        stage.results = this.reorderByGroup(filtered).slice(0, maxResults);
+        // Reorder into visual (grouped) sequence when grouping is enabled,
+        // so keyboard nav's linear `selectedIndex` matches the rendered row
+        // order. With grouping off, keep the items' natural sort.
+        var ordered = this.isGroupingEnabled() ? this.reorderByGroup(filtered) : filtered;
+        stage.results = ordered.slice(0, maxResults);
         if (stage.selectedIndex >= stage.results.length) {
             stage.selectedIndex = Math.max(0, stage.results.length - 1);
         }
+    };
+
+    CascadePaletteWidget.prototype.isGroupingEnabled = function () {
+        var raw = this.wiki.getTiddlerText(GROUPING_CONFIG, DEFAULT_TRUE_VALUE);
+        var s = String(raw || "").toLowerCase().trim();
+        return s !== "no" && s !== "false" && s !== "off" && s !== "0";
     };
 
     CascadePaletteWidget.prototype.reorderByGroup = function (items) {
@@ -386,8 +399,150 @@ filtered by `ca-entity-type`) land in task 6.
             nextTitle: f["ca-next-title"] || "",
             nextEntityType: f["ca-next-entity-type"] || "",
             nextDefaultAction: f["ca-next-default-action"] || "",
+            // Scribe-style binding used by `ca-kind: toggle` (and future
+            // edit kinds). `bindPath` is a comma-separated walk into the
+            // field text when it's JSON.
+            bindTiddler: f["ca-bind-tiddler"] || "",
+            bindField: f["ca-bind-field"] || "text",
+            bindPath: f["ca-bind-path"] || "",
+            trueValue: f["ca-true-value"] || DEFAULT_TRUE_VALUE,
+            falseValue: f["ca-false-value"] || DEFAULT_FALSE_VALUE,
+            // Numeric edit-kind config. `min`/`max` are nullable so callers
+            // can opt into the slider rendering by setting both. Step
+            // magnitudes are layered by modifier: bare key = step, Shift =
+            // stepMedium, Ctrl = stepLarge.
+            minValue: this._parseNumOrNull(f["ca-min"]),
+            maxValue: this._parseNumOrNull(f["ca-max"]),
+            step: this._parseNumOrDefault(f["ca-step"], DEFAULT_STEP),
+            stepMedium: this._parseNumOrDefault(f["ca-step-medium"], DEFAULT_STEP_MEDIUM),
+            stepLarge: this._parseNumOrDefault(f["ca-step-large"], DEFAULT_STEP_LARGE),
+            defaultValue: this._parseNumOrNull(f["ca-default-value"]),
             isItem: false       // entries / actions vs dynamic items
         };
+    };
+
+    CascadePaletteWidget.prototype._parseNumOrNull = function (raw) {
+        if (raw === undefined || raw === null || raw === "") return null;
+        var n = parseFloat(raw);
+        return isNaN(n) ? null : n;
+    };
+
+    CascadePaletteWidget.prototype._parseNumOrDefault = function (raw, fallback) {
+        var n = this._parseNumOrNull(raw);
+        return n === null ? fallback : n;
+    };
+
+    /* ---------- bound-value read/write ----------
+
+    The toggle kind (and future text/number/enum-write kinds) reads and
+    writes a single value via a scribe-style binding:
+        ca-bind-tiddler   target tiddler title
+        ca-bind-field     target field (default "text")
+        ca-bind-path      optional comma-separated walk inside the JSON
+                          value of the field (e.g. "prefs,layout")
+
+    No path: the value is the field text (a string). With path: the value
+    is the JSON-decoded value at that path.
+
+    \-------------------------------------------- */
+
+    CascadePaletteWidget.prototype.readBoundValue = function (item) {
+        if (!item.bindTiddler) return undefined;
+        var t = this.wiki.getTiddler(item.bindTiddler);
+        if (!t) return undefined;
+        var fieldText = t.fields[item.bindField];
+        if (fieldText === undefined) return undefined;
+        if (!item.bindPath) return fieldText;
+        try {
+            var node = JSON.parse(fieldText);
+            var parts = item.bindPath.split(",");
+            for (var i = 0; i < parts.length; i++) {
+                if (node === null || node === undefined) return undefined;
+                node = node[parts[i]];
+            }
+            return node;
+        } catch (err) {
+            return undefined;
+        }
+    };
+
+    CascadePaletteWidget.prototype.writeBoundValue = function (item, value) {
+        if (!item.bindTiddler) return;
+        if (!item.bindPath) {
+            // Whole-field write. Stringify when the bind target is the
+            // body of a config tiddler (i.e. a string we want stored
+            // verbatim, not JSON-quoted).
+            var existing = this.wiki.getTiddler(item.bindTiddler);
+            var fields = { title: item.bindTiddler };
+            fields[item.bindField] = String(value);
+            this.wiki.addTiddler(new $tw.Tiddler(
+                (existing && existing.fields) || {},
+                fields
+            ));
+            return;
+        }
+        // Sub-path write — read JSON, mutate, serialize back.
+        var t = this.wiki.getTiddler(item.bindTiddler);
+        var fieldText = t && t.fields[item.bindField];
+        var root;
+        try {
+            root = fieldText ? JSON.parse(fieldText) : {};
+        } catch (err) {
+            root = {};
+        }
+        var parts = item.bindPath.split(",");
+        var node = root;
+        for (var i = 0; i < parts.length - 1; i++) {
+            var key = parts[i];
+            if (node[key] === undefined || node[key] === null || typeof node[key] !== "object") {
+                node[key] = {};
+            }
+            node = node[key];
+        }
+        node[parts[parts.length - 1]] = value;
+        var newFields = { title: item.bindTiddler };
+        newFields[item.bindField] = JSON.stringify(root, null, 4);
+        this.wiki.addTiddler(new $tw.Tiddler(
+            (t && t.fields) || {},
+            newFields
+        ));
+    };
+
+    // Boolean coercion: a stored value matches "true" if it equals the
+    // item's trueValue OR a common truthy literal. Defensive against
+    // legacy values like `true` vs `yes`.
+    CascadePaletteWidget.prototype.readNumberValue = function (item) {
+        var raw = this.readBoundValue(item);
+        if (raw === undefined || raw === null || raw === "") {
+            return item.defaultValue !== null ? item.defaultValue : 0;
+        }
+        var n = parseFloat(raw);
+        if (isNaN(n)) return item.defaultValue !== null ? item.defaultValue : 0;
+        return n;
+    };
+
+    CascadePaletteWidget.prototype.clampNumber = function (item, n) {
+        if (item.minValue !== null && n < item.minValue) n = item.minValue;
+        if (item.maxValue !== null && n > item.maxValue) n = item.maxValue;
+        return n;
+    };
+
+    CascadePaletteWidget.prototype.stepMagnitudeFor = function (item, e) {
+        if (e.ctrlKey) return item.stepLarge;
+        if (e.shiftKey) return item.stepMedium;
+        return item.step;
+    };
+
+    CascadePaletteWidget.prototype.isToggleOn = function (item) {
+        var v = this.readBoundValue(item);
+        if (v === undefined || v === null || v === "") {
+            // Fall back: treat unset as off by default.
+            return false;
+        }
+        if (typeof v === "boolean") return v;
+        var s = String(v).toLowerCase();
+        return s === String(item.trueValue).toLowerCase() ||
+            s === "yes" || s === "true" || s === "on" || s === "1";
     };
 
     // Resolve the cluster label for an item. Explicit `ca-group` wins.
@@ -664,13 +819,14 @@ filtered by `ca-entity-type`) land in task 6.
         // (matches breadcrumb-hide-on-root behaviour). `stage.results` is
         // already reordered into visual-group sequence by `applyQueryToStage`,
         // so a single pass with prev-group tracking is enough.
+        var groupingOn = this.isGroupingEnabled();
         var distinct = {};
         var distinctCount = 0;
         stage.results.forEach(function (item) {
             var g = item.group || "";
             if (!(g in distinct)) { distinct[g] = true; distinctCount++; }
         });
-        var showHeaders = distinctCount > 1;
+        var showHeaders = groupingOn && distinctCount > 1;
         var prevGroup = null;
 
         stage.results.forEach(function (item, i) {
@@ -696,8 +852,17 @@ filtered by `ca-entity-type`) land in task 6.
         rowEl.className =
             "rcp-row" + (i === stage.selectedIndex ? " rcp-row-selected" : "");
         if (item.kind === "drill") rowEl.classList.add("rcp-row-drill");
+        if (item.kind === "toggle") rowEl.classList.add("rcp-row-toggle");
 
-        if (item.icon) {
+        // For toggles, the checkbox glyph replaces the icon slot (so the
+        // checkbox sits in the same column as plugin icons elsewhere).
+        if (item.kind === "toggle") {
+            var on = this.isToggleOn(item);
+            var cbEl = self.document.createElement("span");
+            cbEl.className = "rcp-row-checkbox" + (on ? " rcp-row-checkbox-on" : "");
+            cbEl.textContent = on ? "☑" : "☐";
+            rowEl.appendChild(cbEl);
+        } else if (item.icon) {
             var iconEl = self.document.createElement("span");
             iconEl.className = "rcp-row-icon";
             iconEl.textContent = item.icon;
@@ -709,7 +874,39 @@ filtered by `ca-entity-type`) land in task 6.
         nameEl.textContent = item.name;
         rowEl.appendChild(nameEl);
 
-        if (item.isItem && item.rawTitle && item.rawTitle !== item.name) {
+        // Right-aligned slot: for toggles, the current bound value; for
+        // numbers, an optional slider bar + the value; for dynamic items,
+        // the raw title; otherwise the hint text.
+        if (item.kind === "toggle") {
+            var raw = this.readBoundValue(item);
+            var displayed = raw === undefined || raw === null || raw === ""
+                ? "(unset)"
+                : (this.isToggleOn(item) ? item.trueValue : item.falseValue);
+            var valueEl = self.document.createElement("span");
+            valueEl.className = "rcp-row-value";
+            valueEl.textContent = displayed;
+            rowEl.appendChild(valueEl);
+        } else if (item.kind === "number") {
+            var nVal = this.readNumberValue(item);
+            var hasRange = item.minValue !== null && item.maxValue !== null
+                && item.maxValue > item.minValue;
+            if (hasRange) {
+                var barWrap = self.document.createElement("span");
+                barWrap.className = "rcp-row-slider";
+                var fillEl = self.document.createElement("span");
+                fillEl.className = "rcp-row-slider-fill";
+                var frac = (nVal - item.minValue) / (item.maxValue - item.minValue);
+                if (frac < 0) frac = 0;
+                if (frac > 1) frac = 1;
+                fillEl.style.width = (frac * 100) + "%";
+                barWrap.appendChild(fillEl);
+                rowEl.appendChild(barWrap);
+            }
+            var numEl = self.document.createElement("span");
+            numEl.className = "rcp-row-value";
+            numEl.textContent = String(nVal);
+            rowEl.appendChild(numEl);
+        } else if (item.isItem && item.rawTitle && item.rawTitle !== item.name) {
             var titleEl = self.document.createElement("span");
             titleEl.className = "rcp-row-title";
             titleEl.textContent = item.rawTitle;
@@ -781,6 +978,34 @@ filtered by `ca-entity-type`) land in task 6.
             this.fireSelected(e.shiftKey);  // shift-enter → keep palette open
             return;
         }
+        // Space on a toggle row → flip the value WITHOUT closing the palette.
+        // On any other kind, Space falls through to the input field (where
+        // it inserts a literal space into the query).
+        if (e.key === " " || e.code === "Space") {
+            var picked = stage.results[stage.selectedIndex];
+            if (picked && picked.kind === "toggle") {
+                e.preventDefault();
+                this.fireToggle(stage, picked, true);  // keepOpen
+                return;
+            }
+        }
+        // +/- on a number row — adjust by step (Shift = mid, Ctrl = large).
+        // Match on `e.code` so it works regardless of US/DE/etc. keyboard
+        // layout: pressing the physical "=/+" or "-/_" key (or numpad
+        // ±) always triggers. The "shift to get +" on US layouts is
+        // absorbed naturally — what matters is the physical key, not the
+        // produced character.
+        var isPlusKey = e.code === "Equal" || e.code === "NumpadAdd";
+        var isMinusKey = e.code === "Minus" || e.code === "NumpadSubtract";
+        if (isPlusKey || isMinusKey) {
+            var pickedN = stage.results[stage.selectedIndex];
+            if (pickedN && pickedN.kind === "number") {
+                e.preventDefault();
+                var mag = this.stepMagnitudeFor(pickedN, e);
+                this.fireNumber(stage, pickedN, isPlusKey ? mag : -mag);
+                return;
+            }
+        }
     };
 
     /* ---------- selection handling ---------- */
@@ -803,6 +1028,12 @@ filtered by `ca-entity-type`) land in task 6.
         //    (Shift modifier has no effect — drilling doesn't close anyway.)
         if (picked.kind === "drill") {
             this.drillSelected();
+            return;
+        }
+        // 2b. Toggle — flip the bound boolean. Enter closes (unless
+        //     keepOpen), Space always keeps open (handled in handleKeydown).
+        if (picked.kind === "toggle") {
+            this.fireToggle(stage, picked, keepOpen);
             return;
         }
         // 3. Dynamic filter-stage item (an entity result OR enum value).
@@ -835,6 +1066,30 @@ filtered by `ca-entity-type`) land in task 6.
         }
         // 4. Anything else — just close (Shift modifier ignored).
         if (!keepOpen) this.close();
+    };
+
+    CascadePaletteWidget.prototype.fireToggle = function (stage, item, keepOpen) {
+        var self = this;
+        var current = this.isToggleOn(item);
+        var next = current ? item.falseValue : item.trueValue;
+        // afterAction expects a doAction callback. We close-or-stay via the
+        // same shared helper so behaviour stays uniform with leaf/item paths.
+        this.afterAction(stage, keepOpen, function () {
+            self.writeBoundValue(item, next);
+        });
+    };
+
+    // Number editing — +/- adjust by step; Shift = stepMedium; Ctrl = stepLarge.
+    // Always keeps the palette open: numbers are rarely a one-shot commit
+    // (you usually want to nudge a few times), and there's no "fire and
+    // close" semantic that would feel right.
+    CascadePaletteWidget.prototype.fireNumber = function (stage, item, delta) {
+        var current = this.readNumberValue(item);
+        var next = this.clampNumber(item, current + delta);
+        if (next === current) return;  // already at clamp
+        this.writeBoundValue(item, String(next));
+        // Value read live in _appendResultRow; just re-render.
+        this.renderResults();
     };
 
     CascadePaletteWidget.prototype.fireLeafAction = function (stage, action, keepOpen) {

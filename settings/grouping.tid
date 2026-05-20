@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/settings/grouping
+tags: $:/tags/rimir/cascade-palette/setting
+ca-name: Grouping
+ca-hint: Cluster result rows by contributing plugin with section headers
+ca-kind: toggle
+ca-order: 10
+ca-bind-tiddler: $:/config/rimir/cascade-palette/grouping-enabled
+ca-bind-field: text
+ca-true-value: yes
+ca-false-value: no

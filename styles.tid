@@ -137,6 +137,85 @@ type: text/css
     text-align: center;
 }
 
+.rcp-row-checkbox {
+    flex: 0 0 auto;
+    width: 1.4em;
+    text-align: center;
+    font-size: 16px;
+    color: #6b7280;
+}
+
+.rcp-row-checkbox-on {
+    color: #2563eb;
+}
+
+.rcp-row-selected .rcp-row-checkbox,
+.rcp-row-selected .rcp-row-checkbox-on {
+    color: #ffffff;
+}
+
+.rcp-row-value {
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+    color: #6b7280;
+    font-size: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.rcp-row-slider {
+    flex: 0 0 120px;
+    height: 4px;
+    background: #e5e7eb;
+    border-radius: 2px;
+    overflow: hidden;
+    align-self: center;
+    margin-right: 4px;
+}
+
+.rcp-row-slider-fill {
+    display: block;
+    height: 100%;
+    background: #2563eb;
+    border-radius: 2px;
+    transition: width 0.1s ease-out;
+}
+
+.rcp-row-selected .rcp-row-slider {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.rcp-row-selected .rcp-row-slider-fill {
+    background: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+    .rcp-row-slider {
+        background: #374151;
+    }
+    .rcp-row-slider-fill {
+        background: #60a5fa;
+    }
+}
+
+.rcp-row-selected .rcp-row-value {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+@media (prefers-color-scheme: dark) {
+    .rcp-row-checkbox {
+        color: #9ca3af;
+    }
+    .rcp-row-checkbox-on {
+        color: #60a5fa;
+    }
+    .rcp-row-value {
+        color: #9ca3af;
+    }
+}
+
 .rcp-row-chevron {
     flex: 0 0 auto;
     color: #9ca3af;

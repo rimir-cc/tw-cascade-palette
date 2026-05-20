@@ -131,7 +131,47 @@ ca-next-default-action: <$action-setfield $tiddler=<<parent-picked>> priority=<<
 
 Note: ''no'' `ca-next-entity-type` — the four enum strings aren't entity tiddlers, so we don't want the engine to try to open an action menu when the user picks one. The `ca-next-default-action` fires on Enter.
 
-! Worked example 6 — A global action (applies to any entity type)
+! Worked example 6 — A toggle setting
+
+Settings appear under the engine's root "Settings" entry. Any tiddler tagged ''`$:/tags/rimir/cascade-palette/setting`'' with `ca-kind: toggle` becomes a toggle row. The row shows a checkbox glyph and the current value; ''Space'' flips it inline (palette stays open), ''Enter'' flips it and closes, ''Shift-Enter'' flips it and stays open.
+
+```
+title: $:/plugins/example/settings/auto-refresh
+tags: $:/tags/rimir/cascade-palette/setting
+ca-name: Auto-refresh stages
+ca-kind: toggle
+ca-order: 20
+ca-bind-tiddler: $:/config/example/auto-refresh
+ca-bind-field: text
+ca-true-value: yes
+ca-false-value: no
+```
+
+The binding is scribe-style — pair `ca-bind-tiddler` + `ca-bind-field`. Add `ca-bind-path: prefs,enabled` to bind to a JSON sub-path of the field text instead of the whole field. Defaults: `ca-bind-field: text`, `ca-true-value: yes`, `ca-false-value: no`.
+
+! Worked example 7 — A number setting
+
+`ca-kind: number` shows a numeric value (and, when ''both'' `ca-min` and `ca-max` are set, an inline horizontal slider bar). ''+'' and ''-'' adjust by `ca-step`. ''Shift'' multiplies via `ca-step-medium`, ''Ctrl'' via `ca-step-large`. Value is clamped to [`ca-min`, `ca-max`] on write. Enter closes the palette; Shift-Enter keeps it open (numbers never "fire" — they're just edited).
+
+```
+title: $:/plugins/example/settings/page-size
+tags: $:/tags/rimir/cascade-palette/setting
+ca-name: Page size
+ca-kind: number
+ca-order: 30
+ca-bind-tiddler: $:/config/example/page-size
+ca-bind-field: text
+ca-min: 5
+ca-max: 100
+ca-step: 1
+ca-step-medium: 5
+ca-step-large: 20
+ca-default-value: 30
+```
+
+''Layout caveat:'' the engine matches the physical keys (`Equal`/`NumpadAdd` for `+`, `Minus`/`NumpadSubtract` for `-`) rather than the produced character, so the same combos work on US, DE, and other layouts. On US layouts where Shift is already required to get `+`, that's already the bare-step gesture; Shift+Shift isn't possible and there's no extra "medium" gesture using `Shift+Plus`. Use the numeric or alternate physical key, or use the `=` key (also matches "+") for finer control.
+
+! Worked example 8 — A global action (applies to any entity type)
 
 ```
 title: $:/plugins/example/actions/global/edit

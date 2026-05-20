@@ -18,6 +18,10 @@ type: text/vnd.tiddlywiki
 |''Shift-Tab'' |Same as Esc — pop one stage, close at root |
 |''Click'' on a result row |Same as selecting + Enter |
 |''Click'' on a breadcrumb segment |Pop back to that stage |
+|''Space'' on a toggle row |Flip the bound value without closing the palette |
+|''+ / -'' on a number row |Increment/decrement the bound number by `ca-step` (default 1) |
+|''Shift-+ / Shift--'' on a number row |Adjust by `ca-step-medium` (default 5) |
+|''Ctrl-+ / Ctrl--'' on a number row |Adjust by `ca-step-large` (default 20). Matched on physical key (Equal/NumpadAdd/Minus/NumpadSubtract) so layout is irrelevant. |
 
 The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 
@@ -26,6 +30,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |!Tag |!Purpose |
 |`$:/tags/rimir/cascade-palette/entry` |Root-stage menu item |
 |`$:/tags/rimir/cascade-palette/action` |Per-entity-type action menu item |
+|`$:/tags/rimir/cascade-palette/setting` |Setting toggle exposed under the engine's "Settings" entry |
 
 ! Fields
 
@@ -34,7 +39,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-hint` |string |entry, action |Subtitle / right-aligned hint |
 |`ca-icon` |string |entry, action |Single character or emoji prefix |
 |`ca-order` |number |entry, action |Sort key (lower = higher in list, default 100) |
-|`ca-kind` |`leaf`\|`drill` |entry, action |Leaf fires actions, drill pushes next stage |
+|`ca-kind` |`leaf`\|`drill`\|`toggle`\|`number` |entry, action, setting |Leaf fires actions, drill pushes next stage, toggle flips a bound boolean, number adjusts a bound numeric value via `+/-` |
 |`ca-actions` |wikitext |leaf items |Fired on Enter |
 |`ca-entity-type` |string\|`*` |action |Entity type this action applies to, or `*` for global |
 |`ca-default` |`yes`\|empty |action |Marks the "Enter on entity result" default action |
@@ -44,12 +49,24 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-next-default-action` |wikitext |drill items |Fired on Enter in the next stage when no entity default exists |
 |`ca-group` |string |entry, action |Override the visual cluster label. Defaults to the contributing plugin's `name`. Headers are suppressed when only one cluster is present in a stage. |
 |`ca-visibility-filter` |filter |entry |If present and returns no results, the entry is hidden from the root menu |
+|`ca-bind-tiddler` |string |toggle |Target tiddler holding the bound value |
+|`ca-bind-field` |string |toggle |Target field (default `text`) |
+|`ca-bind-path` |string |toggle |Optional comma-separated walk inside the JSON-decoded field text (e.g. `prefs,layout`). Omit to bind the whole field. |
+|`ca-true-value` |string |toggle |Value written for "on" state (default `yes`) |
+|`ca-false-value` |string |toggle |Value written for "off" state (default `no`) |
+|`ca-min` |number |number |Lower clamp. Together with `ca-max` triggers the inline slider render. |
+|`ca-max` |number |number |Upper clamp. |
+|`ca-step` |number |number |Step for bare `+/-` (default 1) |
+|`ca-step-medium` |number |number |Step for Shift-`+/-` (default 5) |
+|`ca-step-large` |number |number |Step for Ctrl-`+/-` (default 20) |
+|`ca-default-value` |number |number |Value used when the bound field is empty / unparseable |
 
 ! Settings
 
 |!Tiddler |!Default |!Effect |
 |`$:/config/shortcuts/rimir-cascade-palette-open` |`ctrl+space` |Hotkey to open the palette |
 |`$:/config/rimir/cascade-palette/max-results` |`30` |Cap on items shown per stage |
+|`$:/config/rimir/cascade-palette/grouping-enabled` |`yes` |Cluster result rows by contributing plugin with section headers. Toggle live via Settings → Grouping. |
 
 ! JavaScript message
 

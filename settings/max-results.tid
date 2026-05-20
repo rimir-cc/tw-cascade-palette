@@ -1,0 +1,14 @@
+title: $:/plugins/rimir/cascade-palette/settings/max-results
+tags: $:/tags/rimir/cascade-palette/setting
+ca-name: Max results per stage
+ca-hint: Cap on items shown per stage (+/- adjust, Shift = step 5, Ctrl = step 20)
+ca-kind: number
+ca-order: 20
+ca-bind-tiddler: $:/config/rimir/cascade-palette/max-results
+ca-bind-field: text
+ca-min: 5
+ca-max: 100
+ca-step: 1
+ca-step-medium: 5
+ca-step-large: 20
+ca-default-value: 30
