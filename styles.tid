@@ -217,10 +217,23 @@ type: text/css
     max-width: 50%;
 }
 
+.rcp-row-value-date {
+    /* Date values are typically 8–16 chars; monospace keeps columns aligned
+       across rows when several date fields are listed together. */
+    font-variant-numeric: tabular-nums;
+}
+
 /* Edit-mode visual: dim the result list so attention is on the input. */
 .rcp-popup.rcp-editing .rcp-results {
     opacity: 0.35;
     pointer-events: none;
+}
+
+/* Parse-error state when committing a date / smart-parsed value fails —
+   the input picks up a red bottom edge to signal "fix this and retry". */
+.rcp-input.rcp-edit-error {
+    box-shadow: inset 0 -2px 0 0 #dc2626;
+    border-bottom-color: #dc2626;
 }
 
 .rcp-popup.rcp-editing .rcp-input {

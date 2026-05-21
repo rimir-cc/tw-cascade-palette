@@ -55,6 +55,12 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     var DEFAULT_STEP = 1;
     var DEFAULT_STEP_MEDIUM = 5;
     var DEFAULT_STEP_LARGE = 20;
+    var DEFAULT_BIND_TYPE = "text/plain";
+
+    // ---- Bind-type names with special handling ----
+    // String-array binds get list-membership semantics on toggle (the toggle's
+    // trueValue is treated as a list element, not a scalar replacement).
+    var STRING_ARRAY_TYPE = "application/x-string-array";
 
     // ---- Footer hint text per palette mode ----
     // Section-specific hints surface the relevant gestures inline. Common
@@ -446,12 +452,25 @@ See doc/protocol.tid for the full authoring guide and worked examples.
 
     CascadePaletteWidget.prototype.buildFilterStage = function (entry, parentPicked) {
         var entityType = entry.nextEntityType || null;
+        // ca-items-from takes precedence over ca-next-scope. Warn once
+        // when both are present to flag authoring mistakes — the engine
+        // picks items-from but the author probably means one or the other.
+        if (entry.itemsFrom && entry.nextScope && console && console.warn) {
+            console.warn(
+                "[cascade-palette] both ca-items-from and ca-next-scope on",
+                entry.title, "— ca-items-from wins"
+            );
+        }
         var stage = {
             kind: "filter",
             title: entry.nextTitle || entry.name || "Stage",
             query: "",
             selectedIndex: 0,
-            filter: entry.nextScope,
+            // Either-or — `itemsFromFilter` produces synthetic items, plain
+            // `filter` produces items from tiddler titles. evaluateFilterStage
+            // dispatches.
+            filter: entry.itemsFrom ? "" : entry.nextScope,
+            itemsFromFilter: entry.itemsFrom || "",
             // `nextDefaultAction` on a drill entry fires when the user hits
             // Enter on an item in this stage AND no entity-type default action
             // is discoverable (typical for enum-picker stages: items are bare
@@ -489,6 +508,10 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     //   title: breadcrumb title (e.g. "Restore default for Grouping")
     //   consequence: human text shown in the details drawer pre-confirm
     //   actions: wikitext fired when the user picks Confirm
+    //   vars (optional): variable map to inject when the Confirm leaf fires
+    //                    its actions. Lets ca-confirm leaves preserve their
+    //                    parent-picked / picked context across the confirm
+    //                    stage (which otherwise has no parent context).
     // The stage pops on either choice (handled in fireSelected). Selection
     // defaults to Cancel so accidental Enter does nothing.
     CascadePaletteWidget.prototype.buildConfirmStage = function (spec) {
@@ -521,6 +544,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             selectedIndex: 1,  // default to Cancel — safer for accidental Enter
             items: [confirmItem, cancelItem],
             results: [confirmItem, cancelItem],
+            actionVars: spec.vars || null,
             parentPicked: null,
             entityType: null,
             consequenceText: spec.consequence || ""
@@ -665,6 +689,22 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     CascadePaletteWidget.prototype.readCascadeFields = function (title) {
         var t = this.wiki.getTiddler(title);
         var f = (t && t.fields) || {};
+        return this._buildCascadeItem(f, title);
+    };
+
+    // Build a cascade item from an object of ca-* properties. Used by both
+    // readCascadeFields (where the object is a tiddler's field map) and
+    // ca-items-from synthesis (where the object is parsed-JSON from a
+    // user filter). Synthetic items have empty title — downstream code
+    // that touches title must early-return on empty.
+    CascadePaletteWidget.prototype.readCascadeFromObject = function (obj) {
+        var title = obj["title"] || "";  // synthetic items carry no backing tiddler
+        var item = this._buildCascadeItem(obj, title);
+        item.isSynthetic = !title;
+        return item;
+    };
+
+    CascadePaletteWidget.prototype._buildCascadeItem = function (f, title) {
         var orderRaw = f["ca-order"];
         var order = orderRaw !== undefined && orderRaw !== ""
             ? parseFloat(orderRaw)
@@ -672,14 +712,19 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (isNaN(order)) order = DEFAULT_ORDER;
         return {
             title: title,
-            name: f["ca-name"] || title,
+            name: f["ca-name"] || title || "",
             hint: f["ca-hint"] || "",
             icon: f["ca-icon"] || "",
             kind: f["ca-kind"] || "leaf",
             order: order,
-            group: this.resolveGroup(title, f),
+            group: title ? this.resolveGroup(title, f) : (f["ca-group"] || ""),
             actions: f["ca-actions"] || "",
             nextScope: f["ca-next-scope"] || "",
+            // `ca-items-from`: drill items can synthesise their child stage
+            // from a filter that returns JSON-encoded item shapes (one per
+            // result). Mutually exclusive with `ca-next-scope`; if both
+            // present, ca-items-from wins.
+            itemsFrom: f["ca-items-from"] || "",
             nextTitle: f["ca-next-title"] || "",
             nextEntityType: f["ca-next-entity-type"] || "",
             nextDefaultAction: f["ca-next-default-action"] || "",
@@ -690,10 +735,16 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             nextAsLink: (f["ca-next-as-link"] || "").toLowerCase() === "yes",
             // Scribe-style binding used by `ca-kind: toggle` (and future
             // edit kinds). `bindPath` is a comma-separated walk into the
-            // field text when it's JSON.
+            // field text when it's JSON. `bindType` selects a scribetype
+            // handler (default text/plain — pass-through). Setting a richer
+            // type like application/x-string-array enables list-membership
+            // semantics on toggle and provides array round-tripping for
+            // text/number/date kinds.
             bindTiddler: f["ca-bind-tiddler"] || "",
             bindField: f["ca-bind-field"] || "text",
             bindPath: f["ca-bind-path"] || "",
+            bindType: f["ca-bind-type"] ||
+                ((f["ca-kind"] === "date") ? "application/x-tw-date" : DEFAULT_BIND_TYPE),
             trueValue: f["ca-true-value"] || DEFAULT_TRUE_VALUE,
             falseValue: f["ca-false-value"] || DEFAULT_FALSE_VALUE,
             // Numeric edit-kind config. `min`/`max` are nullable so callers
@@ -710,7 +761,24 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             // setting). Storage stays bare numeric; consumers concatenate
             // when applying.
             unit: f["ca-unit"] || "",
-            isItem: false       // entries / actions vs dynamic items
+            // Date display format — TW format-date template string. Used by
+            // `ca-kind: date` row rendering. Default `DD.MM.YYYY` (German);
+            // override with e.g. `YYYY-0MM-0DD` or `DDth MMM YYYY`.
+            dateFormat: f["ca-date-format"] || "DD.MM.YYYY",
+            // Confirm-on-fire (P3): when `ca-confirm: yes` is set on a leaf,
+            // fireSelected wraps its actions in a confirm-stage instead of
+            // firing them directly. consequence-text supports the standard
+            // stage substitution variables.
+            confirm: (f["ca-confirm"] || "").toLowerCase() === "yes",
+            confirmConsequence: f["ca-confirm-consequence"] || "",
+            // Post-fire behaviour for leaves. Default = close palette. "pop"
+            // = fire action, pop one stage, keep palette open — useful for
+            // sub-drills that act as pickers (e.g. ref / enum single-select
+            // inside a multi-field edit flow): user picks a value, lands
+            // back on the parent stage to continue editing other fields.
+            afterFire: (f["ca-after-fire"] || "").toLowerCase(),
+            isItem: false,           // entries / actions vs dynamic items
+            isSynthetic: false       // overridden by readCascadeFromObject
         };
     };
 
@@ -727,19 +795,42 @@ See doc/protocol.tid for the full authoring guide and worked examples.
 
     /* ---------- bound-value read/write ----------
 
-    The toggle kind (and future text/number/enum-write kinds) reads and
-    writes a single value via a scribe-style binding:
+    The toggle / number / text / date kinds read and write a single value
+    via a scribe-style binding:
         ca-bind-tiddler   target tiddler title
         ca-bind-field     target field (default "text")
         ca-bind-path      optional comma-separated walk inside the JSON
                           value of the field (e.g. "prefs,layout")
+        ca-bind-type      scribetype handler name (default "text/plain")
 
-    No path: the value is the field text (a string). With path: the value
-    is the JSON-decoded value at that path.
+    Value flow on READ:
+        field text (or sub-path value) → handler.fromField() → display value
+    Value flow on WRITE:
+        UI value → handler.toField() → field text (or sub-path value)
+
+    The handler is resolved lazily via $tw.modules. Unknown bind-types
+    fall back to text/plain (string pass-through) so missing scribe plugin
+    or typos don't break edit kinds.
 
     \-------------------------------------------- */
 
-    CascadePaletteWidget.prototype.readBoundValue = function (item) {
+    // Lazily-cached scribetype handler map. Built on first access; if scribe
+    // is loaded later (unlikely but defensive), this re-fetches.
+    CascadePaletteWidget.prototype._scribeHandlers = function () {
+        if (!this._scribeHandlersCache) {
+            this._scribeHandlersCache = $tw.modules.getModulesByTypeAsHashmap("scribetype") || {};
+        }
+        return this._scribeHandlersCache;
+    };
+
+    CascadePaletteWidget.prototype._handlerFor = function (bindType) {
+        var handlers = this._scribeHandlers();
+        return handlers[bindType] || handlers[DEFAULT_BIND_TYPE] || null;
+    };
+
+    // Read the raw value at the item's bind target — field text in whole-
+    // field mode, or the JSON-decoded sub-path value. No type conversion.
+    CascadePaletteWidget.prototype._readBoundRaw = function (item) {
         if (!item.bindTiddler) return undefined;
         var t = this.wiki.getTiddler(item.bindTiddler);
         if (!t) return undefined;
@@ -759,22 +850,68 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         }
     };
 
+    CascadePaletteWidget.prototype.readBoundValue = function (item) {
+        var raw = this._readBoundRaw(item);
+        if (raw === undefined) return undefined;
+        var handler = this._handlerFor(item.bindType);
+        if (handler && typeof handler.fromField === "function") {
+            try {
+                return handler.fromField(raw);
+            } catch (err) {
+                if (console && console.warn) {
+                    console.warn(
+                        "[cascade-palette] bind-type", item.bindType,
+                        "fromField error on", item.bindTiddler, "—",
+                        err && err.message
+                    );
+                }
+                return undefined;
+            }
+        }
+        return raw;
+    };
+
     CascadePaletteWidget.prototype.writeBoundValue = function (item, value) {
         if (!item.bindTiddler) return;
+        var handler = this._handlerFor(item.bindType);
+        var converted = value;
+        if (handler && typeof handler.toField === "function") {
+            try {
+                converted = handler.toField(value);
+            } catch (err) {
+                // Bad input from the user — surface and abort the write so
+                // the previous value stays intact.
+                if (console && console.warn) {
+                    console.warn(
+                        "[cascade-palette] bind-type", item.bindType,
+                        "toField rejected input", JSON.stringify(value),
+                        "—", err && err.message
+                    );
+                }
+                throw err;
+            }
+        }
         if (!item.bindPath) {
-            // Whole-field write. Stringify when the bind target is the
-            // body of a config tiddler (i.e. a string we want stored
-            // verbatim, not JSON-quoted).
+            // Whole-field write. Strings go in verbatim; non-strings are
+            // JSON-serialised (matches scribe.js writeFromState behaviour).
             var existing = this.wiki.getTiddler(item.bindTiddler);
             var fields = { title: item.bindTiddler };
-            fields[item.bindField] = String(value);
+            if (converted === undefined || converted === null) {
+                fields[item.bindField] = "";
+            } else if (typeof converted === "string") {
+                fields[item.bindField] = converted;
+            } else {
+                fields[item.bindField] = JSON.stringify(converted);
+            }
             this.wiki.addTiddler(new $tw.Tiddler(
                 (existing && existing.fields) || {},
                 fields
             ));
             return;
         }
-        // Sub-path write — read JSON, mutate, serialize back.
+        // Sub-path write — read JSON, mutate, serialize back. Walks ahead
+        // create intermediate objects so deep paths into a missing tree
+        // still resolve.
         var t = this.wiki.getTiddler(item.bindTiddler);
         var fieldText = t && t.fields[item.bindField];
         var root;
@@ -792,7 +929,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             }
             node = node[key];
         }
-        node[parts[parts.length - 1]] = value;
+        node[parts[parts.length - 1]] = converted;
         var newFields = { title: item.bindTiddler };
         newFields[item.bindField] = JSON.stringify(root, null, 4);
         this.wiki.addTiddler(new $tw.Tiddler(
@@ -855,6 +992,15 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             // Fall back: treat unset as off by default.
             return false;
         }
+        // List-membership semantics: when bound to a string-array field,
+        // the toggle's trueValue is one element of a multi-value set.
+        // "on" = trueValue is currently in the list. Bare bind types use
+        // scalar comparison.
+        if (item.bindType === STRING_ARRAY_TYPE) {
+            var list = String(v).split(/\s+/).filter(function (s) { return s; });
+            var needle = String(item.trueValue);
+            return list.indexOf(needle) !== -1;
+        }
         if (typeof v === "boolean") return v;
         var s = String(v).toLowerCase();
         return s === String(item.trueValue).toLowerCase() ||
@@ -880,6 +1026,13 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     };
 
     CascadePaletteWidget.prototype.evaluateFilterStage = function (stage) {
+        // ca-items-from path: filter returns one JSON-string per synthetic
+        // item. Each parsed object is treated as a fully-formed cascade-item
+        // spec (the same shape readCascadeFields normally extracts from a
+        // tiddler's fields).
+        if (stage.itemsFromFilter) {
+            return this._evaluateItemsFromStage(stage);
+        }
         if (!stage.filter) return [];
         var variables = this.buildStageVariables(stage, null);
         var titles;
@@ -926,6 +1079,49 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         });
     };
 
+    // ca-items-from: evaluate the filter, parse each result as JSON, build
+    // a cascade item per parsed object. Parse errors are logged once per
+    // result and the item is skipped — partial results survive bad JSON.
+    CascadePaletteWidget.prototype._evaluateItemsFromStage = function (stage) {
+        var variables = this.buildStageVariables(stage, null);
+        var jsonStrings;
+        try {
+            jsonStrings = this.wiki.filterTiddlers(
+                stage.itemsFromFilter,
+                this.makeFakeWidget(variables)
+            );
+        } catch (err) {
+            if (console && console.error) {
+                console.error(
+                    "[cascade-palette] ca-items-from filter error in stage",
+                    stage.title, "—", err && err.message
+                );
+            }
+            return [];
+        }
+        var self = this;
+        var items = [];
+        jsonStrings.forEach(function (str) {
+            if (!str || !str.trim()) return;
+            var obj;
+            try {
+                obj = JSON.parse(str);
+            } catch (parseErr) {
+                if (console && console.warn) {
+                    console.warn(
+                        "[cascade-palette] ca-items-from JSON parse error in stage",
+                        stage.title, "—", parseErr && parseErr.message,
+                        "input:", str.length > 80 ? str.slice(0, 80) + "..." : str
+                    );
+                }
+                return;
+            }
+            if (!obj || typeof obj !== "object") return;
+            items.push(self.readCascadeFromObject(obj));
+        });
+        return items;
+    };
+
     // Build the full variable map exposed to filter and action contexts.
     // - `query` — current stage's input text
     // - `picked` — the just-picked item (null for filter eval, set for actions)
@@ -949,22 +1145,15 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     };
 
     CascadePaletteWidget.prototype.makeFakeWidget = function (variables) {
-        // Minimal widget shim accepted by wiki.filterTiddlers for variable
-        // resolution. We layer our injected variables on top of this widget's
-        // own variable scope so callers can still see anything we inherit.
-        var self = this;
-        return {
-            wiki: this.wiki,
-            getVariable: function (name, options) {
-                if (Object.prototype.hasOwnProperty.call(variables, name)) {
-                    return variables[name];
-                }
-                if (self.getVariable) {
-                    return self.getVariable(name, options);
-                }
-                return "";
-            }
-        };
+        // Delegate to TW core's Widget.prototype.makeFakeWidgetWithVariables:
+        // it layers `variables` on top of this widget's parent chain (so
+        // both injected literals AND $:/tags/Macro-tagged \function defs
+        // imported by the startup `\import` pragma resolve correctly), and
+        // — crucially — propagates `makeFakeWidgetWithVariables` onto the
+        // returned fake widget. Filter prefixes `:filter`, `:map`, `:reduce`,
+        // `:sortsub` all call back into this method to spawn per-iteration
+        // child widgets. A plain object stub would throw "is not a function".
+        return this.makeFakeWidgetWithVariables(variables);
     };
 
     /* ---------- navigator routing ----------
@@ -1251,6 +1440,14 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             case "toggle": this._renderToggleValue(rowEl, item); return;
             case "text":   this._renderTextValue(rowEl, item); return;
             case "number": this._renderNumberValue(rowEl, item); return;
+            case "date":   this._renderDateValue(rowEl, item); return;
+        }
+        // Drill carrying a binding (e.g. ref/enum picker sub-drill in a
+        // field-edit flow): surface the currently-bound value on the right
+        // so the user can see their pick without having to drill in again.
+        if (item.kind === "drill" && item.bindTiddler && item.bindField) {
+            this._renderBoundDrillValue(rowEl, item);
+            return;
         }
         // Non-edit kinds.
         if (item.isItem && item.rawTitle && item.rawTitle !== item.name) {
@@ -1280,6 +1477,36 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         rowEl.appendChild(valueEl);
     };
 
+    // Resolve a tiddler reference to a human caption — prefer the target
+    // tiddler's `caption` field; fall back to the raw title.
+    CascadePaletteWidget.prototype._displayRef = function (val) {
+        if (!val) return "";
+        var t = this.wiki.getTiddler(String(val));
+        var caption = t && t.fields && t.fields.caption;
+        return caption ? String(caption) : String(val);
+    };
+
+    CascadePaletteWidget.prototype._renderBoundDrillValue = function (rowEl, item) {
+        var raw = this.readBoundValue(item);
+        var text;
+        if (raw === undefined || raw === null || raw === "") {
+            text = "(unset)";
+        } else if (Array.isArray(raw)) {
+            // string-array multi-select: comma-join captions for compactness.
+            var self = this;
+            text = raw.length
+                ? raw.map(function (v) { return self._displayRef(v); }).join(", ")
+                : "(unset)";
+        } else {
+            text = this._displayRef(String(raw)) || "(unset)";
+        }
+        var valueEl = this.document.createElement("span");
+        valueEl.className = "rcp-row-value rcp-row-value-text";
+        valueEl.textContent = text;
+        valueEl.title = text;
+        rowEl.appendChild(valueEl);
+    };
+
     CascadePaletteWidget.prototype._renderTextValue = function (rowEl, item) {
         var raw = this.readBoundValue(item);
         var text = raw === undefined || raw === null ? "(unset)" : String(raw);
@@ -1287,6 +1514,32 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         valueEl.className = "rcp-row-value rcp-row-value-text";
         valueEl.textContent = text;
         valueEl.title = text;  // full value on hover when truncated
+        rowEl.appendChild(valueEl);
+    };
+
+    CascadePaletteWidget.prototype._renderDateValue = function (rowEl, item) {
+        var raw = this._readBoundRaw(item);
+        var valueEl = this.document.createElement("span");
+        valueEl.className = "rcp-row-value rcp-row-value-date";
+        if (raw === undefined || raw === null || raw === "") {
+            valueEl.textContent = "(unset)";
+            rowEl.appendChild(valueEl);
+            return;
+        }
+        // Format the stored TW date string via the item's ca-date-format.
+        // Falls back to whatever fromField produces if formatting fails.
+        var formatted = "";
+        try {
+            var d = $tw.utils.parseDate(String(raw));
+            if (d && !isNaN(d.getTime())) {
+                formatted = $tw.utils.formatDateString(d, item.dateFormat || "DD.MM.YYYY");
+            }
+        } catch (err) { /* fall through */ }
+        if (!formatted) {
+            formatted = this.readBoundValue(item) || String(raw);
+        }
+        valueEl.textContent = formatted;
+        valueEl.title = formatted;
         rowEl.appendChild(valueEl);
     };
 
@@ -1419,6 +1672,10 @@ See doc/protocol.tid for the full authoring guide and worked examples.
 
     CascadePaletteWidget.prototype._resolveHelpText = function (item) {
         if (!item) return "";
+        // Synthetic items (ca-items-from) have no backing tiddler; the
+        // help text lives on the item itself rather than as ca-help on
+        // a real tiddler.
+        if (!item.title) return item.hint || "";
         var t = this.wiki.getTiddler(item.title);
         var f = (t && t.fields) || {};
         // ca-help (multiline, long-form) wins over ca-hint (subtitle/tooltip).
@@ -1703,7 +1960,8 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                     this.fireToggle(stage, picked, true);  // keepOpen
                     return;
                 }
-                if (picked.kind === "text" || picked.kind === "number") {
+                if (picked.kind === "text" || picked.kind === "number" ||
+                    picked.kind === "date") {
                     e.preventDefault();
                     this.enterEditMode(picked);
                     return;
@@ -1723,6 +1981,16 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 e.preventDefault();
                 var mag = this.stepMagnitudeFor(pickedN, e);
                 this.fireNumber(stage, pickedN, isPlusKey ? mag : -mag);
+                return;
+            }
+            if (pickedN && pickedN.kind === "date") {
+                e.preventDefault();
+                // Modifier layering matches number kind:
+                //   bare = day, Shift = month, Ctrl = year.
+                // (Ctrl-shift is treated as Ctrl — year wins; ergonomics.)
+                var unit = e.ctrlKey ? "year" : (e.shiftKey ? "month" : "day");
+                var sign = isPlusKey ? 1 : -1;
+                this.fireDate(stage, pickedN, unit, sign);
                 return;
             }
         }
@@ -1837,10 +2105,12 @@ See doc/protocol.tid for the full authoring guide and worked examples.
 
         // Confirm stages: leaf fires its actions (Cancel = no-op) and then
         // pops the stage. Never close-on-fire, regardless of keepOpen — the
-        // user expects to return to the previous stage.
+        // user expects to return to the previous stage. Action vars captured
+        // when the stage was built (e.g. parent-picked from a ca-confirm
+        // trigger) are passed through so referenced entities resolve.
         if (stage.kind === "confirm" && picked.kind === "leaf") {
             if (picked.actions) {
-                this.invokeViaNavigator(picked.actions, {});
+                this.invokeViaNavigator(picked.actions, stage.actionVars || {});
             }
             this.popStage();
             return;
@@ -1848,6 +2118,24 @@ See doc/protocol.tid for the full authoring guide and worked examples.
 
         // 1. Leaf entry/action item — fire ca-actions.
         if (picked.kind === "leaf" && picked.actions) {
+            // ca-confirm: wrap the leaf's actions in a confirm-drill rather
+            // than firing immediately. The confirm stage's Confirm leaf
+            // carries the original actions; Cancel is a no-op. Substitution
+            // variables (picked, parent-picked, …) are resolved inside the
+            // consequence text via the wiki filter substitution, NOT here —
+            // the consequence is a plain string passed to buildConfirmStage.
+            if (picked.confirm) {
+                var vars = this.buildStageVariables(stage, picked.title);
+                this.pushStage(this.buildConfirmStage({
+                    title: picked.name || "Confirm",
+                    consequence: this._substituteVars(
+                        picked.confirmConsequence, vars
+                    ),
+                    actions: picked.actions,
+                    vars: vars
+                }));
+                return;
+            }
             this.fireLeafAction(stage, picked, keepOpen);
             return;
         }
@@ -1866,6 +2154,15 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // 3. Dynamic filter-stage item (an entity result OR enum value).
         if (picked.isItem) {
             var vars = this.buildStageVariables(stage, picked.title);
+            // Action wikitext (entity-default or stage-default) is authored
+            // assuming `<<parent-picked>>` is the entity reference — that's
+            // the convention when the user has drilled into the action menu
+            // (parentPicked is set to the entity). For direct-Enter firing
+            // (the user never opened the action menu), parentPicked is the
+            // outer-stage pick (or null), so the same action wikitext would
+            // navigate to "". Bind parent-picked to the picked instance so
+            // both paths invoke the action against the same target.
+            vars["parent-picked"] = picked.title;
             // 3a. Stage has a default action declared by the parent drill.
             if (stage.stageDefaultAction) {
                 this.afterAction(stage, keepOpen, function () {
@@ -1895,10 +2192,39 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (!keepOpen) this.close();
     };
 
+    // Replace `<<name>>` tokens in a string with values from a variable map.
+    // Used for ca-confirm-consequence text and similar one-shot substitutions
+    // where running a full TW wikitext parse would be overkill. Only `<<x>>`
+    // is recognised — `$(x)$` and other TW idioms are left alone.
+    CascadePaletteWidget.prototype._substituteVars = function (text, vars) {
+        if (!text) return "";
+        return String(text).replace(/<<([^>]+)>>/g, function (full, name) {
+            var v = vars && vars[name];
+            return v === undefined || v === null ? "" : String(v);
+        });
+    };
+
     CascadePaletteWidget.prototype.fireToggle = function (stage, item, keepOpen) {
         var self = this;
         var current = this.isToggleOn(item);
-        var next = current ? item.falseValue : item.trueValue;
+        // String-array bindings: toggle list-membership of trueValue
+        // rather than swapping in trueValue/falseValue scalar literals.
+        // The scribetype's toField turns the rebuilt space-separated
+        // string back into a JSON array on write.
+        var next;
+        if (item.bindType === STRING_ARRAY_TYPE) {
+            var raw = this.readBoundValue(item) || "";
+            var list = String(raw).split(/\s+/).filter(function (s) { return s; });
+            var needle = String(item.trueValue);
+            if (current) {
+                list = list.filter(function (s) { return s !== needle; });
+            } else if (list.indexOf(needle) === -1) {
+                list.push(needle);
+            }
+            next = list.join(" ");
+        } else {
+            next = current ? item.falseValue : item.trueValue;
+        }
         // afterAction expects a doAction callback. We close-or-stay via the
         // same shared helper so behaviour stays uniform with leaf/item paths.
         this.afterAction(stage, keepOpen, function () {
@@ -1917,6 +2243,125 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.writeBoundValue(item, String(next));
         // Value read live in _appendResultRow; just re-render.
         this.renderResults();
+    };
+
+    /* ---------- date editing ----------
+
+    The `date` kind uses the same modifier scaffolding as `number`:
+        bare +/-  = ±day      × ca-step-day (default 1)
+        Shift +/- = ±month    × ca-step-month (default 1)
+        Ctrl +/-  = ±year     × ca-step-year (default 1)
+    Space enters text edit-mode with the current value pre-filled in the
+    scribetype's display format. Smart parser accepts ISO / German /
+    today / tomorrow / yesterday / ±N[d|w|m|y] — handled in scribetype.
+
+    Storage round-trips via the configured scribetype (default
+    application/x-tw-date for `ca-kind: date`). If no bind-type is set,
+    we fall back to that default so authors don't have to repeat it on
+    every date item.
+
+    \-------------------------------------------- */
+
+    // Lazily-cached date-helpers module (shared with the scribetypes).
+    // Returns null when scribe isn't loaded — date kind silently no-ops.
+    CascadePaletteWidget.prototype._dateHelpers = function () {
+        if (this._dateHelpersCache === undefined) {
+            try {
+                this._dateHelpersCache = require(
+                    "$:/plugins/rimir/scribe/modules/scribetypes/_date-helpers.js"
+                );
+            } catch (err) {
+                this._dateHelpersCache = null;
+                if (console && console.warn) {
+                    console.warn(
+                        "[cascade-palette] scribe plugin not loaded — " +
+                        "ca-kind: date silently disabled. Add rimir/scribe."
+                    );
+                }
+            }
+        }
+        return this._dateHelpersCache;
+    };
+
+    // Per-item +/- steps. Reuses ca-step / ca-step-medium / ca-step-large
+    // semantics: ca-step-day defaults to 1, etc. Authors can override per
+    // item if they want e.g. "+/- 7 days at a time".
+    CascadePaletteWidget.prototype._dateStepFor = function (item, unit) {
+        var t = item.title ? this.wiki.getTiddler(item.title) : null;
+        var f = (t && t.fields) || (item.title ? {} : item._raw || {});
+        var key = "ca-step-" + unit;
+        var raw = f[key];
+        var n = this._parseNumOrNull(raw);
+        return n === null ? 1 : n;
+    };
+
+    // Read the current date as a JS Date object, or null if unset.
+    // Empty field → null; caller treats null as "start from today".
+    CascadePaletteWidget.prototype.readDateValue = function (item) {
+        var raw = this._readBoundRaw(item);
+        if (raw === undefined || raw === null || raw === "") return null;
+        var helpers = this._dateHelpers();
+        if (!helpers) return null;
+        return helpers.fromTwDate(raw);
+    };
+
+    CascadePaletteWidget.prototype.fireDate = function (stage, item, unit, sign) {
+        var helpers = this._dateHelpers();
+        if (!helpers) return;
+        var current = this.readDateValue(item);
+        // Empty-value semantics: + starts from today, - also from today.
+        if (!current) current = new Date(new Date().setHours(0, 0, 0, 0));
+        var step = this._dateStepFor(item, unit) * sign;
+        var next;
+        if (unit === "day")        next = helpers.addDays(current, step);
+        else if (unit === "month") next = helpers.addMonths(current, step);
+        else if (unit === "year")  next = helpers.addMonths(current, step * 12);
+        else return;
+        var storage = helpers.toTwDate(next);
+        if (storage === undefined) return;
+        // Write the TW UTC date string directly via _readBoundRaw's inverse —
+        // bypassing the scribetype since we already produced storage form.
+        // (Calling writeBoundValue with a display string would re-parse it.)
+        this._writeRawAtField(item, storage);
+        this.renderResults();
+    };
+
+    // Write a pre-converted value directly at the field/sub-path, skipping
+    // the scribetype toField pass. Used by edit kinds that have already done
+    // the conversion themselves (e.g. fireDate has the TW date string ready).
+    CascadePaletteWidget.prototype._writeRawAtField = function (item, value) {
+        if (!item.bindTiddler) return;
+        if (!item.bindPath) {
+            var existing = this.wiki.getTiddler(item.bindTiddler);
+            var fields = { title: item.bindTiddler };
+            fields[item.bindField] = String(value);
+            this.wiki.addTiddler(new $tw.Tiddler(
+                (existing && existing.fields) || {},
+                fields
+            ));
+            return;
+        }
+        var t = this.wiki.getTiddler(item.bindTiddler);
+        var fieldText = t && t.fields[item.bindField];
+        var root;
+        try { root = fieldText ? JSON.parse(fieldText) : {}; }
+        catch (e) { root = {}; }
+        var parts = item.bindPath.split(",");
+        var node = root;
+        for (var i = 0; i < parts.length - 1; i++) {
+            var k = parts[i];
+            if (node[k] === undefined || node[k] === null || typeof node[k] !== "object") {
+                node[k] = {};
+            }
+            node = node[k];
+        }
+        node[parts[parts.length - 1]] = value;
+        var newFields = { title: item.bindTiddler };
+        newFields[item.bindField] = JSON.stringify(root, null, 4);
+        this.wiki.addTiddler(new $tw.Tiddler(
+            (t && t.fields) || {},
+            newFields
+        ));
     };
 
     /* ---------- edit mode (text + direct-set numbers) ----------
@@ -1970,7 +2415,6 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (!this.editMode) return;
         var em = this.editMode;
         var raw = this.inputEl.value;
-        this.editMode = null;
         if (commit) {
             if (em.item.kind === "number") {
                 var n = parseFloat(raw);
@@ -1980,9 +2424,24 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 // If unparseable, silently discard — feels safer than writing
                 // garbage to a config tiddler.
             } else {
-                this.writeBoundValue(em.item, raw);
+                // Date kind (and text kind) write through the scribetype.
+                // For date, the smart parser throws on garbage input; we
+                // catch and stay in edit mode so the user can fix the typo
+                // rather than losing their input.
+                try {
+                    this.writeBoundValue(em.item, raw);
+                } catch (err) {
+                    this.inputEl.classList.add("rcp-edit-error");
+                    this.hintEl.textContent = "✗ " +
+                        (err && err.message ? err.message : "invalid input") +
+                        " — fix and ↵ to retry, Esc to cancel";
+                    // Keep editMode active; let user retry.
+                    return;
+                }
             }
         }
+        this.editMode = null;
+        this.inputEl.classList.remove("rcp-edit-error");
         var stage = this.topStage();
         if (stage) {
             stage.query = em.savedQuery;
@@ -2005,6 +2464,20 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             ? (stage.parentPicked || "")
             : action.title;
         var vars = this.buildStageVariables(stage, pickedTitle);
+        // ca-after-fire="pop" overrides the default close-on-fire: invoke
+        // the action, pop this stage, and keep the palette open on the
+        // previous stage. Used by single-select sub-drills (ref / enum
+        // picker leaves inside a create/edit flow) so the user lands back
+        // on the field-edit stage with their pick already applied.
+        if (action.afterFire === "pop") {
+            var self = this;
+            self.invokeViaNavigator(action.actions, vars);
+            setTimeout(function () {
+                if (!self.open) return;
+                self.popStage();
+            }, 0);
+            return;
+        }
         this.afterAction(stage, keepOpen, function () {
             this.invokeViaNavigator(action.actions, vars);
         });
@@ -2042,7 +2515,8 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         //   - From root: no parent-picked (entries don't have one).
         //   - From action menu: keep the menu's parent-picked (the entity).
         //   - From filter (e.g. nested cascade entry): keep current parent.
-        if (picked.kind === "drill" && picked.nextScope) {
+        // Either `ca-next-scope` or `ca-items-from` qualifies the drill.
+        if (picked.kind === "drill" && (picked.nextScope || picked.itemsFrom)) {
             var parentPicked = stage.kind === "actions"
                 ? (stage.parentPicked || null)
                 : (stage.parentPicked || null);

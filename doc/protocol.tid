@@ -258,6 +258,23 @@ Triggered automatically by the engine in two scenarios:
 
 Shadow-only rows (no override to restore) and built-in entry/action/setting rows (no `ca-bind-tiddler`) are silent no-ops.
 
+! Pick-and-return leaves (`ca-after-fire: pop`)
+
+By default a leaf's Enter fires its `ca-actions` and ''closes'' the palette. For single-select sub-drills inside a multi-field edit flow — e.g. a ref/enum picker that sits next to other field rows on the parent stage — closing the palette breaks the flow: the user wants to land back on the field-edit stage with their pick applied, ready to edit the next field.
+
+Add `ca-after-fire: pop` to those leaves. The engine then fires the action, pops the picker stage, and keeps the palette open on the parent stage. Used by `rimir/kind` for its ref / enum single-select sub-drills.
+
+```
+ca-name: My First Node
+ca-kind: leaf
+ca-after-fire: pop
+ca-actions: <$action-setfield $tiddler="$:/state/example/draft" $field="parent" $value="My First Node"/>
+```
+
+! Bound drills (right-aligned current value)
+
+When a drill row carries `ca-bind-tiddler` + `ca-bind-field`, the palette renders the currently-bound value on the right of the row — like a text/number/date row — so the user sees their pick without re-entering the drill. References are resolved via the target tiddler's `caption` field (falling back to the raw title). Multi-select string-array binds are comma-joined for compactness. Empty binds render `(unset)`.
+
 ! Sensitivity of stage-state
 
 Stages are populated by re-running `ca-next-scope` whenever the user types in the input. Filters that hit ''many'' tiddlers can be slow if you're searching the entire wiki on every keystroke — prefer a tighter base set (`[rrt.type[...]]` first, then `+[search<query>]`) over a broad search of all titles.

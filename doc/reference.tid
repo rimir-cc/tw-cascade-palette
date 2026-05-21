@@ -55,27 +55,34 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-hint` |string |entry, action |Subtitle / right-aligned hint |
 |`ca-icon` |string |entry, action |Single character or emoji prefix |
 |`ca-order` |number |entry, action |Sort key (lower = higher in list, default 100) |
-|`ca-kind` |`leaf`\|`drill`\|`toggle`\|`number`\|`text` |entry, action, setting |Leaf fires actions, drill pushes next stage, toggle flips a bound boolean, number adjusts via `+/-` (or Space to type-set), text edits a string via Space → type → Enter |
+|`ca-kind` |`leaf`\|`drill`\|`toggle`\|`number`\|`text`\|`date` |entry, action, setting |Leaf fires actions, drill pushes next stage, toggle flips a bound boolean, number adjusts via `+/-` (Space to type-set), text edits a string via Space → type → Enter, date adjusts via `+/-` ±day (Shift ±month, Ctrl ±year), Space → typed-edit with smart parser |
 |`ca-actions` |wikitext |leaf items |Fired on Enter |
+|`ca-confirm` |`yes`\|empty |leaf items |When `yes`, the leaf's actions are wrapped in a confirm-drill stage rather than fired directly. The consequence text shows the cost of confirming (e.g. "Delete tiddler X"). |
+|`ca-confirm-consequence` |string |leaf with `ca-confirm:yes` |Text shown in the details drawer of the confirm stage. Supports `<<picked>>` / `<<parent-picked>>` / `<<stage-N-picked>>` substitution. |
+|`ca-after-fire` |`close`\|`pop` |leaf |Post-fire behaviour. Default `close` (closes the palette). `pop` fires the action then pops one stage, keeping the palette open — for single-select sub-drills inside a field-edit flow, so the user lands back on the field stage with their pick already applied. |
 |`ca-entity-type` |string\|`*` |action |Entity type this action applies to, or `*` for global |
 |`ca-default` |`yes`\|empty |action |Marks the "Enter on entity result" default action |
-|`ca-next-scope` |filter |drill items |Filter expression for the new stage's items |
+|`ca-next-scope` |filter |drill items |Filter expression for the new stage's items (mutually exclusive with `ca-items-from`) |
+|`ca-items-from` |filter |drill items |Filter that returns one JSON-encoded item shape per result. The palette parses each as a synthetic cascade item (no backing tiddler). Use for stages populated from configuration data rather than tiddlers. Mutually exclusive with `ca-next-scope`. |
 |`ca-next-title` |string |drill items |Title shown in breadcrumb for the new stage |
 |`ca-next-entity-type` |string |drill items |Sets the next stage's entity type (enables action-menu drilling on Tab) |
 |`ca-next-default-action` |wikitext |drill items |Fired on Enter in the next stage when no entity default exists |
 |`ca-next-as-link` |`yes`\|empty |drill items |When `yes`, the next-stage filter results render as plain link rows (no chevron, Enter navigates) even if the result tiddlers carry `ca-kind`. Use for inspector / diagnostic lists. |
 |`ca-group` |string |entry, action |Override the visual cluster label. Defaults to the contributing plugin's `name`. Headers are suppressed when only one cluster is present in a stage. |
 |`ca-visibility-filter` |filter |entry |If present and returns no results, the entry is hidden from the root menu |
-|`ca-bind-tiddler` |string |toggle |Target tiddler holding the bound value |
-|`ca-bind-field` |string |toggle |Target field (default `text`) |
-|`ca-bind-path` |string |toggle |Optional comma-separated walk inside the JSON-decoded field text (e.g. `prefs,layout`). Omit to bind the whole field. |
-|`ca-true-value` |string |toggle |Value written for "on" state (default `yes`) |
-|`ca-false-value` |string |toggle |Value written for "off" state (default `no`) |
+|`ca-bind-tiddler` |string |toggle, number, text, date, drill |Target tiddler holding the bound value. On a `drill` (e.g. a single/multi-select picker sub-drill) this is purely informational — the palette renders the current bound value on the right of the row so the user sees their pick. |
+|`ca-bind-field` |string |toggle, number, text, date, drill |Target field (default `text`). Same dual role as `ca-bind-tiddler` on drills. |
+|`ca-bind-path` |string |toggle, number, text, date |Optional comma-separated walk inside the JSON-decoded field text (e.g. `prefs,layout`). Omit to bind the whole field. |
+|`ca-bind-type` |scribetype name |toggle, number, text, date |Scribetype handler used for value round-trip (default `text/plain`). `application/x-string-array` enables list-membership semantics on toggle. `application/x-tw-date` / `application/x-tw-datetime` round-trip date kinds (the latter is the default for date kinds when unset). Requires `rimir/scribe`. |
+|`ca-true-value` |string |toggle |Value written for "on" state (default `yes`). For `string-array` binds, this is the list element added/removed by the toggle. |
+|`ca-false-value` |string |toggle |Value written for "off" state (default `no`). Ignored for string-array binds (the toggle removes `ca-true-value` from the list instead). |
 |`ca-min` |number |number |Lower clamp. Together with `ca-max` triggers the inline slider render. |
 |`ca-max` |number |number |Upper clamp. |
 |`ca-step` |number |number |Step for bare `+/-` (default 1) |
 |`ca-step-medium` |number |number |Step for Shift-`+/-` (default 5) |
 |`ca-step-large` |number |number |Step for Ctrl-`+/-` (default 20) |
+|`ca-step-day` / `-month` / `-year` |number |date |Step for bare/Shift/Ctrl `+/-` respectively on a date row (each defaults to 1) |
+|`ca-date-format` |TW format-date string |date |Display format for the row value. Default `DD.MM.YYYY`. Examples: `YYYY-0MM-0DD` (ISO), `DDth MMM YYYY` (long). |
 |`ca-default-value` |number |number |Value used when the bound field is empty / unparseable |
 |`ca-help` |string (multiline) |entry, action, setting |Longer-form help text shown in the details drawer. Falls back to `ca-hint` when absent. |
 |`ca-template-applies` |filter |template |Evaluated with `currentTiddler` bound to the picked item; template applies if filter returns the picked title. Omit for a universal template. |
