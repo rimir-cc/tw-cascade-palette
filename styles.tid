@@ -356,8 +356,13 @@ type: text/css
 
 .rcp-preview {
     display: none;
+    /* `flex: 0 0 auto` keeps the slot at content size (capped by max-height
+       below) without growing or shrinking — preview never steals space from
+       the result list. If the body exceeds max-height the slot scrolls
+       internally rather than pushing results out of view. */
+    flex: 0 0 auto;
     overflow-y: auto;
-    max-height: 35vh;
+    max-height: 30vh;
     padding: 10px 14px;
     background: #f8fafc;
     border-top: 1px solid #d8d8d8;
@@ -369,8 +374,11 @@ type: text/css
     display: block;
 }
 
-.rcp-popup.rcp-previewing .rcp-results {
-    max-height: 25vh;
+/* When preview is open, grow the popup's ceiling so the new slot appends
+   *below* the result list instead of forcing the list to shrink. Result
+   rows that were visible before opening preview stay visible. */
+.rcp-popup.rcp-previewing {
+    max-height: 90vh;
 }
 
 .rcp-preview-title {
