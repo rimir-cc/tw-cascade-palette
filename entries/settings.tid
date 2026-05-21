@@ -1,9 +1,9 @@
 title: $:/plugins/rimir/cascade-palette/entries/settings
-tags: $:/tags/rimir/cascade-palette/entry
+tags: $:/tags/rimir/cascade-palette/configuration
 ca-name: Settings
-ca-hint: Toggle palette options and any plugin settings exposed as palette toggles
+ca-hint: Palette options and toggles
 ca-icon: ⚙
 ca-kind: drill
-ca-order: 900
+ca-order: 10
 ca-next-scope: [all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/setting]]
 ca-next-title: Settings

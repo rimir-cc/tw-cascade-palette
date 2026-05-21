@@ -6,24 +6,35 @@ rdt.section-order: 60
 rdt.title: Reference
 type: text/vnd.tiddlywiki
 
+! Three-section focus model
+
+The palette is one popup with three focusable sections: ''input'' (search box), ''menu'' (result list), ''details'' (preview drawer). The active section gets the browser-level focus and a visual cue; keyboard gestures route accordingly. Tab cycles between sections, Esc steps "outward" — section → input → close.
+
 ! Hotkey
 
-|!Key |!Action |
-|''Ctrl-Space'' |Open the palette |
-|''Up / Down'' |Move selection within the current stage |
-|''Tab'' |Drill into the selected item — push a new stage |
-|''Enter'' |Fire the selected item and close the palette |
-|''Shift-Enter'' |Fire the selected item but keep the palette open (current stage refreshes to reflect any changes) |
-|''Esc'' |Pop one stage; if at root, close the palette |
-|''Shift-Tab'' |Same as Esc — pop one stage, close at root |
-|''Click'' on a result row |Same as selecting + Enter |
-|''Click'' on a breadcrumb segment |Pop back to that stage |
-|''Space'' on a toggle row |Flip the bound value without closing the palette |
-|''+ / -'' on a number row |Increment/decrement the bound number by `ca-step` (default 1) |
-|''Shift-+ / Shift--'' on a number row |Adjust by `ca-step-medium` (default 5) |
-|''Ctrl-+ / Ctrl--'' on a number row |Adjust by `ca-step-large` (default 20). Matched on physical key (Equal/NumpadAdd/Minus/NumpadSubtract) so layout is irrelevant. |
-|''Space'' on a text/number row |Enter edit mode — bound value pushed into the input, ready to type. Enter commits, Esc cancels. |
-|''Hover'' on any row |Native browser tooltip shows the row's `ca-hint` text. |
+|!Key |!Section |!Action |
+|''Ctrl-Space'' |any |Open the palette |
+|''Tab / Shift-Tab'' |any |Cycle focus forward / back (input → menu → details → input) |
+|''Enter'' |any |Fire the selected item and close the palette |
+|''Ctrl-Enter'' |any |Fire the selected item but keep the palette open. Shift-Enter is a silent alias for back-compat (removed in v0.3). |
+|''Esc'' |input |Close the palette entirely (no stage-pop intermediate) |
+|''↓'' |input |Step into the menu (only if results exist) |
+|''(typing)'' |input |Filter the current stage |
+|''Esc'' |menu / details |Return focus to the input (without closing) |
+|''↑'' |menu |Move selection up; at top-of-list, returns focus to input |
+|''↓'' |menu |Move selection down |
+|''→'' |menu |Drill into the selected item (push a new stage) |
+|''←'' |menu |Pop one stage (back) |
+|''Space'' on toggle |menu |Flip the bound value (palette stays open) |
+|''Space'' on text/number |menu |Enter edit mode — bound value pushed into input, Enter commits, Esc cancels |
+|''+ / -'' on number |menu |Adjust by `ca-step` (default 1). Shift = `ca-step-medium` (5). Ctrl = `ca-step-large` (20). Matched on physical key (Equal/NumpadAdd/Minus/NumpadSubtract) so layout is irrelevant. |
+|''DEL / Backspace'' |menu |On an overridden setting → confirm drill to restore default. On a non-shadow tiddler in a diagnostic list → confirm drill to delete. Otherwise no-op. |
+|''← / →'' |details |Switch template tab when multiple templates apply |
+|''↑ / ↓'' |details |Scroll the drawer natively |
+|''Hold Ctrl'' |any |Open the details drawer; release to hide. Always-on mode keeps it visible. Suppressed in edit mode. |
+|''Click'' on a result row |menu |Sets focus → selects → fires (Shift-click = keep open) |
+|''Click'' on a breadcrumb segment | |Pop back to that stage |
+|''Hover'' on any row | |Native browser tooltip shows the row's `ca-hint` text. |
 
 The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 
@@ -33,6 +44,9 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`$:/tags/rimir/cascade-palette/entry` |Root-stage menu item |
 |`$:/tags/rimir/cascade-palette/action` |Per-entity-type action menu item |
 |`$:/tags/rimir/cascade-palette/setting` |Setting toggle exposed under the engine's "Settings" entry |
+|`$:/tags/rimir/cascade-palette/diagnostic` |Diagnostic item exposed under the engine's "Diagnostics" entry |
+|`$:/tags/rimir/cascade-palette/configuration` |Aggregated under the engine's "Configuration" root entry (Settings, Diagnostics, etc.) |
+|`$:/tags/rimir/cascade-palette/template` |Detail-pane template — wikitext rendered with `currentTiddler` bound to the picked item |
 
 ! Fields
 
@@ -49,6 +63,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-next-title` |string |drill items |Title shown in breadcrumb for the new stage |
 |`ca-next-entity-type` |string |drill items |Sets the next stage's entity type (enables action-menu drilling on Tab) |
 |`ca-next-default-action` |wikitext |drill items |Fired on Enter in the next stage when no entity default exists |
+|`ca-next-as-link` |`yes`\|empty |drill items |When `yes`, the next-stage filter results render as plain link rows (no chevron, Enter navigates) even if the result tiddlers carry `ca-kind`. Use for inspector / diagnostic lists. |
 |`ca-group` |string |entry, action |Override the visual cluster label. Defaults to the contributing plugin's `name`. Headers are suppressed when only one cluster is present in a stage. |
 |`ca-visibility-filter` |filter |entry |If present and returns no results, the entry is hidden from the root menu |
 |`ca-bind-tiddler` |string |toggle |Target tiddler holding the bound value |
@@ -62,6 +77,9 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-step-medium` |number |number |Step for Shift-`+/-` (default 5) |
 |`ca-step-large` |number |number |Step for Ctrl-`+/-` (default 20) |
 |`ca-default-value` |number |number |Value used when the bound field is empty / unparseable |
+|`ca-help` |string (multiline) |entry, action, setting |Longer-form help text shown in the details drawer. Falls back to `ca-hint` when absent. |
+|`ca-template-applies` |filter |template |Evaluated with `currentTiddler` bound to the picked item; template applies if filter returns the picked title. Omit for a universal template. |
+|`ca-template-name` |string |template |Display name on the template tab (when multiple templates apply). |
 
 ! Settings
 
@@ -70,6 +88,8 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`$:/config/rimir/cascade-palette/max-results` |`30` |Cap on items shown per stage |
 |`$:/config/rimir/cascade-palette/grouping-enabled` |`yes` |Cluster result rows by contributing plugin with section headers. Toggle live via Settings → Grouping. |
 |`$:/config/rimir/cascade-palette/soft-depth-warning` |`10` |Stage-stack depth that triggers a console warning. Adjust live via Settings → Soft depth warning. |
+|`$:/config/rimir/cascade-palette/details-always-on` |`no` |Keep the details drawer visible without holding Ctrl. Toggle live via Settings → Details always on. |
+|`$:/config/rimir/cascade-palette/popup-width` |`50` |Popup width in `vw` (clamped to [20, 95]). |
 
 ! JavaScript message
 
@@ -90,10 +110,11 @@ The widget is injected into `document.body` at boot via the startup module `widg
 
 ! Console diagnostics
 
-The widget logs at boot:
+The widget only logs on error paths (no boot noise):
 
-* `[cascade-palette] startup mount complete — widget in document.body` — startup module ran successfully
-* `[cascade-palette] widget render() — mounting` — widget's render method ran
-* `[cascade-palette] hotkey listener registered on rootWidget` — message handler wired
-* `[cascade-palette] open message received` — fires every time the palette opens (via hotkey or programmatic dispatch)
-* `[cascade-palette] action invocation failed: ...` — fires when `invokeViaNavigator()` throws (most likely cause: filter or wikitext error in `ca-actions` / `ca-next-scope` / `ca-next-default-action`)
+* `[cascade-palette] startup mount complete — widget in document.body` — startup module ran successfully (one-time at boot)
+* `[cascade-palette] action invocation failed: ...` — `invokeViaNavigator()` threw (most likely a filter or wikitext error in `ca-actions` / `ca-next-scope` / `ca-next-default-action`)
+* `[cascade-palette] ca-visibility-filter error on ...` — a root-entry's visibility filter threw; entry stays visible defensively
+* `[cascade-palette] ca-template-applies error on ...` — a template's filter threw; template is excluded
+* `[cascade-palette] template render error ...` — the template body wikitext failed to parse; the drawer shows the error message in place of the template
+* `[cascade-palette] stack depth N exceeds soft warning M — possible cascade loop?` — the user has drilled past the soft-depth-warning threshold

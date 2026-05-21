@@ -1,0 +1,15 @@
+title: $:/plugins/rimir/cascade-palette/settings/popup-width
+tags: $:/tags/rimir/cascade-palette/setting
+ca-name: Popup width
+ca-hint: Width as % of viewport (vw) — +/- adjust, Shift = 5, Ctrl = 10
+ca-kind: number
+ca-order: 40
+ca-bind-tiddler: $:/config/rimir/cascade-palette/popup-width
+ca-bind-field: text
+ca-min: 20
+ca-max: 95
+ca-step: 1
+ca-step-medium: 5
+ca-step-large: 10
+ca-default-value: 50
+ca-unit: vw

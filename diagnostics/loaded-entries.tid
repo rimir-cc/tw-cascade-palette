@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/diagnostics/loaded-entries
+tags: $:/tags/rimir/cascade-palette/diagnostic
+ca-name: Loaded entries
+ca-hint: Top-level palette items (drills + leaves)
+ca-icon: 📋
+ca-kind: drill
+ca-order: 10
+ca-next-scope: [all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/entry]]
+ca-next-title: Loaded entries
+ca-next-as-link: yes

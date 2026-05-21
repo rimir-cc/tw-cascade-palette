@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/settings/details-always-on
+tags: $:/tags/rimir/cascade-palette/setting
+ca-name: Details always on
+ca-hint: Keep the details drawer visible without holding Ctrl. Useful for keyboard-light navigation.
+ca-kind: toggle
+ca-order: 40
+ca-bind-tiddler: $:/config/rimir/cascade-palette/details-always-on
+ca-bind-field: text
+ca-true-value: yes
+ca-false-value: no

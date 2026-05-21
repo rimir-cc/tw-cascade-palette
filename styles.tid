@@ -85,10 +85,38 @@ type: text/css
     border-left: 3px solid transparent;
 }
 
+/* Selected row, with focus-state differentiation. When focus is in the
+   input, the selection is "warm" (faded). When focus is in the menu,
+   it's "active" (strong blue). When in details, it's faded but tinted
+   to remind the user the menu still owns selection. */
 .rcp-row-selected {
+    background: #c7d2fe;
+    color: #1e3a8a;
+    border-left-color: #6366f1;
+}
+.rcp-popup[data-focus="menu"] .rcp-row-selected {
     background: #2563eb;
     color: #ffffff;
     border-left-color: #1e40af;
+}
+.rcp-popup[data-focus="details"] .rcp-row-selected {
+    background: #dbeafe;
+    color: #1e3a8a;
+    border-left-color: #93c5fd;
+}
+
+/* Section focus rings — only the input keeps its native ring; results
+   and details get a subtle border-color shift instead so the popup
+   doesn't accumulate strong outlines. */
+.rcp-results:focus,
+.rcp-preview:focus {
+    outline: none;
+}
+.rcp-popup[data-focus="menu"] .rcp-results {
+    box-shadow: inset 2px 0 0 0 #2563eb;
+}
+.rcp-popup[data-focus="details"] .rcp-preview {
+    box-shadow: inset 2px 0 0 0 #2563eb;
 }
 
 .rcp-row-name {
@@ -287,6 +315,21 @@ type: text/css
     .rcp-group-header:not(:first-child) {
         border-top-color: #374151;
     }
+    .rcp-row-selected {
+        background: #312e81;
+        color: #c7d2fe;
+        border-left-color: #6366f1;
+    }
+    .rcp-popup[data-focus="menu"] .rcp-row-selected {
+        background: #2563eb;
+        color: #ffffff;
+        border-left-color: #1e40af;
+    }
+    .rcp-popup[data-focus="details"] .rcp-row-selected {
+        background: #1e3a8a;
+        color: #dbeafe;
+        border-left-color: #3b82f6;
+    }
 }
 
 .rcp-hint {
@@ -296,6 +339,195 @@ type: text/css
     font-size: 11px;
     color: #6b7280;
     user-select: none;
+}
+
+.rcp-preview {
+    display: none;
+    overflow-y: auto;
+    max-height: 35vh;
+    padding: 10px 14px;
+    background: #f8fafc;
+    border-top: 1px solid #d8d8d8;
+    font-size: 12px;
+    color: #1a1a1a;
+}
+
+.rcp-popup.rcp-previewing .rcp-preview {
+    display: block;
+}
+
+.rcp-popup.rcp-previewing .rcp-results {
+    max-height: 25vh;
+}
+
+.rcp-preview-title {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    color: #6b7280;
+    margin-bottom: 8px;
+    word-break: break-all;
+    user-select: text;
+}
+
+.rcp-preview-empty {
+    color: #9ca3af;
+    font-style: italic;
+}
+
+.rcp-preview-fields {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    column-gap: 12px;
+    row-gap: 4px;
+    margin: 0;
+}
+
+.rcp-preview-fields dt {
+    font-weight: 600;
+    color: #4b5563;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    margin: 0;
+    align-self: start;
+}
+
+.rcp-preview-fields dd {
+    margin: 0;
+    color: #1a1a1a;
+    word-break: break-word;
+    white-space: pre-wrap;
+    user-select: text;
+}
+
+.rcp-preview-fields dd.rcp-preview-body {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    background: rgba(0, 0, 0, 0.04);
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+/* Override marker — small dot at the row's end signalling that the
+   bound config has a user-set value (DEL restores the shadow default). */
+.rcp-row-overridden {
+    flex: 0 0 auto;
+    color: #f59e0b;
+    font-size: 9px;
+    margin-left: 4px;
+    cursor: help;
+}
+
+.rcp-row-selected .rcp-row-overridden {
+    color: #fde68a;
+}
+
+/* Confirm-stage consequence banner — surfaces destructive action in
+   strong red so the user can't miss it before hitting Confirm. */
+.rcp-details-consequence {
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    border-left: 3px solid #dc2626;
+    background: rgba(220, 38, 38, 0.08);
+    color: #7f1d1d;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+/* "Default: X" banner in the details drawer — shown when the picked
+   item has an override. Tells the user what DEL would restore to. */
+.rcp-details-default {
+    padding: 4px 8px;
+    margin-bottom: 8px;
+    border-left: 3px solid #f59e0b;
+    background: rgba(245, 158, 11, 0.08);
+    color: #92400e;
+    font-size: 11px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    word-break: break-all;
+}
+
+/* Help block — bold lead-in above the template body. */
+.rcp-details-help {
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 10px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+}
+
+/* Tab strip for multi-template details — clickable + keyboard-driven
+   via ←/→ when details has focus. */
+.rcp-details-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #d8d8d8;
+}
+
+.rcp-details-tab {
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    color: #6b7280;
+    user-select: none;
+    margin-bottom: -1px;  /* sit on the strip's border */
+}
+
+.rcp-details-tab:hover {
+    color: #1f2937;
+}
+
+.rcp-details-tab-active {
+    color: #2563eb;
+    border-bottom-color: #2563eb;
+    font-weight: 600;
+}
+
+/* Template body — wikitext rendered output. Inherit the popup font but
+   allow `<pre>`/`<code>` to use monospace. */
+.rcp-details-template {
+    color: #1a1a1a;
+    line-height: 1.45;
+}
+
+.rcp-details-template h1,
+.rcp-details-template h2,
+.rcp-details-template h3 {
+    font-size: 13px;
+    margin: 0 0 6px 0;
+}
+
+.rcp-details-template pre,
+.rcp-details-template code {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    background: rgba(0, 0, 0, 0.04);
+    padding: 1px 4px;
+    border-radius: 2px;
+}
+
+.rcp-details-template pre {
+    padding: 6px 8px;
+    overflow-x: auto;
+}
+
+@media (prefers-color-scheme: dark) {
+    .rcp-preview {
+        background: #111827;
+        color: #f3f4f6;
+        border-top-color: #374151;
+    }
+    .rcp-preview-title,
+    .rcp-preview-fields dt {
+        color: #9ca3af;
+    }
+    .rcp-preview-fields dd {
+        color: #f3f4f6;
+    }
+    .rcp-preview-fields dd.rcp-preview-body {
+        background: rgba(255, 255, 255, 0.06);
+    }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -327,5 +559,38 @@ type: text/css
     }
     .rcp-breadcrumb-seg.rcp-breadcrumb-clickable {
         color: #60a5fa;
+    }
+    .rcp-details-help {
+        color: #f3f4f6;
+    }
+    .rcp-details-tab {
+        color: #9ca3af;
+    }
+    .rcp-details-tab:hover {
+        color: #f3f4f6;
+    }
+    .rcp-details-tab-active {
+        color: #60a5fa;
+        border-bottom-color: #60a5fa;
+    }
+    .rcp-details-tabs {
+        border-bottom-color: #374151;
+    }
+    .rcp-details-template {
+        color: #f3f4f6;
+    }
+    .rcp-details-template pre,
+    .rcp-details-template code {
+        background: rgba(255, 255, 255, 0.06);
+    }
+    .rcp-details-default {
+        color: #fcd34d;
+        background: rgba(245, 158, 11, 0.12);
+        border-left-color: #f59e0b;
+    }
+    .rcp-details-consequence {
+        color: #fecaca;
+        background: rgba(220, 38, 38, 0.16);
+        border-left-color: #ef4444;
     }
 }

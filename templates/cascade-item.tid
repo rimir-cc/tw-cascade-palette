@@ -1,0 +1,44 @@
+title: $:/plugins/rimir/cascade-palette/templates/cascade-item
+tags: $:/tags/rimir/cascade-palette/template
+ca-template-name: Item
+ca-template-applies: [<currentTiddler>has[ca-kind]]
+ca-order: 10
+
+<$let
+    ca-name={{!!ca-name}}
+    ca-kind={{!!ca-kind}}
+>
+''<<ca-name>>'' <small>(<<ca-kind>>)</small>
+
+<$list filter="[<currentTiddler>has[ca-actions]]" variable="_">
+''Action:''
+```
+{{!!ca-actions}}
+```
+</$list>
+
+<$list filter="[<currentTiddler>has[ca-next-scope]]" variable="_">
+''Drills into:''
+```
+{{!!ca-next-scope}}
+```
+</$list>
+
+<$list filter="[<currentTiddler>has[ca-bind-tiddler]]" variable="_">
+''Binds:''
+`{{!!ca-bind-tiddler}}` field `{{!!ca-bind-field}}`<$list filter="[<currentTiddler>has[ca-bind-path]]" variable="_"> path `{{!!ca-bind-path}}`</$list>
+</$list>
+
+<$list filter="[<currentTiddler>has[ca-entity-type]]" variable="_">
+''Entity type:'' `{{!!ca-entity-type}}`
+</$list>
+
+<$list filter="[<currentTiddler>has[ca-min]]" variable="_">
+''Range:'' {{!!ca-min}} … {{!!ca-max}} (step {{!!ca-step}})
+</$list>
+
+<$list filter="[<currentTiddler>has[ca-true-value]]" variable="_">
+''Values:'' `{{!!ca-true-value}}` / `{{!!ca-false-value}}`
+</$list>
+
+</$let>

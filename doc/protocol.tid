@@ -222,6 +222,42 @@ Headers are ''suppressed'' when a stage contains only one cluster — so a singl
 
 Cluster ordering follows the lowest `ca-order` member of each cluster — the same single-knob ordering model as un-grouped items.
 
+! Detail templates
+
+The details drawer (shown while Ctrl is held, or always-on via Settings) prepends help text (`ca-help` overrides `ca-hint`) and renders ''detail templates'' — wikitext tiddlers tagged ''`$:/tags/rimir/cascade-palette/template`''. A template applies to the picked row when its `ca-template-applies` filter returns the picked title (the filter runs with `currentTiddler` bound to the picked title; omit the filter for a universal template).
+
+When multiple templates apply, a tab strip appears above the body and `←/→` switches tabs (when details has focus).
+
+The template's wikitext is rendered with `currentTiddler` bound to the picked tiddler title, so all the usual transclusion syntax works: `{{!!ca-name}}`, `<<currentTiddler>>`, `[<currentTiddler>has[ca-kind]]`, etc.
+
+```
+title: $:/plugins/example/templates/orga-person
+tags: $:/tags/rimir/cascade-palette/template
+ca-template-name: Person
+ca-template-applies: [<currentTiddler>rrt.type[person]]
+ca-order: 20
+
+''<<currentTiddler>>''
+
+;Teams
+:<$list filter="[<currentTiddler>get[team-member-of]enlist-input[]]"><$link/><br></$list>
+
+;Recent meetings
+:<$list filter="[<currentTiddler>backlinks[]rrt.type[meeting]limit[5]]"><$link/><br></$list>
+```
+
+If no template applies and no help text is set, the drawer falls back to a raw fields-table for diagnostics.
+
+! Confirm drills
+
+DEL/Backspace on certain rows pushes a synthetic ''confirm stage'' with two leaves: Confirm and Cancel. The destructive ''consequence'' is shown in the details drawer when on a confirm stage. Selection defaults to Cancel; the user must explicitly arrow down to Confirm and press Enter.
+
+Triggered automatically by the engine in two scenarios:
+* ''Overridden setting:'' DEL on a row whose `ca-bind-tiddler` has both a shadow AND a real (override) tiddler. Confirm deletes the override; the shadow default is restored.
+* ''Non-shadow tiddler in a diagnostic list:'' DEL on a dynamic-item row whose title points to a user-authored tiddler. Confirm deletes the tiddler. Backlink count is shown pre-confirm.
+
+Shadow-only rows (no override to restore) and built-in entry/action/setting rows (no `ca-bind-tiddler`) are silent no-ops.
+
 ! Sensitivity of stage-state
 
 Stages are populated by re-running `ca-next-scope` whenever the user types in the input. Filters that hit ''many'' tiddlers can be slow if you're searching the entire wiki on every keystroke — prefer a tighter base set (`[rrt.type[...]]` first, then `+[search<query>]`) over a broad search of all titles.

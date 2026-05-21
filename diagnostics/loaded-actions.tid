@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/diagnostics/loaded-actions
+tags: $:/tags/rimir/cascade-palette/diagnostic
+ca-name: Loaded actions
+ca-hint: Per-item actions injected into the action stage
+ca-icon: ⚡
+ca-kind: drill
+ca-order: 20
+ca-next-scope: [all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/action]]
+ca-next-title: Loaded actions
+ca-next-as-link: yes

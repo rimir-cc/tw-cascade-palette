@@ -5,37 +5,65 @@ module-type: widget
 
 Cascade Palette widget — keyboard-driven cascading command palette.
 
-Stage stack model. Root stage shows tiddlers tagged
-`$:/tags/rimir/cascade-palette/entry`. Tab on a drill entry pushes a new
-stage scoped by the entry's `ca-next-scope` filter. Esc pops a stage
-(closes the palette at root). Enter fires `ca-actions` on a leaf or drills
-on a drill item.
+Three-section focus model: input | menu | details. Tab cycles focus
+between sections. The stage stack lives in `this.stack`; the active
+stage is `topStage()`. Filter stages are populated by evaluating
+`ca-next-scope`; action stages are populated by `ca-entity-type`
+filtering against `$:/tags/rimir/cascade-palette/action`.
 
-Action menu stages (driven by `$:/tags/rimir/cascade-palette/action` tiddlers
-filtered by `ca-entity-type`) land in task 6.
+Item kinds (per `ca-kind` field on entry/action/setting):
+  leaf    — Enter fires `ca-actions` and closes
+  drill   — Right-arrow / Enter pushes a new stage via `ca-next-scope`
+  toggle  — Space flips a bound boolean
+  number  — +/- nudge a bound number; Space opens edit-mode
+  text    — Space pushes value into input for editing
+  item    — synthetic kind for dynamic filter results
 
+Bindings (toggle/number/text) follow scribe convention:
+  ca-bind-tiddler, ca-bind-field, optional ca-bind-path (JSON sub-path)
+
+See doc/protocol.tid for the full authoring guide and worked examples.
 \*/
 (function () {
     "use strict";
 
     var Widget = require("$:/core/modules/widgets/widget.js").widget;
 
+    // ---- TW message dispatched by the keyboard shortcut binding ----
     var OPEN_MESSAGE = "rimir-cascade-palette-open";
+
+    // ---- Tags consumed by the engine ----
     var ENTRY_TAG = "$:/tags/rimir/cascade-palette/entry";
     var ACTION_TAG = "$:/tags/rimir/cascade-palette/action";
     var SETTING_TAG = "$:/tags/rimir/cascade-palette/setting";
+    var DIAGNOSTIC_TAG = "$:/tags/rimir/cascade-palette/diagnostic";
+    var TEMPLATE_TAG = "$:/tags/rimir/cascade-palette/template";
+
+    // ---- Config tiddler titles ----
     var GROUPING_CONFIG = "$:/config/rimir/cascade-palette/grouping-enabled";
     var SOFT_DEPTH_CONFIG = "$:/config/rimir/cascade-palette/soft-depth-warning";
+    var POPUP_WIDTH_CONFIG = "$:/config/rimir/cascade-palette/popup-width";
+    var MAX_RESULTS_CONFIG = "$:/config/rimir/cascade-palette/max-results";
+    var DETAILS_ALWAYS_ON_CONFIG = "$:/config/rimir/cascade-palette/details-always-on";
+
+    // ---- Defaults for nullable / fallback fields ----
     var DEFAULT_ORDER = 100;
     var DEFAULT_MAX_RESULTS = 30;
     var DEFAULT_SOFT_DEPTH = 10;
-    var HINT_NORMAL = "↑↓ select · Tab drill · Esc back · ↵ fire · Shift-↵ fire+stay · Space toggle · +/- adjust";
-    var HINT_EDIT = "↵ commit · Esc cancel";
     var DEFAULT_TRUE_VALUE = "yes";
     var DEFAULT_FALSE_VALUE = "no";
     var DEFAULT_STEP = 1;
     var DEFAULT_STEP_MEDIUM = 5;
     var DEFAULT_STEP_LARGE = 20;
+
+    // ---- Footer hint text per palette mode ----
+    // Section-specific hints surface the relevant gestures inline. Common
+    // gestures (Tab cycle, ↵ fire, Ctrl-↵ fire+stay, hold Ctrl preview)
+    // appear in every variant so the user always sees the escape hatches.
+    var HINT_INPUT   = "Tab section · ↓ menu · ↵ fire · Ctrl-↵ fire+stay · Esc close · hold Ctrl preview";
+    var HINT_MENU    = "Tab section · ↑↓ select · → drill · ← back · Space toggle/edit · +/- adjust · ↵ fire · Esc input · hold Ctrl preview";
+    var HINT_DETAILS = "Tab section · ↑↓ scroll · Esc input · ↵ fire";
+    var HINT_EDIT    = "↵ commit · Esc cancel";
 
     var CascadePaletteWidget = function (parseTreeNode, options) {
         this.initialise(parseTreeNode, options);
@@ -45,6 +73,27 @@ filtered by `ca-entity-type`) land in task 6.
         // value directly in the search input. Shape: { item, savedQuery,
         // savedSelectedIndex }. Set by enterEditMode, cleared by exitEditMode.
         this.editMode = null;
+        // Details visibility is derived from two sources:
+        //   ctrlHeld     — user is holding Ctrl right now
+        //   always-on    — config tiddler $:/config/rimir/.../details-always-on
+        // The drawer is shown if EITHER is true. `detailsOpen` is the
+        // computed visibility flag (kept as a single boolean for ease of
+        // callers); recompute via _updateDetailsVisibility.
+        this.detailsOpen = false;
+        this.ctrlHeld = false;
+        // Three-section focus model: input | menu | details. The active
+        // section gets the browser-level focus AND a visual cue via the
+        // [data-focus="..."] attribute on popupEl. Default "input" on open.
+        this.focus = "input";
+        // Active template tab when multiple templates apply to the picked
+        // item. Reset on selection change.
+        this.detailsTemplateIdx = 0;
+        // Cached rendered template DOM. Shape: { title, templateIdx, dom }.
+        // Hit on repeated renders of the same row (e.g. holding Ctrl while
+        // not navigating); invalidated when the cached title's tiddler
+        // changes (via the wiki change hook) and on selection change to a
+        // different row.
+        this._detailsCache = null;
     };
 
     CascadePaletteWidget.prototype = Object.create(Widget.prototype);
@@ -57,9 +106,6 @@ filtered by `ca-entity-type`) land in task 6.
         this.execute();
 
         var self = this;
-        if (console && console.log) {
-            console.log("[cascade-palette] widget render() — mounting");
-        }
 
         this.backdropEl = this.document.createElement("div");
         this.backdropEl.className = "rcp-backdrop";
@@ -81,14 +127,23 @@ filtered by `ca-entity-type`) land in task 6.
 
         this.resultsEl = this.document.createElement("ul");
         this.resultsEl.className = "rcp-results";
+        // tabindex=-1 keeps the element out of the browser's native Tab
+        // order (we drive Tab cycling ourselves) but allows programmatic
+        // focus and keyboard events.
+        this.resultsEl.setAttribute("tabindex", "-1");
+
+        this.previewEl = this.document.createElement("div");
+        this.previewEl.className = "rcp-preview";
+        this.previewEl.setAttribute("tabindex", "-1");
 
         this.hintEl = this.document.createElement("div");
         this.hintEl.className = "rcp-hint";
-        this.hintEl.textContent = HINT_NORMAL;
+        this.hintEl.textContent = HINT_INPUT;
 
         popup.appendChild(this.breadcrumbEl);
         popup.appendChild(this.inputEl);
         popup.appendChild(this.resultsEl);
+        popup.appendChild(this.previewEl);
         popup.appendChild(this.hintEl);
         this.backdropEl.appendChild(popup);
 
@@ -107,13 +162,106 @@ filtered by `ca-entity-type`) land in task 6.
             self.renderStage();
         });
 
-        this.inputEl.addEventListener("keydown", function (e) {
+        // Keydown/keyup live on the popup (not the input) so they reach us
+        // regardless of which section currently has browser focus. Events
+        // bubble up from the focused descendant (input/results/preview)
+        // — preventDefault on the event still works in the bubble phase.
+        popup.addEventListener("keydown", function (e) {
+            // Ctrl-hold contributes to details visibility (see
+            // _updateDetailsVisibility). Auto-repeat keys (with ctrlKey=true)
+            // are dispatched to handleKeydown normally.
+            if (e.key === "Control" && !e.repeat && !self.editMode) {
+                self.ctrlHeld = true;
+                self._updateDetailsVisibility();
+            }
             self.handleKeydown(e);
+        });
+
+        popup.addEventListener("keyup", function (e) {
+            if (e.key === "Control") {
+                self.ctrlHeld = false;
+                self._updateDetailsVisibility();
+            }
+        });
+
+        // If the user Alt-Tabs out or clicks away while holding Ctrl, the
+        // keyup won't reach the popup — clear the held flag defensively
+        // on input blur. _updateDetailsVisibility honours always-on.
+        this.inputEl.addEventListener("blur", function () {
+            if (self.ctrlHeld) {
+                self.ctrlHeld = false;
+                self._updateDetailsVisibility();
+            }
+        });
+
+        // Focus sync: when the browser focus enters an element, mirror that
+        // into our `this.focus` state and re-render so the visual cue moves.
+        this.inputEl.addEventListener("focus", function () {
+            if (self.focus !== "input") {
+                self.focus = "input";
+                self._applyFocusAttr();
+            }
+        });
+
+        // Results and preview don't natively take focus on click — wire it
+        // manually. mousedown not click, so the row's own mousedown handler
+        // (which fires the selection) doesn't race with focus changes.
+        this.resultsEl.addEventListener("mousedown", function (e) {
+            // Row clicks are handled per-row; this captures clicks on the
+            // <ul> background.
+            if (e.target === self.resultsEl) self.setFocus("menu");
+        });
+        this.resultsEl.addEventListener("focus", function () {
+            if (self.focus !== "menu") {
+                self.focus = "menu";
+                self._applyFocusAttr();
+            }
+        });
+        this.previewEl.addEventListener("mousedown", function () {
+            self.setFocus("details");
+        });
+        this.previewEl.addEventListener("focus", function () {
+            if (self.focus !== "details") {
+                self.focus = "details";
+                self._applyFocusAttr();
+            }
         });
 
         this.backdropEl.addEventListener("mousedown", function (e) {
             if (e.target === self.backdropEl) self.close();
         });
+
+        // React live to config changes: the user can be editing the width
+        // (or other UI-affecting config) from within the open palette and
+        // expect the popup to resize/refresh on each step. We re-apply width
+        // immediately and re-render the current stage so settings rows show
+        // their new bound value.
+        if (!self._wikiChangeHook) {
+            self._wikiChangeHook = function (changes) {
+                if (changes[POPUP_WIDTH_CONFIG]) {
+                    self.applyPopupWidth();
+                }
+                // Always-on toggle response: visibility derives from
+                // (ctrlHeld || always-on). When the config flips, recompute
+                // before the stage re-render so the drawer shows/hides
+                // atomically with the toggle row's bound value updating.
+                if (changes[DETAILS_ALWAYS_ON_CONFIG]) {
+                    self._updateDetailsVisibility();
+                }
+                // Invalidate the details cache when the displayed tiddler
+                // changes — its rendered template DOM is now stale.
+                if (self._detailsCache && changes[self._detailsCache.title]) {
+                    self._detailsCache = null;
+                }
+                if (self.open) {
+                    // Any tiddler change while open might affect a bound
+                    // setting row's displayed value — cheap to re-render.
+                    self.recomputeStage(self.topStage());
+                    self.renderStage();
+                }
+            };
+            this.wiki.addEventListener("change", self._wikiChangeHook);
+        }
 
         // Register global hotkey handler.
         if ($tw.rootWidget) {
@@ -121,16 +269,10 @@ filtered by `ca-entity-type`) land in task 6.
                 $tw.rootWidget.removeEventListener(OPEN_MESSAGE, self._openHandler);
             }
             self._openHandler = function () {
-                if (console && console.log) {
-                    console.log("[cascade-palette] open message received");
-                }
                 self.openPalette();
                 return false;
             };
             $tw.rootWidget.addEventListener(OPEN_MESSAGE, self._openHandler);
-            if (console && console.log) {
-                console.log("[cascade-palette] hotkey listener registered on rootWidget");
-            }
         } else if (console && console.warn) {
             console.warn("[cascade-palette] $tw.rootWidget unavailable at render time");
         }
@@ -146,22 +288,96 @@ filtered by `ca-entity-type`) land in task 6.
 
     /* ---------- open / close / stack ---------- */
 
+    CascadePaletteWidget.prototype.applyPopupWidth = function () {
+        // Config stores the bare numeric percentage; we append "vw". Sub-20
+        // values would be unusable; cap at 95 to leave a safe edge.
+        var raw = this.wiki.getTiddlerText(POPUP_WIDTH_CONFIG, "50") || "50";
+        var n = parseFloat(raw);
+        if (isNaN(n)) n = 50;
+        if (n < 20) n = 20;
+        if (n > 95) n = 95;
+        this.popupEl.style.width = n + "vw";
+    };
+
     CascadePaletteWidget.prototype.openPalette = function () {
         this.open = true;
         this.stack = [this.buildRootStage()];
+        this.focus = "input";
+        this.detailsTemplateIdx = 0;
+        this._detailsCache = null;
+        this.detailsOpen = this.isDetailsAlwaysOn();
         this.recomputeStage(this.topStage());
+        this.applyPopupWidth();
         this.backdropEl.style.display = "flex";
         this.renderStage();
+        this._applyFocusAttr();
+        if (this.detailsOpen) this.renderDetails();
         var self = this;
         setTimeout(function () {
             self.inputEl.focus();
         }, 0);
     };
 
+    CascadePaletteWidget.prototype.isDetailsAlwaysOn = function () {
+        var raw = this.wiki.getTiddlerText(DETAILS_ALWAYS_ON_CONFIG, DEFAULT_FALSE_VALUE);
+        var s = String(raw || "").toLowerCase().trim();
+        return s === "yes" || s === "true" || s === "on" || s === "1";
+    };
+
+    // Recompute detailsOpen from its two sources (ctrlHeld OR always-on).
+    // Toggles drawer visibility accordingly. Safe to call any time; idempotent.
+    CascadePaletteWidget.prototype._updateDetailsVisibility = function () {
+        var shouldShow = this.ctrlHeld || this.isDetailsAlwaysOn();
+        if (shouldShow && !this.detailsOpen) {
+            this.detailsOpen = true;
+            this.renderDetails();
+        } else if (!shouldShow && this.detailsOpen) {
+            this.detailsOpen = false;
+            this.hidePreview();
+        }
+    };
+
     CascadePaletteWidget.prototype.close = function () {
         this.open = false;
         this.stack = [];
+        this.detailsOpen = false;
+        this.hidePreview();
         this.backdropEl.style.display = "none";
+    };
+
+    /* ---------- focus model ---------- */
+
+    // Move focus between the three palette sections. Browser-level focus
+    // moves to the section's DOM node (so keyboard events flow there);
+    // this.focus is the canonical state; the popup's data-focus attribute
+    // is the visual cue. Calling without args is a no-op safety.
+    CascadePaletteWidget.prototype.setFocus = function (section) {
+        if (section !== "input" && section !== "menu" && section !== "details") return;
+        if (this.focus === section) {
+            this._applyFocusAttr();
+            return;
+        }
+        this.focus = section;
+        this._applyFocusAttr();
+        if (section === "input") this.inputEl.focus();
+        else if (section === "menu") this.resultsEl.focus();
+        else if (section === "details") this.previewEl.focus();
+    };
+
+    CascadePaletteWidget.prototype._applyFocusAttr = function () {
+        if (this.popupEl) this.popupEl.dataset.focus = this.focus;
+        this._renderHint();
+    };
+
+    CascadePaletteWidget.prototype._renderHint = function () {
+        if (!this.hintEl) return;
+        if (this.editMode) {
+            this.hintEl.textContent = HINT_EDIT;
+            return;
+        }
+        if (this.focus === "menu")    this.hintEl.textContent = HINT_MENU;
+        else if (this.focus === "details") this.hintEl.textContent = HINT_DETAILS;
+        else                          this.hintEl.textContent = HINT_INPUT;
     };
 
     CascadePaletteWidget.prototype.topStage = function () {
@@ -244,6 +460,10 @@ filtered by `ca-entity-type`) land in task 6.
             // Discovered entity-type default action — fired by Enter on a
             // dynamic item when no stageDefaultAction.
             entityDefaultActions: this.lookupEntityDefaultActions(entityType),
+            // When the parent drill set `ca-next-as-link`, this stage's
+            // results are forced into plain-item rendering — cascade-aware
+            // detection in evaluateFilterStage is suppressed.
+            asLink: !!entry.nextAsLink,
             items: [],
             results: [],
             parentPicked: parentPicked || null,
@@ -265,6 +485,48 @@ filtered by `ca-entity-type`) land in task 6.
         };
     };
 
+    // Synthetic confirmation stage. Spec:
+    //   title: breadcrumb title (e.g. "Restore default for Grouping")
+    //   consequence: human text shown in the details drawer pre-confirm
+    //   actions: wikitext fired when the user picks Confirm
+    // The stage pops on either choice (handled in fireSelected). Selection
+    // defaults to Cancel so accidental Enter does nothing.
+    CascadePaletteWidget.prototype.buildConfirmStage = function (spec) {
+        var confirmItem = {
+            title: "",
+            name: "Confirm",
+            hint: "",
+            icon: "",
+            kind: "leaf",
+            order: 10,
+            group: "",
+            actions: spec.actions || "",
+            isItem: false
+        };
+        var cancelItem = {
+            title: "",
+            name: "Cancel",
+            hint: "",
+            icon: "",
+            kind: "leaf",
+            order: 20,
+            group: "",
+            actions: "",
+            isItem: false
+        };
+        return {
+            kind: "confirm",
+            title: spec.title || "Confirm",
+            query: "",
+            selectedIndex: 1,  // default to Cancel — safer for accidental Enter
+            items: [confirmItem, cancelItem],
+            results: [confirmItem, cancelItem],
+            parentPicked: null,
+            entityType: null,
+            consequenceText: spec.consequence || ""
+        };
+    };
+
     /* ---------- result computation ---------- */
 
     CascadePaletteWidget.prototype.recomputeStage = function (stage) {
@@ -274,6 +536,10 @@ filtered by `ca-entity-type`) land in task 6.
             stage.items = this.evaluateFilterStage(stage);
         } else if (stage.kind === "actions") {
             stage.items = this.sortEntries(this.loadActionsForType(stage.entityType));
+        } else if (stage.kind === "confirm") {
+            // Items are pre-built by buildConfirmStage; nothing to recompute.
+            stage.results = stage.items.slice();
+            return;
         }
         this.applyQueryToStage(stage);
     };
@@ -417,6 +683,11 @@ filtered by `ca-entity-type`) land in task 6.
             nextTitle: f["ca-next-title"] || "",
             nextEntityType: f["ca-next-entity-type"] || "",
             nextDefaultAction: f["ca-next-default-action"] || "",
+            // When `yes`, the next-stage filter results are rendered as
+            // plain item rows (no chevron, Enter navigates) even if the
+            // result tiddlers carry `ca-kind`. Diagnostic listings use
+            // this so loaded entries/actions don't look drillable.
+            nextAsLink: (f["ca-next-as-link"] || "").toLowerCase() === "yes",
             // Scribe-style binding used by `ca-kind: toggle` (and future
             // edit kinds). `bindPath` is a comma-separated walk into the
             // field text when it's JSON.
@@ -435,6 +706,10 @@ filtered by `ca-entity-type`) land in task 6.
             stepMedium: this._parseNumOrDefault(f["ca-step-medium"], DEFAULT_STEP_MEDIUM),
             stepLarge: this._parseNumOrDefault(f["ca-step-large"], DEFAULT_STEP_LARGE),
             defaultValue: this._parseNumOrNull(f["ca-default-value"]),
+            // Suffix appended to the displayed value (e.g. "vw" for a width
+            // setting). Storage stays bare numeric; consumers concatenate
+            // when applying.
+            unit: f["ca-unit"] || "",
             isItem: false       // entries / actions vs dynamic items
         };
     };
@@ -526,6 +801,29 @@ filtered by `ca-entity-type`) land in task 6.
         ));
     };
 
+    // An item is "overridden" when its bound tiddler exists in the wiki
+    // store AND is also defined as a shadow — meaning the user has saved
+    // a real tiddler over the plugin's shadow. Pure shadows (untouched
+    // defaults) and user-only tiddlers (no shadow source) are not
+    // overridden in this sense.
+    CascadePaletteWidget.prototype.isOverridden = function (item) {
+        if (!item || !item.bindTiddler) return false;
+        return this.wiki.tiddlerExists(item.bindTiddler) &&
+            this.wiki.isShadowTiddler(item.bindTiddler);
+    };
+
+    // Read the shadow's value for a bound item — i.e. what the value
+    // would be if the override were deleted. Uses the boot-time
+    // shadowTiddlers map (semi-private API) since `wiki.getTiddler`
+    // resolves overrides first.
+    CascadePaletteWidget.prototype.getDefaultValue = function (item) {
+        if (!item || !item.bindTiddler) return undefined;
+        var src = $tw.boot && $tw.boot.shadowTiddlers && $tw.boot.shadowTiddlers[item.bindTiddler];
+        if (!src || !src.tiddler) return undefined;
+        var fields = src.tiddler.fields || {};
+        return fields[item.bindField];
+    };
+
     // Boolean coercion: a stored value matches "true" if it equals the
     // item's trueValue OR a common truthy literal. Defensive against
     // legacy values like `true` vs `yes`.
@@ -600,13 +898,16 @@ filtered by `ca-entity-type`) land in task 6.
             return [];
         }
         var self = this;
+        var asLink = stage.asLink;
         return titles.map(function (title) {
-            // If the tiddler has a `ca-kind` field, it's a cascade-aware
-            // entry-style item — treat it as such (drill or leaf). Lets users
-            // nest entries inside other stages by tagging them differently.
             var t = self.wiki.getTiddler(title);
             var fields = (t && t.fields) || {};
-            if (fields["ca-kind"]) {
+            // Cascade-aware detection: if the result tiddler carries
+            // `ca-kind`, treat it as a real entry/action (drill or leaf).
+            // The parent drill can opt out via `ca-next-as-link: yes` —
+            // useful for diagnostic lists where the user wants to OPEN
+            // each tiddler, not drill into it.
+            if (!asLink && fields["ca-kind"]) {
                 return self.readCascadeFields(title);
             }
             // Plain dynamic item — prefer `caption` field for the displayed
@@ -768,10 +1069,7 @@ filtered by `ca-entity-type`) land in task 6.
     };
 
     CascadePaletteWidget.prototype.getMaxResults = function () {
-        var raw = this.wiki.getTiddlerText(
-            "$:/config/rimir/cascade-palette/max-results",
-            String(DEFAULT_MAX_RESULTS)
-        );
+        var raw = this.wiki.getTiddlerText(MAX_RESULTS_CONFIG, String(DEFAULT_MAX_RESULTS));
         var n = parseInt(raw, 10);
         return isNaN(n) || n < 1 ? DEFAULT_MAX_RESULTS : n;
     };
@@ -862,11 +1160,21 @@ filtered by `ca-entity-type`) land in task 6.
         if (self._selectedRowEl && self._selectedRowEl.scrollIntoView) {
             self._selectedRowEl.scrollIntoView({ block: "nearest" });
         }
+        // Preview drawer mirrors the selected row — refresh content whenever
+        // the result list re-renders (arrow nav, stage push/pop, etc.).
+        if (this.detailsOpen) this.renderDetails();
     };
+
+    /* Row rendering is split into three phases per row:
+       - icon slot (left)     — _renderRowIcon
+       - name (centre, flex)  — always rendered inline
+       - value slot (right)   — _renderRowValue, dispatches by kind
+       The dispatcher (_appendResultRow) also handles the row container,
+       selection state, click handler, and chevron for drill rows. */
 
     CascadePaletteWidget.prototype._appendResultRow = function (item, i, stage) {
         var self = this;
-        var rowEl = self.document.createElement("li");
+        var rowEl = this.document.createElement("li");
         rowEl.className =
             "rcp-row" + (i === stage.selectedIndex ? " rcp-row-selected" : "");
         if (item.kind === "drill") rowEl.classList.add("rcp-row-drill");
@@ -877,81 +1185,27 @@ filtered by `ca-entity-type`) land in task 6.
         // discoverable help text.
         if (item.hint) rowEl.title = item.hint;
 
-        // For toggles, the checkbox glyph replaces the icon slot (so the
-        // checkbox sits in the same column as plugin icons elsewhere).
-        if (item.kind === "toggle") {
-            var on = this.isToggleOn(item);
-            var cbEl = self.document.createElement("span");
-            cbEl.className = "rcp-row-checkbox" + (on ? " rcp-row-checkbox-on" : "");
-            cbEl.textContent = on ? "☑" : "☐";
-            rowEl.appendChild(cbEl);
-        } else if (item.icon) {
-            var iconEl = self.document.createElement("span");
-            iconEl.className = "rcp-row-icon";
-            iconEl.textContent = item.icon;
-            rowEl.appendChild(iconEl);
-        }
+        this._renderRowIcon(rowEl, item);
 
-        var nameEl = self.document.createElement("span");
+        var nameEl = this.document.createElement("span");
         nameEl.className = "rcp-row-name";
         nameEl.textContent = item.name;
         rowEl.appendChild(nameEl);
 
-        // Right-aligned slot: for toggles, the current bound value; for
-        // numbers, an optional slider bar + the value; for dynamic items,
-        // the raw title; otherwise the hint text.
-        if (item.kind === "toggle") {
-            var raw = this.readBoundValue(item);
-            var displayed = raw === undefined || raw === null || raw === ""
-                ? "(unset)"
-                : (this.isToggleOn(item) ? item.trueValue : item.falseValue);
-            var valueEl = self.document.createElement("span");
-            valueEl.className = "rcp-row-value";
-            valueEl.textContent = displayed;
-            rowEl.appendChild(valueEl);
-        } else if (item.kind === "text") {
-            var tRaw = this.readBoundValue(item);
-            var tText = tRaw === undefined || tRaw === null ? "(unset)" : String(tRaw);
-            var tValueEl = self.document.createElement("span");
-            tValueEl.className = "rcp-row-value rcp-row-value-text";
-            tValueEl.textContent = tText;
-            tValueEl.title = tText;  // full value on hover when truncated
-            rowEl.appendChild(tValueEl);
-        } else if (item.kind === "number") {
-            var nVal = this.readNumberValue(item);
-            var hasRange = item.minValue !== null && item.maxValue !== null
-                && item.maxValue > item.minValue;
-            if (hasRange) {
-                var barWrap = self.document.createElement("span");
-                barWrap.className = "rcp-row-slider";
-                var fillEl = self.document.createElement("span");
-                fillEl.className = "rcp-row-slider-fill";
-                var frac = (nVal - item.minValue) / (item.maxValue - item.minValue);
-                if (frac < 0) frac = 0;
-                if (frac > 1) frac = 1;
-                fillEl.style.width = (frac * 100) + "%";
-                barWrap.appendChild(fillEl);
-                rowEl.appendChild(barWrap);
-            }
-            var numEl = self.document.createElement("span");
-            numEl.className = "rcp-row-value";
-            numEl.textContent = String(nVal);
-            rowEl.appendChild(numEl);
-        } else if (item.isItem && item.rawTitle && item.rawTitle !== item.name) {
-            var titleEl = self.document.createElement("span");
-            titleEl.className = "rcp-row-title";
-            titleEl.textContent = item.rawTitle;
-            titleEl.title = item.rawTitle;
-            rowEl.appendChild(titleEl);
-        } else if (item.hint) {
-            var hintEl = self.document.createElement("span");
-            hintEl.className = "rcp-row-hint";
-            hintEl.textContent = item.hint;
-            rowEl.appendChild(hintEl);
+        this._renderRowValue(rowEl, item);
+
+        // Overridden-default marker — small dot after the value, before any
+        // chevron. Only meaningful for bindable kinds.
+        if (this.isOverridden(item)) {
+            var dotEl = this.document.createElement("span");
+            dotEl.className = "rcp-row-overridden";
+            dotEl.textContent = "●";
+            dotEl.title = "Overridden — DEL to restore default";
+            rowEl.appendChild(dotEl);
         }
 
         if (item.kind === "drill") {
-            var chevronEl = self.document.createElement("span");
+            var chevronEl = this.document.createElement("span");
             chevronEl.className = "rcp-row-chevron";
             chevronEl.textContent = "›";
             rowEl.appendChild(chevronEl);
@@ -960,39 +1214,467 @@ filtered by `ca-entity-type`) land in task 6.
         rowEl.addEventListener("mousedown", function (e) {
             e.preventDefault();
             stage.selectedIndex = i;
+            self.setFocus("menu");
             self.fireSelected(e.shiftKey);
         });
 
         if (i === stage.selectedIndex) {
-            self._selectedRowEl = rowEl;
+            this._selectedRowEl = rowEl;
         }
-        self.resultsEl.appendChild(rowEl);
+        this.resultsEl.appendChild(rowEl);
+    };
+
+    // For toggles, a checkbox glyph occupies the icon slot. For other kinds,
+    // ca-icon takes the slot. Slot is shared so the visual column lines up.
+    CascadePaletteWidget.prototype._renderRowIcon = function (rowEl, item) {
+        if (item.kind === "toggle") {
+            var on = this.isToggleOn(item);
+            var cbEl = this.document.createElement("span");
+            cbEl.className = "rcp-row-checkbox" + (on ? " rcp-row-checkbox-on" : "");
+            cbEl.textContent = on ? "☑" : "☐";
+            rowEl.appendChild(cbEl);
+            return;
+        }
+        if (item.icon) {
+            var iconEl = this.document.createElement("span");
+            iconEl.className = "rcp-row-icon";
+            iconEl.textContent = item.icon;
+            rowEl.appendChild(iconEl);
+        }
+    };
+
+    // Right-aligned slot — dispatches by kind. Kept as a sequence of small
+    // helpers so adding a new kind (Phase D's slider/enum etc.) doesn't
+    // require touching the dispatcher.
+    CascadePaletteWidget.prototype._renderRowValue = function (rowEl, item) {
+        switch (item.kind) {
+            case "toggle": this._renderToggleValue(rowEl, item); return;
+            case "text":   this._renderTextValue(rowEl, item); return;
+            case "number": this._renderNumberValue(rowEl, item); return;
+        }
+        // Non-edit kinds.
+        if (item.isItem && item.rawTitle && item.rawTitle !== item.name) {
+            var titleEl = this.document.createElement("span");
+            titleEl.className = "rcp-row-title";
+            titleEl.textContent = item.rawTitle;
+            titleEl.title = item.rawTitle;
+            rowEl.appendChild(titleEl);
+            return;
+        }
+        if (item.hint) {
+            var hintEl = this.document.createElement("span");
+            hintEl.className = "rcp-row-hint";
+            hintEl.textContent = item.hint;
+            rowEl.appendChild(hintEl);
+        }
+    };
+
+    CascadePaletteWidget.prototype._renderToggleValue = function (rowEl, item) {
+        var raw = this.readBoundValue(item);
+        var displayed = raw === undefined || raw === null || raw === ""
+            ? "(unset)"
+            : (this.isToggleOn(item) ? item.trueValue : item.falseValue);
+        var valueEl = this.document.createElement("span");
+        valueEl.className = "rcp-row-value";
+        valueEl.textContent = displayed;
+        rowEl.appendChild(valueEl);
+    };
+
+    CascadePaletteWidget.prototype._renderTextValue = function (rowEl, item) {
+        var raw = this.readBoundValue(item);
+        var text = raw === undefined || raw === null ? "(unset)" : String(raw);
+        var valueEl = this.document.createElement("span");
+        valueEl.className = "rcp-row-value rcp-row-value-text";
+        valueEl.textContent = text;
+        valueEl.title = text;  // full value on hover when truncated
+        rowEl.appendChild(valueEl);
+    };
+
+    CascadePaletteWidget.prototype._renderNumberValue = function (rowEl, item) {
+        var nVal = this.readNumberValue(item);
+        var hasRange = item.minValue !== null && item.maxValue !== null
+            && item.maxValue > item.minValue;
+        if (hasRange) {
+            var barWrap = this.document.createElement("span");
+            barWrap.className = "rcp-row-slider";
+            var fillEl = this.document.createElement("span");
+            fillEl.className = "rcp-row-slider-fill";
+            var frac = (nVal - item.minValue) / (item.maxValue - item.minValue);
+            if (frac < 0) frac = 0;
+            if (frac > 1) frac = 1;
+            fillEl.style.width = (frac * 100) + "%";
+            barWrap.appendChild(fillEl);
+            rowEl.appendChild(barWrap);
+        }
+        var numEl = this.document.createElement("span");
+        numEl.className = "rcp-row-value";
+        numEl.textContent = String(nVal) + (item.unit || "");
+        rowEl.appendChild(numEl);
+    };
+
+    /* ---------- details drawer ----------
+
+    Rendered in three layers:
+      1. Help block — `ca-help` (multiline) falls back to `ca-hint`.
+         Rendered as a styled lead-in when present.
+      2. Template body — wikitext tiddler tagged TEMPLATE_TAG whose
+         `ca-template-applies` filter accepts the picked tiddler. Multiple
+         matches → tab strip; the active tab's template is rendered with
+         `currentTiddler = picked.title` so the wikitext can transclude
+         fields freely.
+      3. Fields-table fallback — when no template applies AND there's no
+         help text, fall back to the raw key/value table (the v0.1 model).
+
+    Rendered DOM is cached on `this._detailsCache` keyed by (title,
+    templateIdx) so navigating away and back doesn't re-parse wikitext.
+    Invalidation: selection change to a different title, template tab
+    change, wiki change on the cached title (see _wikiChangeHook).
+
+    \------------------------------------ */
+
+    CascadePaletteWidget.prototype.renderDetails = function () {
+        var stage = this.topStage();
+        if (!stage || !stage.results.length) {
+            this.hidePreview();
+            return;
+        }
+        var picked = stage.results[stage.selectedIndex];
+        if (!picked || !picked.title) {
+            this.hidePreview();
+            return;
+        }
+
+        // Reset template-tab index when the selected row changes.
+        if (this._detailsCache && this._detailsCache.title !== picked.title) {
+            this.detailsTemplateIdx = 0;
+        }
+
+        while (this.previewEl.firstChild) {
+            this.previewEl.removeChild(this.previewEl.firstChild);
+        }
+
+        var headerEl = this.document.createElement("div");
+        headerEl.className = "rcp-preview-title";
+        headerEl.textContent = picked.title;
+        this.previewEl.appendChild(headerEl);
+
+        // Confirm-stage consequence banner — surfaces what DEL or Enter
+        // will do. Pre-empts both help text and templates so the user
+        // sees the destructive consequence first.
+        if (stage.kind === "confirm" && stage.consequenceText) {
+            var consEl = this.document.createElement("div");
+            consEl.className = "rcp-details-consequence";
+            consEl.textContent = stage.consequenceText;
+            this.previewEl.appendChild(consEl);
+        }
+
+        var helpText = this._resolveHelpText(picked);
+        if (helpText) {
+            var helpEl = this.document.createElement("div");
+            helpEl.className = "rcp-details-help";
+            helpEl.textContent = helpText;
+            this.previewEl.appendChild(helpEl);
+        }
+
+        // Overridden-default banner — surfaces the shadow value so the user
+        // knows what DEL would restore. Bindable kinds only.
+        if (this.isOverridden(picked)) {
+            var defaultValue = this.getDefaultValue(picked);
+            var defEl = this.document.createElement("div");
+            defEl.className = "rcp-details-default";
+            defEl.textContent = "Default: " + (defaultValue === undefined || defaultValue === ""
+                ? "(empty)" : String(defaultValue));
+            this.previewEl.appendChild(defEl);
+        }
+
+        var templates = this.findTemplatesFor(picked.title);
+        var renderedTemplate = false;
+
+        if (templates.length > 0) {
+            // Clamp template index to current set.
+            if (this.detailsTemplateIdx >= templates.length) {
+                this.detailsTemplateIdx = 0;
+            }
+            if (templates.length > 1) {
+                this.previewEl.appendChild(this._buildTemplateTabStrip(templates));
+            }
+            var bodyEl = this._renderTemplateBody(picked.title, templates[this.detailsTemplateIdx]);
+            if (bodyEl) {
+                this.previewEl.appendChild(bodyEl);
+                renderedTemplate = true;
+            }
+        }
+
+        // Fields-table fallback only when nothing else applies.
+        if (!renderedTemplate && !helpText) {
+            this._appendFieldsTable(picked.title);
+        }
+
+        this.popupEl.classList.add("rcp-previewing");
+    };
+
+    CascadePaletteWidget.prototype.hidePreview = function () {
+        this.popupEl.classList.remove("rcp-previewing");
+    };
+
+    CascadePaletteWidget.prototype._resolveHelpText = function (item) {
+        if (!item) return "";
+        var t = this.wiki.getTiddler(item.title);
+        var f = (t && t.fields) || {};
+        // ca-help (multiline, long-form) wins over ca-hint (subtitle/tooltip).
+        return f["ca-help"] || f["ca-hint"] || item.hint || "";
+    };
+
+    // Discover applicable templates for a given tiddler title. A template
+    // tiddler is tagged TEMPLATE_TAG; `ca-template-applies` is a filter
+    // evaluated with `currentTiddler` bound to the picked title — if the
+    // filter returns the picked title, the template applies. Missing
+    // filter → universal template (applies to everything). Sorted by
+    // `ca-order` ascending.
+    CascadePaletteWidget.prototype.findTemplatesFor = function (title) {
+        var self = this;
+        var titles = this.wiki.filterTiddlers(
+            "[all[shadows+tiddlers]tag[" + TEMPLATE_TAG + "]]"
+        );
+        var matches = [];
+        titles.forEach(function (tplTitle) {
+            var t = self.wiki.getTiddler(tplTitle);
+            var f = (t && t.fields) || {};
+            var applies = f["ca-template-applies"];
+            if (applies) {
+                try {
+                    var results = self.wiki.filterTiddlers(
+                        applies,
+                        self.makeFakeWidget({ currentTiddler: title })
+                    );
+                    if (results.indexOf(title) === -1) return;
+                } catch (err) {
+                    if (console && console.warn) {
+                        console.warn(
+                            "[cascade-palette] ca-template-applies error on",
+                            tplTitle, "—", err && err.message
+                        );
+                    }
+                    return;
+                }
+            }
+            var orderRaw = f["ca-order"];
+            var order = orderRaw !== undefined && orderRaw !== ""
+                ? parseFloat(orderRaw) : DEFAULT_ORDER;
+            if (isNaN(order)) order = DEFAULT_ORDER;
+            matches.push({
+                title: tplTitle,
+                name: f["ca-template-name"] || tplTitle.split("/").pop(),
+                order: order
+            });
+        });
+        matches.sort(function (a, b) {
+            if (a.order !== b.order) return a.order - b.order;
+            return a.name.localeCompare(b.name);
+        });
+        return matches;
+    };
+
+    CascadePaletteWidget.prototype._buildTemplateTabStrip = function (templates) {
+        var self = this;
+        var stripEl = this.document.createElement("div");
+        stripEl.className = "rcp-details-tabs";
+        templates.forEach(function (tpl, idx) {
+            var tabEl = self.document.createElement("span");
+            tabEl.className = "rcp-details-tab" +
+                (idx === self.detailsTemplateIdx ? " rcp-details-tab-active" : "");
+            tabEl.textContent = tpl.name;
+            tabEl.title = tpl.title;
+            tabEl.addEventListener("mousedown", function (e) {
+                e.preventDefault();
+                self.detailsTemplateIdx = idx;
+                self._detailsCache = null;  // template changed → invalidate
+                self.setFocus("details");
+                self.renderDetails();
+            });
+            stripEl.appendChild(tabEl);
+        });
+        return stripEl;
+    };
+
+    // Render a template tiddler's wikitext with `currentTiddler` bound to
+    // the picked title. Uses the standard TW transclude-style: parse the
+    // template, make a widget tree, render to a real DOM container, return
+    // the container. Cached by (title, templateIdx).
+    CascadePaletteWidget.prototype._renderTemplateBody = function (pickedTitle, template) {
+        var cache = this._detailsCache;
+        if (cache && cache.title === pickedTitle &&
+            cache.templateIdx === this.detailsTemplateIdx &&
+            cache.dom) {
+            return cache.dom;
+        }
+        var container = this.document.createElement("div");
+        container.className = "rcp-details-template";
+        try {
+            var parser = this.wiki.parseTiddler(template.title);
+            var widgetNode = this.wiki.makeWidget(parser, {
+                parentWidget: this.findActionParent() || $tw.rootWidget,
+                document: this.document,
+                variables: { currentTiddler: pickedTitle }
+            });
+            widgetNode.render(container, null);
+        } catch (err) {
+            if (console && console.warn) {
+                console.warn(
+                    "[cascade-palette] template render error",
+                    template.title, "—", err && err.message
+                );
+            }
+            container.textContent = "(template render error: " +
+                (err && err.message) + ")";
+        }
+        this._detailsCache = {
+            title: pickedTitle,
+            templateIdx: this.detailsTemplateIdx,
+            dom: container
+        };
+        return container;
+    };
+
+    CascadePaletteWidget.prototype._appendFieldsTable = function (title) {
+        var t = this.wiki.getTiddler(title);
+        if (!t) {
+            var noEl = this.document.createElement("div");
+            noEl.className = "rcp-preview-empty";
+            noEl.textContent = "(no tiddler — likely a transient filter result)";
+            this.previewEl.appendChild(noEl);
+            return;
+        }
+        var fields = t.fields || {};
+        var keys = Object.keys(fields)
+            .filter(function (k) { return k !== "title"; })
+            .sort(function (a, b) {
+                if (a === "text") return 1;
+                if (b === "text") return -1;
+                return a.localeCompare(b);
+            });
+        if (keys.length === 0) {
+            var nf = this.document.createElement("div");
+            nf.className = "rcp-preview-empty";
+            nf.textContent = "(no fields besides title)";
+            this.previewEl.appendChild(nf);
+            return;
+        }
+        var dl = this.document.createElement("dl");
+        dl.className = "rcp-preview-fields";
+        for (var i = 0; i < keys.length; i++) {
+            var k = keys[i];
+            var v = fields[k];
+            var str = v === null || v === undefined ? "" : String(v);
+            var dt = this.document.createElement("dt");
+            dt.textContent = k;
+            var dd = this.document.createElement("dd");
+            dd.textContent = str;
+            if (k === "text") dd.classList.add("rcp-preview-body");
+            dl.appendChild(dt);
+            dl.appendChild(dd);
+        }
+        this.previewEl.appendChild(dl);
     };
 
     /* ---------- keyboard ---------- */
 
+    /* The keyboard model is a 3-tier dispatcher:
+       1. Edit-mode short-circuit — when the input is a value editor,
+          only Enter (commit) and Esc (cancel) are intercepted.
+       2. Global keys — Tab/Shift-Tab (cycle focus), Enter/Ctrl-Enter
+          (fire). These apply regardless of focused section.
+       3. Section-specific keys — routed by `this.focus`.
+
+       Within section-specific routing, Esc has consistent "exit current
+       context" semantics:
+         - in input:   close the palette entirely
+         - in menu:    return focus to input
+         - in details: return focus to input
+    */
+
     CascadePaletteWidget.prototype.handleKeydown = function (e) {
         var stage = this.topStage();
         if (!stage) return;
-        // Edit mode short-circuit: only Enter (commit) and Esc (cancel) are
-        // hot. Everything else (typing, cursor keys inside the input, etc.)
-        // falls through to the native input behaviour.
+
+        // Tier 1 — edit mode short-circuit.
         if (this.editMode) {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                this.exitEditMode(true);
-                return;
-            }
-            if (e.key === "Escape") {
-                e.preventDefault();
-                this.exitEditMode(false);
-                return;
-            }
+            this._handleKeydownEdit(e);
+            return;
+        }
+
+        // Tier 2 — global section-cycling and fire gestures.
+        if (e.key === "Tab") {
+            e.preventDefault();
+            this._cycleFocus(e.shiftKey ? -1 : 1);
+            return;
+        }
+        if (e.key === "Enter") {
+            e.preventDefault();
+            // Ctrl-Enter keeps palette open after firing. Shift-Enter kept
+            // as a silent alias for back-compat (deprecated; remove in
+            // v0.3).
+            this.fireSelected(e.ctrlKey || e.shiftKey);
+            return;
+        }
+
+        // Tier 3 — section-specific.
+        switch (this.focus) {
+            case "input":   this._handleKeydownInput(e, stage); return;
+            case "menu":    this._handleKeydownMenu(e, stage); return;
+            case "details": this._handleKeydownDetails(e, stage); return;
+        }
+    };
+
+    CascadePaletteWidget.prototype._handleKeydownEdit = function (e) {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            this.exitEditMode(true);
             return;
         }
         if (e.key === "Escape") {
             e.preventDefault();
-            this.popStage();
+            this.exitEditMode(false);
+            return;
+        }
+        // All other keys (typing, cursor movement) fall through to native
+        // input behaviour.
+    };
+
+    CascadePaletteWidget.prototype._handleKeydownInput = function (e, stage) {
+        if (e.key === "Escape") {
+            e.preventDefault();
+            // Esc in input always closes — the user is at the "top" of the
+            // palette mental model and Esc means "I'm done".
+            this.close();
+            return;
+        }
+        if (e.key === "ArrowDown") {
+            // Step into the menu only if there's something to select.
+            if (stage.results.length > 0) {
+                e.preventDefault();
+                this.setFocus("menu");
+            }
+        }
+        // Typing is handled by the input event listener.
+    };
+
+    CascadePaletteWidget.prototype._handleKeydownMenu = function (e, stage) {
+        if (e.key === "Escape") {
+            e.preventDefault();
+            this.setFocus("input");
+            return;
+        }
+        if (e.key === "ArrowUp") {
+            e.preventDefault();
+            if (stage.selectedIndex > 0) {
+                stage.selectedIndex -= 1;
+                this.renderResults();
+            } else {
+                // Moving up past the top row returns focus to the input
+                // so the user can refine the query without an extra Tab.
+                this.setFocus("input");
+            }
             return;
         }
         if (e.key === "ArrowDown") {
@@ -1003,31 +1685,16 @@ filtered by `ca-entity-type`) land in task 6.
             }
             return;
         }
-        if (e.key === "ArrowUp") {
+        if (e.key === "ArrowRight") {
             e.preventDefault();
-            if (stage.selectedIndex > 0) {
-                stage.selectedIndex -= 1;
-                this.renderResults();
-            }
+            this.drillSelected();
             return;
         }
-        if (e.key === "Tab") {
+        if (e.key === "ArrowLeft") {
             e.preventDefault();
-            if (e.shiftKey) {
-                this.popStage();
-            } else {
-                this.drillSelected();
-            }
+            this.popStage();
             return;
         }
-        if (e.key === "Enter") {
-            e.preventDefault();
-            this.fireSelected(e.shiftKey);  // shift-enter → keep palette open
-            return;
-        }
-        // Space → kind-specific edit gestures. Toggle flips the value
-        // inline; text/number enter edit mode (input becomes a value
-        // editor). Anything else falls through to the input.
         if (e.key === " " || e.code === "Space") {
             var picked = stage.results[stage.selectedIndex];
             if (picked) {
@@ -1045,10 +1712,9 @@ filtered by `ca-entity-type`) land in task 6.
         }
         // +/- on a number row — adjust by step (Shift = mid, Ctrl = large).
         // Match on `e.code` so it works regardless of US/DE/etc. keyboard
-        // layout: pressing the physical "=/+" or "-/_" key (or numpad
-        // ±) always triggers. The "shift to get +" on US layouts is
-        // absorbed naturally — what matters is the physical key, not the
-        // produced character.
+        // layout: the physical "=/+" or "-/_" key (or numpad ±) always
+        // triggers. "Shift to get +" on US layouts is absorbed naturally —
+        // what matters is the physical key, not the produced character.
         var isPlusKey = e.code === "Equal" || e.code === "NumpadAdd";
         var isMinusKey = e.code === "Minus" || e.code === "NumpadSubtract";
         if (isPlusKey || isMinusKey) {
@@ -1060,6 +1726,102 @@ filtered by `ca-entity-type`) land in task 6.
                 return;
             }
         }
+        // DEL/Backspace on a row — push a confirm-drill stage for either
+        // (a) restoring an overridden setting's default, or (b) deleting a
+        // dynamic user-created tiddler in a diagnostic list. Shadow-only
+        // items in either case are silent no-ops (cannot delete a shadow).
+        if (e.key === "Delete" || e.key === "Backspace") {
+            var pickedDel = stage.results[stage.selectedIndex];
+            if (!pickedDel) return;
+            if (this.isOverridden(pickedDel)) {
+                e.preventDefault();
+                this._pushRestoreDefaultConfirm(pickedDel);
+                return;
+            }
+            if (pickedDel.isItem &&
+                this.wiki.tiddlerExists(pickedDel.title) &&
+                !this.wiki.isShadowTiddler(pickedDel.title)) {
+                e.preventDefault();
+                this._pushDeleteTiddlerConfirm(pickedDel);
+                return;
+            }
+            // Shadow-only or no-override — silently no-op.
+        }
+    };
+
+    CascadePaletteWidget.prototype._pushRestoreDefaultConfirm = function (item) {
+        var defaultValue = this.getDefaultValue(item);
+        var defaultDisplay = defaultValue === undefined || defaultValue === ""
+            ? "(empty)" : String(defaultValue);
+        this.pushStage(this.buildConfirmStage({
+            title: "Restore default for " + (item.name || item.title),
+            consequence: "DEL will delete the override at `" + item.bindTiddler +
+                "`, restoring the shadow default: " + defaultDisplay,
+            actions: '<$action-deletetiddler $tiddler="' +
+                this._escapeAttr(item.bindTiddler) + '"/>'
+        }));
+    };
+
+    CascadePaletteWidget.prototype._pushDeleteTiddlerConfirm = function (item) {
+        // Cheap backlink count — informative without rendering the list.
+        var backlinkCount = 0;
+        try {
+            backlinkCount = this.wiki.filterTiddlers(
+                "[all[tiddlers]backlinks[]]",
+                this.makeFakeWidget({ currentTiddler: item.title })
+            ).length;
+        } catch (err) { /* ignore */ }
+        this.pushStage(this.buildConfirmStage({
+            title: "Delete tiddler " + item.title,
+            consequence: "This will permanently delete `" + item.title +
+                "`. Backlinks: " + backlinkCount + ".",
+            actions: '<$action-deletetiddler $tiddler="' +
+                this._escapeAttr(item.title) + '"/>'
+        }));
+    };
+
+    // Escape a tiddler title for safe inclusion in a wikitext attribute
+    // value bounded by double quotes. TW titles can include `"`, `\`, etc.;
+    // wikitext attributes follow JS-string-like escaping.
+    CascadePaletteWidget.prototype._escapeAttr = function (s) {
+        if (!s) return "";
+        return String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    };
+
+    CascadePaletteWidget.prototype._handleKeydownDetails = function (e, stage) {
+        if (e.key === "Escape") {
+            e.preventDefault();
+            this.setFocus("input");
+            return;
+        }
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+            // Cycle template tabs when multi-template is active. Otherwise
+            // fall through and let the native pane stay still.
+            var picked = stage.results[stage.selectedIndex];
+            if (!picked) return;
+            var templates = this.findTemplatesFor(picked.title);
+            if (templates.length <= 1) return;
+            e.preventDefault();
+            var delta = e.key === "ArrowRight" ? 1 : -1;
+            this.detailsTemplateIdx =
+                (this.detailsTemplateIdx + delta + templates.length) % templates.length;
+            this._detailsCache = null;
+            this.renderDetails();
+            return;
+        }
+        // ArrowUp/Down let the browser scroll the pane natively.
+    };
+
+    // Cycle focus across the active sections. Details is included only
+    // when the drawer is open; otherwise the cycle is input ↔ menu.
+    CascadePaletteWidget.prototype._cycleFocus = function (delta) {
+        var order = this.detailsOpen
+            ? ["input", "menu", "details"]
+            : ["input", "menu"];
+        var idx = order.indexOf(this.focus);
+        if (idx < 0) idx = 0;
+        idx = (idx + delta + order.length) % order.length;
+        this.setFocus(order[idx]);
     };
 
     /* ---------- selection handling ---------- */
@@ -1072,6 +1834,17 @@ filtered by `ca-entity-type`) land in task 6.
         var stage = this.topStage();
         if (!stage || stage.results.length === 0) return;
         var picked = stage.results[stage.selectedIndex];
+
+        // Confirm stages: leaf fires its actions (Cancel = no-op) and then
+        // pops the stage. Never close-on-fire, regardless of keepOpen — the
+        // user expects to return to the previous stage.
+        if (stage.kind === "confirm" && picked.kind === "leaf") {
+            if (picked.actions) {
+                this.invokeViaNavigator(picked.actions, {});
+            }
+            this.popStage();
+            return;
+        }
 
         // 1. Leaf entry/action item — fire ca-actions.
         if (picked.kind === "leaf" && picked.actions) {
@@ -1164,6 +1937,12 @@ filtered by `ca-entity-type`) land in task 6.
     CascadePaletteWidget.prototype.enterEditMode = function (item) {
         var stage = this.topStage();
         if (!stage) return;
+        // Edit mode and preview drawer are mutually exclusive — drop the
+        // preview if it was up so the editor can use the full popup.
+        if (this.detailsOpen) {
+            this.detailsOpen = false;
+            this.hidePreview();
+        }
         var raw = this.readBoundValue(item);
         var initial = "";
         if (item.kind === "number") {
@@ -1213,7 +1992,7 @@ filtered by `ca-entity-type`) land in task 6.
         this.inputEl.value = em.savedQuery;
         this.inputEl.placeholder = "Type to filter…";
         this.popupEl.classList.remove("rcp-editing");
-        this.hintEl.textContent = HINT_NORMAL;
+        this._renderHint();
         this.renderStage();
     };
 
@@ -1271,17 +2050,12 @@ filtered by `ca-entity-type`) land in task 6.
             return;
         }
 
-        // Tab on a dynamic entity result → push action menu stage.
+        // Drill on a dynamic entity result → push action menu stage.
+        // Silent no-op when the stage has no entityType (e.g. a diagnostic
+        // listing) — these stages drill via $action-navigate from fireSelected
+        // instead.
         if (picked.isItem) {
-            if (!stage.entityType) {
-                if (console && console.info) {
-                    console.info(
-                        "[cascade-palette] no entity-type on stage; can't open action menu for",
-                        picked.title
-                    );
-                }
-                return;
-            }
+            if (!stage.entityType) return;
             this.pushStage(this.buildActionMenuStage(
                 picked.title,
                 stage.entityType,

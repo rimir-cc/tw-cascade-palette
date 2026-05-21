@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/diagnostics/loaded-settings
+tags: $:/tags/rimir/cascade-palette/diagnostic
+ca-name: Loaded settings
+ca-hint: Toggle / value inputs bound to config tiddlers
+ca-icon: 🎛
+ca-kind: drill
+ca-order: 30
+ca-next-scope: [all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/setting]]
+ca-next-title: Loaded settings
+ca-next-as-link: yes

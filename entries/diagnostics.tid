@@ -1,0 +1,9 @@
+title: $:/plugins/rimir/cascade-palette/entries/diagnostics
+tags: $:/tags/rimir/cascade-palette/configuration
+ca-name: Diagnostics
+ca-hint: What's loaded — entries, actions, settings
+ca-icon: 🔍
+ca-kind: drill
+ca-order: 20
+ca-next-scope: [all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/diagnostic]]
+ca-next-title: Diagnostics
