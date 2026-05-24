@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/views/hybrid
+tags: $:/tags/rimir/cascade-palette/view
+ca-view-name: Hybrid
+ca-view-hint: Demo view composing two structure layers — a tag-tree alongside a path-tree, plus the built-in entries layer.
+ca-view-layers: $:/plugins/rimir/cascade-palette/structure-layers/tag-tree $:/plugins/rimir/cascade-palette/structure-layers/path-tree
+ca-view-sort: alphabetical
+ca-view-containers-first: yes
+ca-view-show-count: yes
+ca-order: 500
+type: text/vnd.tiddlywiki

@@ -10,7 +10,7 @@ type: text/vnd.tiddlywiki
 
 The palette is one popup with up to seven focusable sections, partitioned into two groups:
 
-* ''pills group'' (top of the palette, visually stacked): ''preset'' (always present — trailing ''+'' pill is the save-as affordance even when no presets exist), ''visibility'' (only when ≥ 1 visibility rule active), ''filter'' (only when ≥ 1 filter active), ''view'' (only when ≥ 2 views declared). Below the view strip a read-only ''structure'' row depicts the active view's `roots` / `children` / `leaf` / `label` filter primitives as pills — not focusable in this version, purely informational.
+* ''pills group'' (top of the palette, visually stacked): ''preset'' (always present — trailing ''+'' pill is the save-as affordance even when no presets exist), ''visibility'' (only when ≥ 1 visibility rule active), ''filter'' (only when ≥ 1 filter active), ''view'' (only when ≥ 2 views declared). Below the view strip a read-only ''structure'' row depicts the active view's composition: a view-scoped header row (sort, pick-mode, entries-mode) followed by one mini-row per structure layer (roots/children/leaf/label + row decorations + entity-type). Built-in layers (the synthetic ''entries'' layer auto-appended to tree views) render muted to flag their automatic nature. Not focusable in this version — purely informational.
 * ''main group'': ''input'' (search box), ''menu'' (result list), ''details'' (preview drawer, only when open)
 
 The active section gets the browser-level focus and a visual cue; keyboard gestures route accordingly. ''Tab'' cycles within the current group; ''Shift-Tab'' jumps between groups (lands on the bottom-most pill when entering pills, on input when returning). ''↑ / ↓'' inside the pill group walks vertically across rows — ↑ from input enters pills at the bottom-most row, ↓ from the bottom-most pill drops back into input. Esc steps "outward" — section → input → close.
@@ -72,7 +72,8 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`$:/tags/rimir/cascade-palette/template` |Detail-pane template — wikitext rendered with `currentTiddler` bound to the picked item |
 |`$:/tags/rimir/cascade-palette/filter` |Declarative ''filter'' — adds a removable pill whose expression is appended (intersected) to every result-list filter |
 |`$:/tags/rimir/cascade-palette/visibility` |Declarative ''visibility rule'' — adds a removable pill whose predicate filter hides matching root entries |
-|`$:/tags/rimir/cascade-palette/view` |Declarative view — strategy for building the root menu (flat or tree). Each view appears as a pill in the view strip |
+|`$:/tags/rimir/cascade-palette/view` |Declarative view — composition of one or more structure layers. Each view appears as a pill in the view strip |
+|`$:/tags/rimir/cascade-palette/structure-layer` |Declarative structure layer — `(roots, children, leaf, label)` + row decorations. Referenced by view tiddlers via `ca-view-layers` |
 |`$:/tags/rimir/cascade-palette/leader` |Leader-key gesture — key + idle window fires a wikitext action chain |
 |`$:/tags/rimir/cascade-palette/preset` |Saved `(view, filters, visibility)` bundle — surfaced as a pill in the preset strip |
 
@@ -129,10 +130,24 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-view-name` |string |view |Display name on the view-strip pill and as the root breadcrumb segment |
 |`ca-view-hint` |string |view |Tooltip on hover; appears in the details pane when the view pill is focused |
 |`ca-view-default` |`yes`\|empty |view |One view declares `yes` to be the initial selection on page load |
-|`ca-view-roots` |filter |view |Filter producing the root rows (no `<currentTiddler>` binding). Required. Back-compat alias: `ca-view-source` is honoured when `ca-view-roots` is absent. |
-|`ca-view-children` |filter |view |Filter producing direct children of a node, with `<currentTiddler>` bound to the parent tiddler. Empty = flat view (every root row is a leaf). |
-|`ca-view-leaf` |filter |view |Optional leaf-test. With `<currentTiddler>` bound to the candidate, returns truthy when the candidate should not drill. Default: node is a leaf iff `ca-view-children` returns empty for it. |
-|`ca-view-label` |filter |view |Optional display-name override. With `<currentTiddler>` bound to the node, returns the row's display name. Default precedence: caption → last `/`-segment → title. |
+|`ca-view-layers` |space-separated titles |view |List of structure-layer tiddler titles composing this view. When set, the view is multi-layer and the view-level structure fields are ignored. When unset, the engine wraps the view's own `ca-view-roots` / `ca-view-children` / etc. into a single implicit layer (back-compat). |
+|`ca-view-include-entries` |`yes`\|`no`\|`auto` |view |Whether the built-in entries layer is appended. Default `auto` — appended iff at least one declared layer is tree-shaped. `yes` always appends, `no` never. |
+|`ca-view-grouping` |`yes`\|`no` |view |Whether result rows cluster under section headers. Default `yes`. Replaces the deprecated global `$:/config/rimir/cascade-palette/grouping-enabled` toggle removed in 0.0.38 — grouping is structural intent of the view (e.g. multi-layer composition wants section headers; a strict flat list might not), so the view author owns the decision. |
+|`ca-view-roots` |filter |view (implicit-layer) |Filter producing the root rows (no `<currentTiddler>` binding). Equivalent to a layer's `ca-layer-roots`. Back-compat alias: `ca-view-source` is honoured when `ca-view-roots` is absent. |
+|`ca-view-children` |filter |view (implicit-layer) |Filter producing direct children of a node, with `<currentTiddler>` bound to the parent. Empty = flat view (every root row is a leaf). |
+|`ca-view-leaf` |filter |view (implicit-layer) |Optional leaf-test for the implicit layer. |
+|`ca-view-label` |filter |view (implicit-layer) |Optional display-name override for the implicit layer. |
+|`ca-view-row-entity-type` |filter |view (implicit-layer) |Optional per-row entity-type filter for the implicit layer. Right-arrow on a leaf with a non-empty type opens the action-menu stage of that type. |
+|`ca-layer-name` |string |structure-layer |Display name. Appears as the per-layer label in the Structure pill row; also the default `ca-group` for rows the layer emits. |
+|`ca-layer-roots` |filter |structure-layer |Filter producing root rows (no `<currentTiddler>` binding). |
+|`ca-layer-children` |filter |structure-layer |Filter producing direct children of `<currentTiddler>` (the parent). |
+|`ca-layer-leaf` |filter |structure-layer |Optional leaf-test (`<currentTiddler>` = candidate). |
+|`ca-layer-label` |filter |structure-layer |Optional display-name override (`<currentTiddler>` = node). |
+|`ca-layer-row-name` / `-hint` / `-icon` / `-kind` / `-group` / `-order` |filter |structure-layer |Per-row field overrides (`<currentTiddler>` = row). |
+|`ca-layer-row-actions` |filter ''or'' wikitext |structure-layer |Action fired on a leaf pick. Same dual-mode behaviour as `ca-view-row-actions`. |
+|`ca-layer-row-entity-type` |filter |structure-layer |Per-row entity-type filter. Returning a non-empty type on a leaf row makes Right-arrow open the action-menu stage of that type. |
+|`ca-layer-row-next-scope` / `-items-from` |filter |structure-layer |Per-row synthetic drill filter. |
+|`ca-layer-include-position` |`yes`\|`no` |structure-layer |Whether `ca-position` annotations apply to rows emitted by this layer. Default `yes`. |
 |`ca-view-sort` |`alphabetical`\|`natural`\|`by-field`\|`custom` |view |Row sort policy; default `alphabetical` |
 |`ca-view-sort-field` |string |view (by-field) |Field name read off each row |
 |`ca-view-sort-key` |filter |view (custom) |Per-row filter returning a sortable key |
@@ -157,25 +172,36 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 
 ! Shipped views (concrete shapes)
 
-The four built-in views compose the declarative primitives as follows:
+The built-in views compose layers as follows:
 
-|!View |!Roots |!Children |!Notes |
-|`entries` |`[all[shadows+tiddlers]tag[…/entry]]` |(none — flat) |Default view; surfaces all plugin-declared entry tiddlers |
-|`all-tiddlers` |`[!is[system]]` |(none — flat) |Flat list of user tiddlers; row-actions navigate |
-|`by-namespace` |`[!is[system]cp-child-of[]]` |`[!is[system]cp-child-of<currentTiddler>]` |Path-segment tree using the plugin's `cp-child-of` filter operator |
-|`by-parent` |`[tag[TableOfContents]]` |`[tag<currentTiddler>]` |TW tag-tree via native filter ops |
-|`by-namespace-pick` |same as `by-namespace` plus `ca-view-pick-mode: yes` |- |Hidden pick variant — Enter commits picked tiddler as filter arg |
+|!View |!Layers |!Notes |
+|`entries` |implicit single layer (`roots: [tag[…/entry]]`); built-in entries layer not appended (auto, flat) |Default view; surfaces all plugin-declared entry tiddlers |
+|`all-tiddlers` |implicit single layer (`roots: [!is[system]]`); built-in entries layer not appended (auto, flat) |Flat list of user tiddlers; row-actions navigate |
+|`by-namespace` |implicit single layer (`roots: [!is[system]cp-child-of[]]`, `children: [!is[system]cp-child-of<currentTiddler>]`); built-in entries layer auto-appended |Path-segment tree via the plugin's `cp-child-of` filter operator |
+|`by-parent` |implicit single layer (`roots: [tag[TableOfContents]]`, `children: [tag<currentTiddler>]`); built-in entries layer auto-appended |TW tag-tree |
+|`by-namespace-pick` |same as `by-namespace` plus `ca-view-pick-mode: yes` |Hidden pick variant — Enter commits picked tiddler as filter arg |
+|`hybrid` |two explicit layers (`structure-layers/tag-tree` + `structure-layers/path-tree`) plus built-in entries layer |Demo view exercising multi-layer composition. Rows from each layer interleave by sort; the layer name becomes the default `ca-group` per row |
 
 The `cp-child-of` filter operator is shipped by this plugin (`widgets/cp-filter-ops.js`). Its operand is the parent tiddler title; with an empty operand it returns titles that contain no `/`. Authors writing custom path-style views can reuse it directly.
 
-A behavioural note for `by-namespace`: tree nodes are tiddlers, not derived path segments. If `foo/bar/baz` exists but no tiddler `foo` or `foo/bar` is present, those intermediate segments do not appear as drillable folders — create real tiddlers (even with empty body) at the parent paths to make them navigable. Earlier versions of this view synthesised the missing folders implicitly; the new model trades that bottom-up magic for a self-describing top-down filter pair.
+A behavioural note for `by-namespace`: tree nodes are tiddlers, not derived path segments. If `foo/bar/baz` exists but no tiddler `foo` or `foo/bar` is present, those intermediate segments do not appear as drillable folders — create real tiddlers (even with empty body) at the parent paths to make them navigable.
+
+! Entity-type drill on tree-view rows
+
+Right-arrow on a leaf row that carries a non-empty entity type opens the action-menu stage for that type — same machinery as the existing drill-into-instance flow inside `ca-next-scope` stages. The entity type is computed per row by the row's emitting layer:
+
+* `ca-layer-row-entity-type` filter on a structure-layer tiddler, OR
+* `ca-view-row-entity-type` filter on an implicit-layer view
+
+Both are evaluated with `<currentTiddler>` bound to the row's title. A non-empty first result is the entity type. Actions tagged `$:/tags/rimir/cascade-palette/action` with `ca-entity-type` matching that type (or `*` for global) populate the action menu.
+
+Containers don't expose the action menu in this version — Right-arrow on a container always descends into children. Container action menus are a planned follow-up via a synthetic `[Actions]` first-child row.
 
 ! Settings
 
 |!Tiddler |!Default |!Effect |
 |`$:/config/shortcuts/rimir-cascade-palette-open` |`ctrl+space` |Hotkey to open the palette |
 |`$:/config/rimir/cascade-palette/max-results` |`30` |Cap on items shown per stage |
-|`$:/config/rimir/cascade-palette/grouping-enabled` |`yes` |Cluster result rows by contributing plugin with section headers. Toggle live via Settings → Grouping. |
 |`$:/config/rimir/cascade-palette/soft-depth-warning` |`10` |Stage-stack depth that triggers a console warning. Adjust live via Settings → Soft depth warning. |
 |`$:/config/rimir/cascade-palette/details-always-on` |`no` |Keep the details drawer visible without holding Ctrl. Toggle live via Settings → Details always on. |
 |`$:/config/rimir/cascade-palette/popup-width` |`50` |Popup width in `vw` (clamped to [20, 95]). |

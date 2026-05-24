@@ -3,49 +3,60 @@ title: $:/plugins/rimir/cascade-palette/widgets/cp-views
 type: application/javascript
 module-type: library
 
-View subsystem — declarative root-stage strategies via composable
-filter primitives.
+View subsystem — composable structure layers.
 
 A view is a tiddler tagged `$:/tags/rimir/cascade-palette/view`. Its
-structure is expressed declaratively through two filters:
+structure is a composition of one or more ''layers'' that each emit
+rows at each descent node. Two authoring shapes:
 
-    ca-view-roots     filter (no current-binding) — produces root rows
-    ca-view-children  filter with <currentTiddler> = parent
-                       — produces children of a node (empty = flat view)
+  Implicit single layer (back-compat)
+    The view declares structure fields directly: `ca-view-roots`,
+    `ca-view-children`, `ca-view-leaf`, `ca-view-label`,
+    `ca-view-row-*`. The engine wraps these into one layer.
 
-Optional refinements:
+  Explicit multi-layer
+    The view declares `ca-view-layers` — a space-separated list of
+    layer tiddler titles. Each layer tiddler tagged
+    `$:/tags/rimir/cascade-palette/structure-layer` carries its own
+    `ca-layer-roots`, `ca-layer-children`, `ca-layer-row-*`,
+    `ca-layer-row-entity-type`, etc.
 
-    ca-view-leaf      filter with <currentTiddler> = candidate
-                       — truthy when the candidate is a terminal node;
-                         default is "leaf iff children() returns empty".
-    ca-view-label     filter with <currentTiddler> = node
-                       — display name override; default is last `/`
-                         segment, then caption, then title.
+A layer is the unit of "(roots, children) + row decorations". When
+descending into a node, the engine evaluates each layer in order and
+concatenates the rows. Each row carries `_layerIdx` so subsequent
+tree-stage drills walk the same layer's children.
 
-Back-compat: `ca-view-source` is accepted as an alias for `ca-view-roots`
-on flat views (the four shipped views and many existing authored views
-predate the rename).
+The plugin also auto-appends a built-in synthetic ''entries'' layer
+to tree views (positioned-entry placement via `ca-position`). The
+view can opt out via `ca-view-include-entries: no`.
 
-The descent is a single recursive evaluation: at every node (root or
-nested), the engine runs the appropriate filter, layers `ca-view-row-*`
-overrides on each candidate, decides leaf-vs-container, and emits rows.
-Tree containers carry `_treeContainer` + `_treeParent` so drillSelected
-(cp-firing) can push a tree-stage; the pick-mode commit (cp-pick-presets)
-reads `_treeParent` to derive the path arg.
+Entity-type drilling: a layer can declare `ca-layer-row-entity-type`
+(filter evaluated per row). Right-arrow on a leaf row whose layer
+yields a non-empty entity type opens the action-menu stage for that
+type.
 
 \*/
 "use strict";
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
 var VIEW_TAG = C.VIEW_TAG;
+var STRUCTURE_LAYER_TAG = C.STRUCTURE_LAYER_TAG;
 var ENTRY_TAG = C.ENTRY_TAG;
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 
+// Title for the synthetic entries layer surfaced in the Structure pill
+// row. Pseudo-title — no backing tiddler is required; the JS impl lives
+// in this module. A read-only descriptor tiddler with the same title is
+// shipped so authors can click through and see what the layer does.
+var BUILTIN_ENTRIES_LAYER_TITLE =
+    "$:/plugins/rimir/cascade-palette/structure-layers/entries";
+
 module.exports = function (proto) {
 
-    // Discover all view tiddlers, parse fields, sort by ca-order. Cached.
-    // Picks the active view (ca-view-default: yes wins; first by order
-    // otherwise). Idempotent — calling twice is a no-op after first load.
+    // ===================================================================
+    // Loading
+    // ===================================================================
+
     proto._loadViews = function () {
         if (this._viewsLoaded) return;
         var self = this;
@@ -54,56 +65,7 @@ module.exports = function (proto) {
         );
         var defaultTitle = null;
         var views = titles.map(function (title) {
-            var t = self.wiki.getTiddler(title);
-            var f = (t && t.fields) || {};
-            var orderRaw = f["ca-order"];
-            var order = orderRaw !== undefined && orderRaw !== ""
-                ? parseFloat(orderRaw) : DEFAULT_ORDER;
-            if (isNaN(order)) order = DEFAULT_ORDER;
-            // `roots` falls back to legacy `ca-view-source` so the four
-            // shipped flat views (and any user-authored views from before
-            // the rename) continue to work without edits.
-            var rootsFilter = f["ca-view-roots"] || f["ca-view-source"] || "";
-            var view = {
-                title: title,
-                name: f["ca-view-name"] || title.split("/").pop(),
-                hint: f["ca-view-hint"] || "",
-                isDefault: (f["ca-view-default"] || "").toLowerCase() === "yes",
-                roots: rootsFilter,
-                children: f["ca-view-children"] || "",
-                leaf: f["ca-view-leaf"] || "",
-                label: f["ca-view-label"] || "",
-                sort: (f["ca-view-sort"] || "alphabetical").toLowerCase(),
-                sortField: f["ca-view-sort-field"] || "",
-                sortKey: f["ca-view-sort-key"] || "",
-                containersFirst:
-                    (f["ca-view-containers-first"] || "yes").toLowerCase() !== "no",
-                showCount:
-                    (f["ca-view-show-count"] || "no").toLowerCase() === "yes",
-                countFormat: f["ca-view-count-format"] || " (<<count>>)",
-                rowName: f["ca-view-row-name"] || "",
-                rowHint: f["ca-view-row-hint"] || "",
-                rowIcon: f["ca-view-row-icon"] || "",
-                rowKind: f["ca-view-row-kind"] || "",
-                rowGroup: f["ca-view-row-group"] || "",
-                rowOrder: f["ca-view-row-order"] || "",
-                rowActions: f["ca-view-row-actions"] || "",
-                rowNextScope: f["ca-view-row-next-scope"] || "",
-                rowItemsFrom: f["ca-view-row-items-from"] || "",
-                // Pick-mode: when `yes`, firing a leaf row pushes the
-                // configured filter with the row's title as arg, then
-                // returns to the prior view. Used by the `>` leader.
-                pickMode: (f["ca-view-pick-mode"] || "").toLowerCase() === "yes",
-                pickEmitsFilter: f["ca-view-pick-emits-filter"] || "",
-                // View-wide after-fire policy. Sets ca-after-fire on every
-                // row built from this view (unless the row's source already
-                // declares one).
-                afterFire: (f["ca-view-after-fire"] || "").toLowerCase(),
-                order: order
-            };
-            // Convenience flag: a view is "tree-like" iff it declares a
-            // children filter. Read by grouping / sort / strip-rendering.
-            view.isTree = !!view.children;
+            var view = self._loadView(title);
             if (view.isDefault && !defaultTitle) defaultTitle = title;
             return view;
         });
@@ -117,6 +79,165 @@ module.exports = function (proto) {
         this._viewsLoaded = true;
     };
 
+    // Build a single view descriptor + its layer list.
+    proto._loadView = function (title) {
+        var t = this.wiki.getTiddler(title);
+        var f = (t && t.fields) || {};
+        var orderRaw = f["ca-order"];
+        var order = orderRaw !== undefined && orderRaw !== ""
+            ? parseFloat(orderRaw) : DEFAULT_ORDER;
+        if (isNaN(order)) order = DEFAULT_ORDER;
+        var view = {
+            title: title,
+            name: f["ca-view-name"] || title.split("/").pop(),
+            hint: f["ca-view-hint"] || "",
+            isDefault: (f["ca-view-default"] || "").toLowerCase() === "yes",
+            sort: (f["ca-view-sort"] || "alphabetical").toLowerCase(),
+            sortField: f["ca-view-sort-field"] || "",
+            sortKey: f["ca-view-sort-key"] || "",
+            containersFirst:
+                (f["ca-view-containers-first"] || "yes").toLowerCase() !== "no",
+            showCount:
+                (f["ca-view-show-count"] || "no").toLowerCase() === "yes",
+            countFormat: f["ca-view-count-format"] || " (<<count>>)",
+            pickMode: (f["ca-view-pick-mode"] || "").toLowerCase() === "yes",
+            pickEmitsFilter: f["ca-view-pick-emits-filter"] || "",
+            afterFire: (f["ca-view-after-fire"] || "").toLowerCase(),
+            includeEntries: (f["ca-view-include-entries"] || "auto").toLowerCase(),
+            grouping:
+                (f["ca-view-grouping"] || "yes").toLowerCase() !== "no",
+            order: order,
+            layers: []
+        };
+        // Layers: explicit via ca-view-layers, or implicit single-layer
+        // adapted from the view's own structure fields.
+        var explicit = (f["ca-view-layers"] || "").trim();
+        if (explicit) {
+            var layerTitles = explicit.split(/\s+/).filter(function (s) { return s; });
+            for (var i = 0; i < layerTitles.length; i++) {
+                var layer = this._loadLayer(layerTitles[i]);
+                if (layer) view.layers.push(layer);
+            }
+        } else {
+            view.layers.push(this._layerFromViewFields(view, f));
+        }
+        // Built-in entries layer: auto-append depending on include-entries
+        // policy.
+        if (this._shouldIncludeEntriesLayer(view)) {
+            view.layers.push(this._builtInEntriesLayer());
+        }
+        // Convenience flag — any layer declares children ⇒ view is tree-shaped.
+        view.isTree = view.layers.some(function (l) { return !!l.children; });
+        return view;
+    };
+
+    // Wrap a view's own structure fields into a single implicit layer.
+    // Keeps every 0.0.37 author shape working without edits. Implicit-
+    // layer name defaults to the view name so multi-layer views get a
+    // sensible section header for the structural rows (vs the entries
+    // layer's rows).
+    proto._layerFromViewFields = function (view, f) {
+        var rootsFilter = f["ca-view-roots"] || f["ca-view-source"] || "";
+        return {
+            title: view.title,
+            isImplicit: true,
+            isBuiltIn: false,
+            name: f["ca-view-layer-name"] || view.name || "",
+            roots: rootsFilter,
+            children: f["ca-view-children"] || "",
+            leaf: f["ca-view-leaf"] || "",
+            label: f["ca-view-label"] || "",
+            rowName: f["ca-view-row-name"] || "",
+            rowHint: f["ca-view-row-hint"] || "",
+            rowIcon: f["ca-view-row-icon"] || "",
+            rowKind: f["ca-view-row-kind"] || "",
+            rowGroup: f["ca-view-row-group"] || "",
+            rowOrder: f["ca-view-row-order"] || "",
+            rowActions: f["ca-view-row-actions"] || "",
+            rowEntityType: f["ca-view-row-entity-type"] || "",
+            rowNextScope: f["ca-view-row-next-scope"] || "",
+            rowItemsFrom: f["ca-view-row-items-from"] || "",
+            includePosition: true
+        };
+    };
+
+    proto._loadLayer = function (title) {
+        var t = this.wiki.getTiddler(title);
+        if (!t) {
+            if (console && console.warn) {
+                console.warn(
+                    "[cascade-palette] structure-layer not found:", title
+                );
+            }
+            return null;
+        }
+        var f = t.fields || {};
+        return {
+            title: title,
+            isImplicit: false,
+            isBuiltIn: false,
+            name: f["ca-layer-name"] || title.split("/").pop(),
+            roots: f["ca-layer-roots"] || "",
+            children: f["ca-layer-children"] || "",
+            leaf: f["ca-layer-leaf"] || "",
+            label: f["ca-layer-label"] || "",
+            rowName: f["ca-layer-row-name"] || "",
+            rowHint: f["ca-layer-row-hint"] || "",
+            rowIcon: f["ca-layer-row-icon"] || "",
+            rowKind: f["ca-layer-row-kind"] || "",
+            rowGroup: f["ca-layer-row-group"] || "",
+            rowOrder: f["ca-layer-row-order"] || "",
+            rowActions: f["ca-layer-row-actions"] || "",
+            rowEntityType: f["ca-layer-row-entity-type"] || "",
+            rowNextScope: f["ca-layer-row-next-scope"] || "",
+            rowItemsFrom: f["ca-layer-row-items-from"] || "",
+            includePosition:
+                (f["ca-layer-include-position"] || "yes").toLowerCase() !== "no"
+        };
+    };
+
+    // Synthetic descriptor for the built-in entries layer. The actual
+    // descent for this layer is handled by `_resolveEntryPositionsForView`
+    // — for the layer evaluator the `_builtIn: "entries"` marker is the
+    // dispatch hint. Filter strings here are illustrative (shown in the
+    // Structure pill row); they aren't evaluated directly.
+    proto._builtInEntriesLayer = function () {
+        return {
+            title: BUILTIN_ENTRIES_LAYER_TITLE,
+            isImplicit: false,
+            isBuiltIn: true,
+            builtInKind: "entries",
+            name: "Entries",
+            roots: "[tag[" + ENTRY_TAG + "]] :filter[get[ca-position]match[at-root]]",
+            children: "[tag[" + ENTRY_TAG + "]] :filter[get[ca-position]match<currentTiddler>]",
+            leaf: "",
+            label: "",
+            rowName: "",
+            rowHint: "",
+            rowIcon: "",
+            rowKind: "",
+            rowGroup: "",
+            rowOrder: "",
+            rowActions: "",
+            rowEntityType: "",
+            rowNextScope: "",
+            rowItemsFrom: "",
+            includePosition: false
+        };
+    };
+
+    // include-entries policy:
+    //   "yes"  — always include
+    //   "no"   — never include
+    //   "auto" — include for tree views (≥1 layer has `children`), skip flat
+    proto._shouldIncludeEntriesLayer = function (view) {
+        var mode = view.includeEntries;
+        if (mode === "yes") return true;
+        if (mode === "no") return false;
+        // auto: only when at least one declared layer is tree-shaped.
+        return view.layers.some(function (l) { return !!l.children; });
+    };
+
     proto._getViewByTitle = function (title) {
         if (!title) return null;
         for (var i = 0; i < this.views.length; i++) {
@@ -125,20 +246,18 @@ module.exports = function (proto) {
         return null;
     };
 
-    // Extract the basename of a view tiddler for ca-position-<slug>
-    // resolution. e.g. `$:/plugins/.../views/by-namespace` → `by-namespace`.
     proto._slugForView = function (viewTitle) {
         if (!viewTitle) return "";
         return String(viewTitle).split("/").pop();
     };
 
-    // ---- node descent -----------------------------------------------------
+    // ===================================================================
+    // Descent
+    // ===================================================================
 
-    // Single entry point. parentContext shapes:
+    // Single entry point.
     //   { kind: "root" }                       — descending from root
-    //   { kind: "tree", parentPath: [...] }    — descending into a sub-node;
-    //     parentPath is the chain of parent tiddler titles from root onward;
-    //     the last entry is the immediate parent for the children filter.
+    //   { kind: "tree", parentPath: [...] }    — descending into a sub-node
     proto._buildRowsForView = function (view, parentContext) {
         if (!view) return [];
         var parentTitle = "";
@@ -148,15 +267,35 @@ module.exports = function (proto) {
                 parentContext.parentPath.length - 1
             ];
         }
-        return this._buildNodeForView(view, parentTitle);
+        // Tree-stage may pin to a specific layer (the one whose container
+        // we drilled into) — only that layer contributes children. Root
+        // stage evaluates every layer.
+        var layerIdx = (parentContext && parentContext.layerIdx !== undefined)
+            ? parentContext.layerIdx : null;
+        return this._buildNodeForView(view, parentTitle, layerIdx);
     };
 
-    // Evaluate the appropriate filter for this node, layer row overrides,
-    // tag containers vs leaves, return the row list (plus positioned entries
-    // merged in).
-    proto._buildNodeForView = function (view, parentTitle) {
+    proto._buildNodeForView = function (view, parentTitle, pinnedLayerIdx) {
+        var rows = [];
+        for (var i = 0; i < view.layers.length; i++) {
+            if (pinnedLayerIdx !== null && pinnedLayerIdx !== undefined &&
+                pinnedLayerIdx !== i) {
+                continue;
+            }
+            var layerRows = this._evaluateLayer(view, view.layers[i], i, parentTitle);
+            rows = rows.concat(layerRows);
+        }
+        return rows;
+    };
+
+    // Evaluate a single layer at a given node, returning its rows.
+    // Dispatches built-in layers (entries) to their dedicated path.
+    proto._evaluateLayer = function (view, layer, layerIdx, parentTitle) {
+        if (layer.isBuiltIn && layer.builtInKind === "entries") {
+            return this._evaluateEntriesLayer(view, layerIdx, parentTitle);
+        }
         var self = this;
-        var filterExpr = parentTitle ? view.children : view.roots;
+        var filterExpr = parentTitle ? layer.children : layer.roots;
         var widget = parentTitle
             ? this.makeFakeWidget({ currentTiddler: parentTitle })
             : null;
@@ -170,8 +309,8 @@ module.exports = function (proto) {
             } catch (err) {
                 if (console && console.error) {
                     console.error(
-                        "[cascade-palette] view filter error",
-                        view.title,
+                        "[cascade-palette] layer filter error",
+                        view.title, "/", layer.title || ("layer#" + layerIdx),
                         parentTitle ? ("children of " + parentTitle) : "roots",
                         "—", err && err.message
                     );
@@ -182,131 +321,66 @@ module.exports = function (proto) {
         var rows = [];
         candidates.forEach(function (title) {
             if (!self.isEntryVisible(title)) return;
-            // Immediate self-loop guard. Full ancestor-cycle detection lives
-            // in the stage stack's soft-depth warning (cp-stack).
             if (title === parentTitle) return;
             var srcTid = self.wiki.getTiddler(title);
             var srcFields = (srcTid && srcTid.fields) || {};
-            // Position-field exclusion. At root: `ca-position: none` hides
-            // the source entirely (it might still appear via a positioned-
-            // entries pass elsewhere). At inner nodes: same rule applies so
-            // the user has one knob that works at every depth.
-            var posRaw = srcFields["ca-position-" + slug];
-            if (posRaw === undefined) posRaw = srcFields["ca-position"];
-            if (posRaw === "none") return;
+            // Position-field exclusion applies to layers that opt in
+            // (default yes). Skips when the layer itself is the positioned-
+            // entry layer (which has includePosition=false to avoid double-
+            // filtering its own entries).
+            if (layer.includePosition) {
+                var posRaw = srcFields["ca-position-" + slug];
+                if (posRaw === undefined) posRaw = srcFields["ca-position"];
+                if (posRaw === "none") return;
+            }
             var fieldsObj = $tw.utils.extend({}, srcFields);
-            self._applyRowFiltersToFields(view, title, fieldsObj);
+            self._applyLayerRowFilters(layer, title, fieldsObj);
             if (!fieldsObj["ca-name"]) {
-                var label = self._labelForNode(view, title);
+                var label = self._labelForNode(layer, title);
                 if (label) fieldsObj["ca-name"] = label;
             }
-            var isLeaf = self._isLeafInView(view, title);
+            // Default ca-group to the layer name so result-list grouping
+            // naturally clusters per layer (unless the row overrode it).
+            // For implicit layers (single-layer back-compat views): kick
+            // in only when the view has ≥2 layers, otherwise we'd clobber
+            // plugin-source grouping in views like Entries.
+            if (!fieldsObj["ca-group"] && layer.name) {
+                var setLayerGroup =
+                    !layer.isImplicit || view.layers.length >= 2;
+                if (setLayerGroup) {
+                    fieldsObj["ca-group"] = layer.name;
+                }
+            }
+            var isLeaf = self._isLeafInLayer(layer, title);
             if (!fieldsObj["ca-kind"]) {
                 fieldsObj["ca-kind"] = isLeaf ? "leaf" : "drill";
             }
             var item = self._buildCascadeItem(fieldsObj, title);
-            // Pure tree container: drillSelected pushes a tree-stage rather
-            // than a filter-stage. Authors who set ca-next-scope or
-            // ca-items-from explicitly opt out of tree-drill semantics.
+            item._layerIdx = layerIdx;
+            // Entity-type per layer — used by drillSelected to push an
+            // action-menu stage on Right-arrow.
+            if (layer.rowEntityType) {
+                var et = self._evalRowEntityType(layer, title);
+                if (et) item.entityType = et;
+            }
+            // Pure tree container: drill descends into children via this
+            // same layer. Author opt-out via ca-next-scope / ca-items-from.
             if (!isLeaf && item.kind === "drill" &&
                 !item.nextScope && !item.itemsFrom) {
                 item._treeContainer = true;
                 item._treeParent = title;
-                item._childCount = self._childCountForNode(view, title);
+                item._childCount = self._childCountForLayer(layer, title);
             }
             rows.push(item);
         });
-        // Positioned entries land at this node when their ca-position field
-        // names this parent (or "at-root" matches the root level). Skipped
-        // on flat views — those views surface entries via their `roots`
-        // filter (e.g. the Entries view's `[…tag[…/entry]]`). Re-injecting
-        // would duplicate entries already matched by `roots` and would
-        // pollute unrelated flat views (All tiddlers etc.) with entries
-        // they didn't ask for.
-        if (view.isTree) {
-            var positioned = this._resolveEntryPositionsForView(view, parentTitle);
-            return rows.concat(positioned);
-        }
         return rows;
     };
 
-    // Decide if a candidate node is a leaf in this view.
-    //   - With `ca-view-leaf` declared: filter returns truthy ⇒ leaf.
-    //   - Otherwise: leaf iff the view's children filter returns empty
-    //     for this candidate. A view without a children filter (flat)
-    //     treats every candidate as a leaf.
-    proto._isLeafInView = function (view, candidateTitle) {
-        if (view.leaf) {
-            try {
-                var r = this.wiki.filterTiddlers(
-                    view.leaf,
-                    this.makeFakeWidget({ currentTiddler: candidateTitle })
-                );
-                return r.length > 0;
-            } catch (err) { return true; }
-        }
-        if (!view.children) return true;
-        try {
-            var children = this.wiki.filterTiddlers(
-                view.children,
-                this.makeFakeWidget({ currentTiddler: candidateTitle })
-            );
-            // Don't count invisible children towards the "is leaf" decision
-            // — a node whose only children are hidden by visibility should
-            // still drill so the user can find their way back.
-            var self = this;
-            return children.filter(function (t) {
-                return self.isEntryVisible(t);
-            }).length === 0;
-        } catch (err) { return true; }
-    };
-
-    // Count visible children of a node — used by the show-count badge.
-    proto._childCountForNode = function (view, parentTitle) {
-        if (!view.children) return 0;
-        try {
-            var r = this.wiki.filterTiddlers(
-                view.children,
-                this.makeFakeWidget({ currentTiddler: parentTitle })
-            );
-            var self = this;
-            return r.filter(function (t) {
-                return self.isEntryVisible(t);
-            }).length;
-        } catch (err) { return 0; }
-    };
-
-    // Display name for a node. ca-view-label wins; then caption; then the
-    // last `/` segment of the title; then the bare title.
-    proto._labelForNode = function (view, title) {
-        if (view.label) {
-            try {
-                var r = this.wiki.filterTiddlers(
-                    view.label,
-                    this.makeFakeWidget({ currentTiddler: title })
-                );
-                if (r.length && r[0]) return r[0];
-            } catch (err) { /* fall through */ }
-        }
-        var t = this.wiki.getTiddler(title);
-        var caption = t && t.fields && t.fields.caption;
-        if (caption) return String(caption);
-        if (title.indexOf("/") >= 0) {
-            var seg = title.split("/").pop();
-            if (seg) return seg;
-        }
-        return title;
-    };
-
-    // Walk every entry tiddler and emit a row for each one positioned at
-    // `parentTitle`. Pick-mode views skip positioning entirely — the
-    // entries would clutter the namespace the user is trying to browse.
-    //
-    // Positions: ca-position-<slug> (per-view) > ca-position (default).
-    // Multi-position is supported via `:` / newline split. Special value
-    // `at-root` matches the root level; `none` excludes the entry entirely.
-    proto._resolveEntryPositionsForView = function (view, parentTitle) {
-        if (view && view.pickMode) return [];
+    // Built-in entries layer evaluator. Implements positioned-entry
+    // placement (ca-position-<slug> / ca-position / default at-root) but
+    // packaged as a layer so it's visible in the Structure pill row.
+    proto._evaluateEntriesLayer = function (view, layerIdx, parentTitle) {
+        if (view.pickMode) return [];
         var slug = this._slugForView(view.title);
         var self = this;
         var entryTitles = this.wiki.filterTiddlers(
@@ -331,28 +405,102 @@ module.exports = function (proto) {
                 if (pos === "at-root" && parentTitle === "") matched = true;
                 else if (pos === parentTitle) matched = true;
             });
-            if (matched) rows.push(self.readCascadeFields(entryTitle));
+            if (matched) {
+                var item = self.readCascadeFields(entryTitle);
+                item._layerIdx = layerIdx;
+                // The entries layer's section header in multi-layer
+                // grouping. readCascadeFields already resolved the row's
+                // ca-group from the entry tiddler's fields / plugin source
+                // — only override when the entry itself didn't specify one.
+                if (!item.group) item.group = "Entries";
+                rows.push(item);
+            }
         });
         return rows;
     };
 
-    // ---- row-* field overlay ---------------------------------------------
+    // ---- per-row computations -------------------------------------------
 
-    // Run each ca-view-row-* filter with <currentTiddler> bound to the
-    // source item and overlay the result onto fieldsObj. ca-view-row-actions
-    // is dual-mode: try filter eval first; if it throws or returns empty,
-    // fall back to the raw value as a wikitext template.
-    proto._applyRowFiltersToFields = function (view, sourceTitle, fieldsObj) {
+    proto._isLeafInLayer = function (layer, candidateTitle) {
+        if (layer.leaf) {
+            try {
+                var r = this.wiki.filterTiddlers(
+                    layer.leaf,
+                    this.makeFakeWidget({ currentTiddler: candidateTitle })
+                );
+                return r.length > 0;
+            } catch (err) { return true; }
+        }
+        if (!layer.children) return true;
+        try {
+            var children = this.wiki.filterTiddlers(
+                layer.children,
+                this.makeFakeWidget({ currentTiddler: candidateTitle })
+            );
+            var self = this;
+            return children.filter(function (t) {
+                return self.isEntryVisible(t);
+            }).length === 0;
+        } catch (err) { return true; }
+    };
+
+    proto._childCountForLayer = function (layer, parentTitle) {
+        if (!layer.children) return 0;
+        try {
+            var r = this.wiki.filterTiddlers(
+                layer.children,
+                this.makeFakeWidget({ currentTiddler: parentTitle })
+            );
+            var self = this;
+            return r.filter(function (t) {
+                return self.isEntryVisible(t);
+            }).length;
+        } catch (err) { return 0; }
+    };
+
+    proto._labelForNode = function (layer, title) {
+        if (layer.label) {
+            try {
+                var r = this.wiki.filterTiddlers(
+                    layer.label,
+                    this.makeFakeWidget({ currentTiddler: title })
+                );
+                if (r.length && r[0]) return r[0];
+            } catch (err) { /* fall through */ }
+        }
+        var t = this.wiki.getTiddler(title);
+        var caption = t && t.fields && t.fields.caption;
+        if (caption) return String(caption);
+        if (title.indexOf("/") >= 0) {
+            var seg = title.split("/").pop();
+            if (seg) return seg;
+        }
+        return title;
+    };
+
+    proto._evalRowEntityType = function (layer, title) {
+        try {
+            var r = this.wiki.filterTiddlers(
+                layer.rowEntityType,
+                this.makeFakeWidget({ currentTiddler: title })
+            );
+            return r.length ? r[0] : "";
+        } catch (err) { return ""; }
+    };
+
+    // Per-row field overrides (ca-layer-row-* / ca-view-row-*). Same
+    // dual-mode handling for row-actions as the 0.0.37 implementation.
+    proto._applyLayerRowFilters = function (layer, sourceTitle, fieldsObj) {
         var self = this;
         var filterMap = {
-            "ca-name": view.rowName,
-            "ca-hint": view.rowHint,
-            "ca-icon": view.rowIcon,
-            "ca-kind": view.rowKind,
-            "ca-group": view.rowGroup,
-            "ca-order": view.rowOrder,
-            "ca-next-scope": view.rowNextScope,
-            "ca-items-from": view.rowItemsFrom
+            "ca-name": layer.rowName,
+            "ca-hint": layer.rowHint,
+            "ca-icon": layer.rowIcon,
+            "ca-kind": layer.rowKind,
+            "ca-group": layer.rowGroup,
+            "ca-order": layer.rowOrder,
+            "ca-next-scope": layer.rowNextScope,
+            "ca-items-from": layer.rowItemsFrom
         };
         Object.keys(filterMap).forEach(function (key) {
             var f = filterMap[key];
@@ -365,31 +513,24 @@ module.exports = function (proto) {
             } catch (err) { r = []; }
             if (r.length) fieldsObj[key] = r.join(" ");
         });
-        if (view.rowActions) {
+        if (layer.rowActions) {
             var raw;
             try {
                 var rr = self.wiki.filterTiddlers(
-                    view.rowActions,
+                    layer.rowActions,
                     self.makeFakeWidget({ currentTiddler: sourceTitle })
                 );
                 if (rr.length) raw = rr.join(" ");
-            } catch (err) { /* fall through to template */ }
-            if (raw === undefined || raw === "") raw = view.rowActions;
+            } catch (err) { /* fall through */ }
+            if (raw === undefined || raw === "") raw = layer.rowActions;
             fieldsObj["ca-actions"] = raw;
-        }
-        if (view.afterFire && !fieldsObj["ca-after-fire"]) {
-            fieldsObj["ca-after-fire"] = view.afterFire;
         }
     };
 
-    // ---- sorting ----------------------------------------------------------
+    // ===================================================================
+    // Sorting (view-scoped — uniform across layers)
+    // ===================================================================
 
-    // Sort rows according to a view's declared sort policy. Supports
-    // `alphabetical` (default), `natural` (numeric-aware), `by-field`
-    // (reads `ca-view-sort-field` value off each row), and `custom`
-    // (per-row filter from `ca-view-sort-key`). Containers-first floats
-    // tree containers above leaves at each level when the view declares
-    // a children filter.
     proto._sortRowsForView = function (rows, view) {
         if (!view || !rows || !rows.length) return rows;
         var self = this;
@@ -457,7 +598,9 @@ module.exports = function (proto) {
         } catch (err) { return ""; }
     };
 
-    // ---- view-strip rendering --------------------------------------------
+    // ===================================================================
+    // View-strip rendering
+    // ===================================================================
 
     proto._indexOfActiveView = function () {
         if (!this.activeView) return -1;
@@ -508,88 +651,163 @@ module.exports = function (proto) {
         this._renderViewConfigStrip();
     };
 
-    // ---- view-config strip (Track B) -------------------------------------
+    // ===================================================================
+    // View-config strip — stacked, one mini-row per layer
+    // ===================================================================
 
-    // Read-only visualization of the active view's primitives. One pill
-    // per declared filter (`roots`, `children`, `leaf`, `label`). Mouse
-    // hover surfaces the filter text. The strip is hidden when no view
-    // is loaded or the active view declares nothing meaningful.
     proto._renderViewConfigStrip = function () {
         if (!this.viewConfigStripEl) return;
         while (this.viewConfigStripEl.firstChild) {
             this.viewConfigStripEl.removeChild(this.viewConfigStripEl.firstChild);
         }
         var view = this._getViewByTitle(this.activeView);
-        var pills = view ? this._viewConfigPillsFor(view) : [];
-        var hasPills = pills.length > 0;
-        if (this.popupEl) {
-            this.popupEl.classList.toggle("rcp-has-view-config", hasPills);
+        if (!view || !view.layers || !view.layers.length) {
+            if (this.popupEl) {
+                this.popupEl.classList.remove("rcp-has-view-config");
+            }
+            return;
         }
-        if (!hasPills) return;
         var self = this;
-        pills.forEach(function (pill) {
-            var el = self.document.createElement("span");
-            el.className = "rcp-view-config-pill rcp-view-config-pill-" + pill.kind;
-            var labelEl = self.document.createElement("span");
-            labelEl.className = "rcp-view-config-pill-label";
-            labelEl.textContent = pill.label;
-            el.appendChild(labelEl);
-            var valueEl = self.document.createElement("span");
-            valueEl.className = "rcp-view-config-pill-value";
-            valueEl.textContent = pill.value;
-            el.appendChild(valueEl);
-            el.title = pill.label + ": " + pill.value;
-            self.viewConfigStripEl.appendChild(el);
+        // View-scoped header row: aggregated view-wide pills + entries
+        // inclusion indicator. Always present so the user can see what's
+        // "above" the per-layer mini-rows. Hidden when the view declares
+        // nothing meaningful at this level.
+        var headerPills = this._viewScopedPills(view);
+        if (headerPills.length) {
+            var headerRow = this.document.createElement("div");
+            headerRow.className = "rcp-view-config-row rcp-view-config-row-view";
+            this._appendConfigRowLabel(headerRow, "view");
+            headerPills.forEach(function (p) {
+                headerRow.appendChild(self._buildConfigPill(p));
+            });
+            this.viewConfigStripEl.appendChild(headerRow);
+        }
+        // Per-layer mini-rows.
+        view.layers.forEach(function (layer, i) {
+            var pills = self._layerPills(layer);
+            if (!pills.length) return;
+            var rowEl = self.document.createElement("div");
+            var cls = "rcp-view-config-row rcp-view-config-row-layer";
+            if (layer.isBuiltIn) cls += " rcp-view-config-row-builtin";
+            if (layer.isImplicit) cls += " rcp-view-config-row-implicit";
+            rowEl.className = cls;
+            self._appendConfigRowLabel(rowEl, layer.name || ("layer " + (i + 1)));
+            pills.forEach(function (p) {
+                rowEl.appendChild(self._buildConfigPill(p));
+            });
+            self.viewConfigStripEl.appendChild(rowEl);
         });
+        if (this.popupEl) {
+            this.popupEl.classList.toggle(
+                "rcp-has-view-config",
+                this.viewConfigStripEl.firstChild !== null
+            );
+        }
     };
 
-    proto._viewConfigPillsFor = function (view) {
+    proto._appendConfigRowLabel = function (rowEl, text) {
+        var labelEl = this.document.createElement("span");
+        labelEl.className = "rcp-view-config-row-label";
+        labelEl.textContent = text;
+        rowEl.appendChild(labelEl);
+    };
+
+    proto._buildConfigPill = function (pill) {
+        var el = this.document.createElement("span");
+        el.className = "rcp-view-config-pill rcp-view-config-pill-" + pill.kind;
+        var labelEl = this.document.createElement("span");
+        labelEl.className = "rcp-view-config-pill-label";
+        labelEl.textContent = pill.label;
+        el.appendChild(labelEl);
+        var valueEl = this.document.createElement("span");
+        valueEl.className = "rcp-view-config-pill-value";
+        valueEl.textContent = pill.value;
+        el.appendChild(valueEl);
+        el.title = pill.label + ": " + pill.value;
+        return el;
+    };
+
+    // View-scoped header pills: things that apply across all layers.
+    proto._viewScopedPills = function (view) {
         var pills = [];
-        if (view.roots) {
-            pills.push({ kind: "roots", label: "roots", value: view.roots });
-        }
-        if (view.children) {
-            pills.push({ kind: "children", label: "children", value: view.children });
-        }
-        if (view.leaf) {
-            pills.push({ kind: "leaf", label: "leaf", value: view.leaf });
-        }
-        if (view.label) {
-            pills.push({ kind: "label", label: "label", value: view.label });
-        }
-        if (view.rowActions) {
-            pills.push({
-                kind: "actions",
-                label: "Enter",
-                value: this._truncate(view.rowActions, 80)
-            });
-        }
-        if (view.rowName) {
-            pills.push({ kind: "row-name", label: "name", value: view.rowName });
-        }
-        if (view.rowGroup) {
-            pills.push({ kind: "row-group", label: "group", value: view.rowGroup });
-        }
-        if (view.rowKind) {
-            pills.push({ kind: "row-kind", label: "kind", value: view.rowKind });
-        }
-        // Sort policy: surface explicit non-default choices. Alphabetical
-        // is the default and isn't worth a pill.
+        // Sort policy when non-default.
         if (view.sort && view.sort !== "alphabetical") {
             var sortVal = view.sort;
             if (view.sort === "by-field" && view.sortField) {
                 sortVal = "by-field: " + view.sortField;
             } else if (view.sort === "custom" && view.sortKey) {
-                sortVal = "custom: " + view.sortKey;
+                sortVal = "custom: " + this._truncate(view.sortKey, 60);
             }
             pills.push({ kind: "sort", label: "sort", value: sortVal });
         }
+        // Pick-mode indicator.
         if (view.pickMode && view.pickEmitsFilter) {
             pills.push({
                 kind: "pick",
                 label: "pick→",
                 value: this._slugForView(view.pickEmitsFilter)
             });
+        }
+        // Entries-layer inclusion mode — explicit so user can see why an
+        // entries layer does or doesn't appear below.
+        var hasEntries = view.layers.some(function (l) {
+            return l.isBuiltIn && l.builtInKind === "entries";
+        });
+        var indicator = view.includeEntries;
+        if (indicator === "auto") indicator += hasEntries ? ": yes" : ": no";
+        pills.push({
+            kind: "entries-mode",
+            label: "entries",
+            value: indicator
+        });
+        // Grouping policy — only surfaced when the view explicitly opted
+        // out (the common-case `yes` is the default and not worth a pill).
+        if (!view.grouping) {
+            pills.push({
+                kind: "grouping",
+                label: "grouping",
+                value: "off"
+            });
+        }
+        return pills;
+    };
+
+    proto._layerPills = function (layer) {
+        var pills = [];
+        if (layer.roots) {
+            pills.push({ kind: "roots", label: "roots", value: this._truncate(layer.roots, 80) });
+        }
+        if (layer.children) {
+            pills.push({ kind: "children", label: "children", value: this._truncate(layer.children, 80) });
+        }
+        if (layer.leaf) {
+            pills.push({ kind: "leaf", label: "leaf", value: this._truncate(layer.leaf, 60) });
+        }
+        if (layer.label) {
+            pills.push({ kind: "label", label: "label", value: this._truncate(layer.label, 60) });
+        }
+        if (layer.rowActions) {
+            pills.push({
+                kind: "actions",
+                label: "Enter",
+                value: this._truncate(layer.rowActions, 70)
+            });
+        }
+        if (layer.rowEntityType) {
+            pills.push({
+                kind: "entity-type",
+                label: "→actions",
+                value: this._truncate(layer.rowEntityType, 50)
+            });
+        }
+        if (layer.rowName) {
+            pills.push({ kind: "row-name", label: "name", value: this._truncate(layer.rowName, 50) });
+        }
+        if (layer.rowGroup) {
+            pills.push({ kind: "row-group", label: "group", value: this._truncate(layer.rowGroup, 50) });
+        }
+        if (layer.rowKind) {
+            pills.push({ kind: "row-kind", label: "kind", value: this._truncate(layer.rowKind, 50) });
         }
         return pills;
     };
@@ -600,7 +818,9 @@ module.exports = function (proto) {
         return str.length > max ? str.slice(0, max - 1) + "…" : str;
     };
 
-    // ---- help / activation -----------------------------------------------
+    // ===================================================================
+    // Help pane / activation
+    // ===================================================================
 
     proto._maybeRenderViewHelp = function () {
         if (this.focus !== "view") return;
@@ -621,33 +841,31 @@ module.exports = function (proto) {
         helpEl.textContent = view.hint || view.name;
         this.previewEl.appendChild(helpEl);
         var rows = [];
-        if (view.roots) rows.push(["Roots", view.roots]);
-        if (view.children) rows.push(["Children", view.children]);
-        if (view.leaf) rows.push(["Leaf", view.leaf]);
-        if (view.label) rows.push(["Label", view.label]);
+        rows.push(["Layers", view.layers.map(function (l) {
+            return l.name || (l.isImplicit ? "(implicit)" : l.title);
+        }).join(", ")]);
+        if (view.sort && view.sort !== "alphabetical") {
+            rows.push(["Sort", view.sort]);
+        }
         if (view.pickMode) {
             rows.push(["Pick mode", view.pickEmitsFilter || "yes"]);
         }
+        rows.push(["Include entries", view.includeEntries]);
         rows.push(["View tiddler", view.title]);
-        if (rows.length) {
-            var dl = this.document.createElement("dl");
-            dl.className = "rcp-preview-fields";
-            rows.forEach(function (row) {
-                var dt = this.document.createElement("dt");
-                dt.textContent = row[0];
-                var dd = this.document.createElement("dd");
-                dd.textContent = row[1];
-                dl.appendChild(dt);
-                dl.appendChild(dd);
-            }, this);
-            this.previewEl.appendChild(dl);
-        }
+        var dl = this.document.createElement("dl");
+        dl.className = "rcp-preview-fields";
+        rows.forEach(function (row) {
+            var dt = this.document.createElement("dt");
+            dt.textContent = row[0];
+            var dd = this.document.createElement("dd");
+            dd.textContent = row[1];
+            dl.appendChild(dt);
+            dl.appendChild(dd);
+        }, this);
+        this.previewEl.appendChild(dl);
         this.popupEl.classList.add("rcp-previewing");
     };
 
-    // Activate the named view. Pops the stage stack to root and rebuilds.
-    // Cleared selection state lands the user back at top-of-menu. Focus
-    // returns to the input (the user's expected next interaction).
     proto._setActiveView = function (viewTitle) {
         var view = this._getViewByTitle(viewTitle);
         if (!view) return;

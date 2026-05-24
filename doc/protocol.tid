@@ -463,6 +463,40 @@ ca-position-by-parent: SystemPalette
 ca-position-all-tiddlers: none
 ```
 
+! Multi-layer views
+
+A view can compose multiple structure layers via ''`ca-view-layers`''. Each layer is a tiddler tagged ''`$:/tags/rimir/cascade-palette/structure-layer`'' carrying its own `ca-layer-roots` / `ca-layer-children` / row decorations. The descent merges layers' rows at every node — root and tree-stage alike — and the result-list sort applies uniformly across layers. Tree-stage drills pin to the originating layer so descent doesn't bleed across layers.
+
+```
+title: $:/plugins/example/views/work-overview
+tags: $:/tags/rimir/cascade-palette/view
+ca-view-name: Work overview
+ca-view-layers: $:/plugins/example/layers/projects $:/plugins/example/layers/inbox
+ca-view-sort: by-field
+ca-view-sort-field: ca-order
+
+title: $:/plugins/example/layers/projects
+tags: $:/tags/rimir/cascade-palette/structure-layer
+ca-layer-name: Projects
+ca-layer-roots: [tag[project]]
+ca-layer-children: [tag<currentTiddler>tag[task]]
+ca-layer-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+ca-layer-row-entity-type: [<currentTiddler>tag[task]then[task]] [<currentTiddler>tag[project]then[project]]
+
+title: $:/plugins/example/layers/inbox
+tags: $:/tags/rimir/cascade-palette/structure-layer
+ca-layer-name: Inbox
+ca-layer-roots: [tag[inbox]!has[done]]
+ca-layer-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+ca-layer-row-entity-type: [[inbox-item]]
+```
+
+The view above shows projects (with their nested tasks under each) alongside an inbox list. Right-arrow on a task row opens the action-menu stage of type `task` — actions tagged `$:/tags/rimir/cascade-palette/action` with `ca-entity-type: task` populate it. Right-arrow on an inbox row opens `inbox-item` actions.
+
+Layer-name → default `ca-group` mapping kicks in automatically: with result-list grouping enabled, the menu shows section headers ''Projects'' and ''Inbox''. Per-row overrides (`ca-layer-row-group`) still take precedence when set.
+
+''Built-in entries layer.'' Tree views (≥ 1 layer declaring `ca-layer-children`) automatically get a built-in synthetic ''entries'' layer appended last — that's how positioned entry tiddlers (`ca-position`) land in the result. Opt out per view via `ca-view-include-entries: no`. The Structure pill row shows this layer below the author-declared ones, rendered muted to flag its automatic origin.
+
 ! Custom tree shapes via the children filter
 
 Anything you can express as "given a parent, what are its direct children?" is a one-line view. Examples:

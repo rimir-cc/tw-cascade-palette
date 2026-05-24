@@ -108,16 +108,17 @@ type: text/css
     box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.35);
 }
 
-/* View-config strip — read-only pills depicting the active view's
-   filter primitives (roots / children / leaf / label). Subdued styling
-   distinguishes it from the actionable strips above (these pills are
-   informational, not clickable in this pass). Hidden via
-   `rcp-has-view-config` on the popup when no primitives apply. */
+/* View-config strip — read-only stacked layout depicting the active
+   view's structure. The strip is a column of mini-rows, one per layer
+   (plus a view-scoped header row). Each mini-row carries its own label
+   on the left and a horizontal pill list on the right. Subdued styling
+   distinguishes it from the actionable strips above. Hidden via
+   `rcp-has-view-config` when no layers / no pills apply. */
 .rcp-view-config-strip {
     display: none;
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 4px 14px;
+    flex-direction: column;
+    gap: 3px;
+    padding: 5px 14px 6px;
     background: #fafaf9;
     border-bottom: 1px solid #ececec;
 }
@@ -128,17 +129,49 @@ type: text/css
 
 .rcp-view-config-strip::before {
     flex-shrink: 0;
-    align-self: center;
-    min-width: 56px;
+    align-self: flex-start;
     font-size: 9px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: #9ca3af;
-    padding-right: 8px;
     user-select: none;
     pointer-events: none;
     content: "Structure";
+    margin-bottom: 2px;
+}
+
+.rcp-view-config-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
+.rcp-view-config-row-builtin {
+    opacity: 0.78;
+}
+
+.rcp-view-config-row-label {
+    flex-shrink: 0;
+    min-width: 80px;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b7280;
+    padding-right: 6px;
+    user-select: none;
+    pointer-events: none;
+}
+
+.rcp-view-config-row-view .rcp-view-config-row-label {
+    color: #9ca3af;
+    font-style: italic;
+}
+
+.rcp-view-config-row-builtin .rcp-view-config-row-label {
+    color: #9ca3af;
 }
 
 .rcp-view-config-pill {
@@ -174,16 +207,19 @@ type: text/css
     color: #374151;
 }
 
-.rcp-view-config-pill-roots .rcp-view-config-pill-label    { color: #2563eb; }
-.rcp-view-config-pill-children .rcp-view-config-pill-label { color: #047857; }
-.rcp-view-config-pill-leaf .rcp-view-config-pill-label     { color: #b45309; }
-.rcp-view-config-pill-label .rcp-view-config-pill-label    { color: #6b7280; }
-.rcp-view-config-pill-actions .rcp-view-config-pill-label  { color: #7c3aed; }
+.rcp-view-config-pill-roots .rcp-view-config-pill-label       { color: #2563eb; }
+.rcp-view-config-pill-children .rcp-view-config-pill-label    { color: #047857; }
+.rcp-view-config-pill-leaf .rcp-view-config-pill-label        { color: #b45309; }
+.rcp-view-config-pill-label .rcp-view-config-pill-label       { color: #6b7280; }
+.rcp-view-config-pill-actions .rcp-view-config-pill-label     { color: #7c3aed; }
+.rcp-view-config-pill-entity-type .rcp-view-config-pill-label { color: #db2777; }
 .rcp-view-config-pill-row-name .rcp-view-config-pill-label,
 .rcp-view-config-pill-row-group .rcp-view-config-pill-label,
-.rcp-view-config-pill-row-kind .rcp-view-config-pill-label { color: #6b7280; }
-.rcp-view-config-pill-sort .rcp-view-config-pill-label     { color: #475569; }
-.rcp-view-config-pill-pick .rcp-view-config-pill-label     { color: #be185d; }
+.rcp-view-config-pill-row-kind .rcp-view-config-pill-label    { color: #6b7280; }
+.rcp-view-config-pill-sort .rcp-view-config-pill-label        { color: #475569; }
+.rcp-view-config-pill-pick .rcp-view-config-pill-label        { color: #be185d; }
+.rcp-view-config-pill-entries-mode .rcp-view-config-pill-label { color: #6b7280; }
+.rcp-view-config-pill-grouping .rcp-view-config-pill-label    { color: #475569; }
 
 @media (prefers-color-scheme: dark) {
     .rcp-view-config-strip {
@@ -201,15 +237,21 @@ type: text/css
     .rcp-view-config-pill-value {
         color: #e5e7eb;
     }
-    .rcp-view-config-pill-roots .rcp-view-config-pill-label    { color: #60a5fa; }
-    .rcp-view-config-pill-children .rcp-view-config-pill-label { color: #34d399; }
-    .rcp-view-config-pill-leaf .rcp-view-config-pill-label     { color: #fbbf24; }
-    .rcp-view-config-pill-actions .rcp-view-config-pill-label  { color: #c4b5fd; }
+    .rcp-view-config-pill-roots .rcp-view-config-pill-label       { color: #60a5fa; }
+    .rcp-view-config-pill-children .rcp-view-config-pill-label    { color: #34d399; }
+    .rcp-view-config-pill-leaf .rcp-view-config-pill-label        { color: #fbbf24; }
+    .rcp-view-config-pill-actions .rcp-view-config-pill-label     { color: #c4b5fd; }
+    .rcp-view-config-pill-entity-type .rcp-view-config-pill-label { color: #f9a8d4; }
     .rcp-view-config-pill-row-name .rcp-view-config-pill-label,
     .rcp-view-config-pill-row-group .rcp-view-config-pill-label,
-    .rcp-view-config-pill-row-kind .rcp-view-config-pill-label { color: #9ca3af; }
-    .rcp-view-config-pill-sort .rcp-view-config-pill-label     { color: #94a3b8; }
-    .rcp-view-config-pill-pick .rcp-view-config-pill-label     { color: #f472b6; }
+    .rcp-view-config-pill-row-kind .rcp-view-config-pill-label    { color: #9ca3af; }
+    .rcp-view-config-pill-sort .rcp-view-config-pill-label        { color: #94a3b8; }
+    .rcp-view-config-pill-pick .rcp-view-config-pill-label        { color: #f472b6; }
+    .rcp-view-config-pill-entries-mode .rcp-view-config-pill-label { color: #9ca3af; }
+    .rcp-view-config-pill-grouping .rcp-view-config-pill-label    { color: #94a3b8; }
+    .rcp-view-config-row-label                                     { color: #9ca3af; }
+    .rcp-view-config-row-view .rcp-view-config-row-label,
+    .rcp-view-config-row-builtin .rcp-view-config-row-label        { color: #6b7280; }
 }
 
 /* Container count badge — small dimmed digit after the segment name on

@@ -32,11 +32,11 @@ exports.TEMPLATE_TAG = "$:/tags/rimir/cascade-palette/template";
 exports.FILTER_TAG = "$:/tags/rimir/cascade-palette/filter";
 exports.VISIBILITY_TAG = "$:/tags/rimir/cascade-palette/visibility";
 exports.VIEW_TAG = "$:/tags/rimir/cascade-palette/view";
+exports.STRUCTURE_LAYER_TAG = "$:/tags/rimir/cascade-palette/structure-layer";
 exports.LEADER_TAG = "$:/tags/rimir/cascade-palette/leader";
 exports.PRESET_TAG = "$:/tags/rimir/cascade-palette/preset";
 
 // ---- Config tiddler titles ----
-exports.GROUPING_CONFIG = "$:/config/rimir/cascade-palette/grouping-enabled";
 exports.SOFT_DEPTH_CONFIG = "$:/config/rimir/cascade-palette/soft-depth-warning";
 exports.POPUP_WIDTH_CONFIG = "$:/config/rimir/cascade-palette/popup-width";
 exports.MAX_RESULTS_CONFIG = "$:/config/rimir/cascade-palette/max-results";

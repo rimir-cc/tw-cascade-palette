@@ -446,17 +446,30 @@ module.exports = function (proto) {
         if (!stage || stage.results.length === 0) return;
         var picked = stage.results[stage.selectedIndex];
 
-        // Tree-view container row → push a tree-stage. The new parentPath
-        // extends the current stage's path with the picked container's
-        // tiddler title (`_treeParent`). Distinct from filter-drill:
-        // there's no ca-next-scope — navigation is purely through repeated
-        // children-filter evaluation.
+        // Tree-view container row → push a tree-stage pinned to the layer
+        // the container came from. parentPath extends with the picked
+        // container's tiddler title; layerIdx propagates so the descent
+        // runs only that layer's `children` filter (other layers don't
+        // contribute children under a node they didn't produce).
         if (picked._treeContainer && picked._treeParent) {
             var viewTitle = stage.viewTitle || this.activeView;
             var basePath = (stage.parentPath || []).slice();
             basePath.push(picked._treeParent);
             this.pushStage(this.buildTreeStage(
-                viewTitle, basePath, picked.name
+                viewTitle, basePath, picked.name,
+                picked._layerIdx
+            ));
+            return;
+        }
+        // View-layer entity-type drill: a leaf row whose emitting layer
+        // declared `ca-layer-row-entity-type` (and produced a non-empty
+        // type for this row) opens an action-menu stage of that type on
+        // Right-arrow. Containers never reach here (handled above) — the
+        // action menu is reserved for leaves so Right-arrow on a folder
+        // still descends.
+        if (picked.entityType && picked.kind === "leaf") {
+            this.pushStage(this.buildActionMenuStage(
+                picked.title, picked.entityType, picked.name
             ));
             return;
         }

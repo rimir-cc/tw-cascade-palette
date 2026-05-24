@@ -22,9 +22,7 @@ var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
 var ACTION_TAG = C.ACTION_TAG;
 var ENTRY_TAG = C.ENTRY_TAG;
 var SOFT_DEPTH_CONFIG = C.SOFT_DEPTH_CONFIG;
-var GROUPING_CONFIG = C.GROUPING_CONFIG;
 var DEFAULT_SOFT_DEPTH = C.DEFAULT_SOFT_DEPTH;
-var DEFAULT_TRUE_VALUE = C.DEFAULT_TRUE_VALUE;
 
 module.exports = function (proto) {
 
@@ -103,13 +101,13 @@ module.exports = function (proto) {
         };
     };
 
-    // Tree-view stages carry a viewTitle and a parentPath (array of
-    // tiddler titles naming the tree branch — each is a real node, since
-    // the new descent model treats nodes as tiddlers). The last entry is
-    // the immediate parent whose `view.children` filter populates this
-    // stage. Reuses the filter-stage result-list machinery; differentiated
-    // by stage.kind.
-    proto.buildTreeStage = function (viewTitle, parentPath, title) {
+    // Tree-view stages carry a viewTitle, a parentPath (array of tiddler
+    // titles naming the tree branch — each is a real node), and a
+    // layerIdx pinning the descent to the structure layer the user drilled
+    // into. parentPath[last] is the immediate parent whose `layer.children`
+    // filter populates this stage. layerIdx defaults to 0 for back-compat
+    // when undefined.
+    proto.buildTreeStage = function (viewTitle, parentPath, title, layerIdx) {
         return {
             kind: "tree",
             title: title || "",
@@ -117,6 +115,7 @@ module.exports = function (proto) {
             selectedIndex: 0,
             viewTitle: viewTitle,
             parentPath: parentPath || [],
+            layerIdx: (layerIdx === undefined || layerIdx === null) ? 0 : layerIdx,
             items: [],
             results: [],
             parentPicked: null,
@@ -244,7 +243,11 @@ module.exports = function (proto) {
             var treeView = this._getViewByTitle(stage.viewTitle || this.activeView);
             stage.items = this._sortRowsForView(
                 this._buildRowsForView(
-                    treeView, { kind: "tree", parentPath: stage.parentPath || [] }
+                    treeView, {
+                        kind: "tree",
+                        parentPath: stage.parentPath || [],
+                        layerIdx: stage.layerIdx
+                    }
                 ),
                 treeView
             );
@@ -321,18 +324,27 @@ module.exports = function (proto) {
         }
     };
 
-    proto.isGroupingEnabled = function () {
-        var raw = this.wiki.getTiddlerText(GROUPING_CONFIG, DEFAULT_TRUE_VALUE);
-        var s = String(raw || "").toLowerCase().trim();
-        return s !== "no" && s !== "false" && s !== "off" && s !== "0";
-    };
-
-    // Per-stage grouping override: global config + tree-view veto.
+    // Per-stage grouping is now a view-scoped property — each view
+    // declares whether its rows should cluster under section headers via
+    // `ca-view-grouping` (default yes). Removed in 0.0.38: the global
+    // `$:/config/rimir/cascade-palette/grouping-enabled` toggle. Rationale
+    // with the layered model: grouping is structural intent (layer headers
+    // distinguish where rows came from), so the view author decides.
+    //
+    // Stage-kind rules layered on top of the view's setting:
+    //   root          → honour view.grouping
+    //   tree (deeper) → always off (we're inside one layer's branch; the
+    //                   tree IS the structure at that level)
+    //   filter        → honour view.grouping (plugin-source clusters)
+    //   actions       → honour view.grouping
+    //   confirm       → irrelevant (always 2 fixed items)
     proto._isGroupingEnabledForStage = function (stage) {
-        if (!this.isGroupingEnabled()) return false;
         if (!stage) return true;
         var view = this._getViewByTitle(stage.viewTitle || this.activeView);
-        if (view && view.isTree) return false;
+        var viewGrouping = view ? view.grouping : true;
+        if (!viewGrouping) return false;
+        if (stage.kind === "root") return true;
+        if (stage.kind === "tree" && view && view.isTree) return false;
         return true;
     };
 
