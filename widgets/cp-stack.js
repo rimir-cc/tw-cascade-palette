@@ -227,6 +227,18 @@ module.exports = function (proto) {
     /* ---------- result computation ---------- */
 
     proto.recomputeStage = function (stage) {
+        var perfNow = (typeof performance !== "undefined" && performance.now)
+            ? performance : Date;
+        var t0 = perfNow.now();
+        this._recomputeStageBody(stage);
+        this._lastPerf = this._lastPerf || {};
+        this._lastPerf.recomputeMs = perfNow.now() - t0;
+        this._lastPerf.stageKind = stage ? stage.kind : "";
+        this._lastPerf.itemCount = stage && stage.items ? stage.items.length : 0;
+        this._lastPerf.resultCount = stage && stage.results ? stage.results.length : 0;
+    };
+
+    proto._recomputeStageBody = function (stage) {
         if (stage.kind === "root") {
             var view = this._getViewByTitle(stage.viewTitle || this.activeView);
             if (view) {
@@ -254,7 +266,9 @@ module.exports = function (proto) {
         } else if (stage.kind === "filter") {
             stage.items = this.evaluateFilterStage(stage);
         } else if (stage.kind === "actions") {
-            stage.items = this.sortEntries(this.loadActionsForType(stage.entityType));
+            stage.items = this.sortEntries(
+                this.loadActionsForType(stage.entityType, stage.parentPicked)
+            );
         } else if (stage.kind === "confirm") {
             // Items are pre-built by buildConfirmStage; nothing to recompute.
             stage.results = stage.items.slice();
@@ -263,7 +277,7 @@ module.exports = function (proto) {
         this.applyQueryToStage(stage);
     };
 
-    proto.loadActionsForType = function (entityType) {
+    proto.loadActionsForType = function (entityType, contextTitle) {
         var self = this;
         // Actions matching the entity type OR globals (ca-entity-type: *).
         var titles = this.wiki.filterTiddlers(
@@ -275,8 +289,35 @@ module.exports = function (proto) {
             })
             .filter(function (a) {
                 var t = self.getActionEntityType(a.title);
-                return t === entityType || t === "*";
+                if (t !== entityType && t !== "*") return false;
+                // `ca-action-when` (optional) — filter evaluated with
+                // currentTiddler bound to the picked entity. Non-empty
+                // result ⇒ applicable. Empty filter ⇒ always applicable
+                // (back-compat with pre-0.0.39 actions).
+                return self.isActionApplicable(a.title, contextTitle);
             });
+    };
+
+    proto.isActionApplicable = function (actionTitle, contextTitle) {
+        var t = this.wiki.getTiddler(actionTitle);
+        var f = (t && t.fields) || {};
+        var when = f["ca-action-when"];
+        if (!when || !String(when).trim()) return true;
+        try {
+            var result = this.wiki.filterTiddlers(
+                String(when),
+                this.makeFakeWidget({ currentTiddler: contextTitle || "" })
+            );
+            return result && result.length > 0;
+        } catch (err) {
+            if (console && console.warn) {
+                console.warn(
+                    "[cascade-palette] ca-action-when filter error on",
+                    actionTitle, "—", err && err.message
+                );
+            }
+            return false;
+        }
     };
 
     proto.getActionEntityType = function (title) {

@@ -41,6 +41,7 @@ exports.SOFT_DEPTH_CONFIG = "$:/config/rimir/cascade-palette/soft-depth-warning"
 exports.POPUP_WIDTH_CONFIG = "$:/config/rimir/cascade-palette/popup-width";
 exports.MAX_RESULTS_CONFIG = "$:/config/rimir/cascade-palette/max-results";
 exports.DETAILS_ALWAYS_ON_CONFIG = "$:/config/rimir/cascade-palette/details-always-on";
+exports.PERF_FOOTER_CONFIG = "$:/config/rimir/cascade-palette/show-perf-footer";
 
 // ---- Defaults for nullable / fallback fields ----
 exports.DEFAULT_ORDER = 100;

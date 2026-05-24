@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/settings/show-perf-footer
+tags: $:/tags/rimir/cascade-palette/setting
+ca-name: Show perf footer
+ca-hint: Render a small diagnostic footer with recompute / render timings and item counts. Useful for spotting slow filters or expensive views.
+ca-kind: toggle
+ca-order: 90
+ca-bind-tiddler: $:/config/rimir/cascade-palette/show-perf-footer
+ca-bind-field: text
+ca-true-value: yes
+ca-false-value: no

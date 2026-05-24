@@ -13,6 +13,7 @@ type: text/vnd.tiddlywiki
 ;Behaviour
 :* ''Max results per stage'' — caps the number of items rendered per stage. Default 30. Configured at <code>$:/config/rimir/cascade-palette/max-results</code>.
 :* ''Soft depth warning'' — engine logs a warning to the console if stack depth exceeds this. Default 10. Configured at <code>$:/config/rimir/cascade-palette/soft-depth-warning</code>. No hard cap.
+:* ''Show perf footer'' — toggle a small diagnostic footer with recompute / render timings and item counts. Off by default. Configured at <code>$:/config/rimir/cascade-palette/show-perf-footer</code>.
 
 ;Diagnostics
 :* See all loaded entries: <$button>List entries<$action-navigate $to="$:/temp/cascade-palette/entries-listing"/></$button>

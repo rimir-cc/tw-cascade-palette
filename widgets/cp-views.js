@@ -100,6 +100,8 @@ module.exports = function (proto) {
             showCount:
                 (f["ca-view-show-count"] || "no").toLowerCase() === "yes",
             countFormat: f["ca-view-count-format"] || " (<<count>>)",
+            showActionPreview:
+                (f["ca-view-show-action-preview"] || "yes").toLowerCase() !== "no",
             pickMode: (f["ca-view-pick-mode"] || "").toLowerCase() === "yes",
             pickEmitsFilter: f["ca-view-pick-emits-filter"] || "",
             afterFire: (f["ca-view-after-fire"] || "").toLowerCase(),

@@ -267,6 +267,30 @@ type: text/css
     color: rgba(255, 255, 255, 0.75);
 }
 
+.rcp-row-action-preview {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: #eef2ff;
+    color: #4338ca;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    user-select: none;
+}
+
+.rcp-popup[data-focus="menu"] .rcp-row-selected .rcp-row-action-preview {
+    background: rgba(255, 255, 255, 0.18);
+    color: #e0e7ff;
+}
+
+@media (prefers-color-scheme: dark) {
+    .rcp-row-action-preview {
+        background: #1e1b4b;
+        color: #c7d2fe;
+    }
+}
+
 @media (prefers-color-scheme: dark) {
     .rcp-view-strip {
         background: #1f1d18;
@@ -1033,6 +1057,17 @@ type: text/css
     user-select: none;
 }
 
+.rcp-perf-footer {
+    padding: 4px 14px;
+    background: #fafbfc;
+    border-top: 1px dashed #e5e7eb;
+    font-size: 10px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color: #94a3b8;
+    user-select: none;
+    letter-spacing: 0.02em;
+}
+
 .rcp-preview {
     display: none;
     /* `flex: 0 0 auto` keeps the slot at content size (capped by max-height
@@ -1241,6 +1276,11 @@ type: text/css
         background: #111827;
         color: #9ca3af;
         border-color: #374151;
+    }
+    .rcp-perf-footer {
+        background: #0b1220;
+        color: #64748b;
+        border-color: #1f2937;
     }
     .rcp-input,
     .rcp-results {

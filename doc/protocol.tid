@@ -33,6 +33,8 @@ Each tiddler has a tag and a small set of `ca-*` fields. The engine reads them a
 :Which entity type this action applies to. The engine matches `rrt.type` of dynamic items against this field. Use ''`*`'' to make the action global (appears for any entity type).
 ;`ca-default` (actions only)
 :Set to ''`yes`'' on the action that should fire when the user hits Enter on a dynamic entity result (without first opening the action menu via Tab). Usually the ''Open'' action. Exactly one per entity type.
+;`ca-action-when` (actions only, optional)
+:Filter evaluated with `<currentTiddler>` bound to the picked entity. Non-empty result ⇒ the action is applicable for that specific tiddler. Empty / missing filter ⇒ always applicable. Use to hide actions that don't make sense per instance — e.g. `[<currentTiddler>!has[done]]` shows "Mark done" only for tiddlers without a `done` field.
 ;`ca-actions` (leaf only)
 :Wikitext fired on Enter. Receives `<<picked>>` and `<<parent-picked>>` in scope. Typically a single action widget like `<$action-navigate $to=<<picked>>/>` or a setfield.
 ;`ca-next-scope` (drill only)

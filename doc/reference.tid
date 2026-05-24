@@ -91,6 +91,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-after-fire` |`close`\|`pop` |leaf |Post-fire behaviour. Default `close` (closes the palette). `pop` fires the action then pops one stage, keeping the palette open — for single-select sub-drills inside a field-edit flow, so the user lands back on the field stage with their pick already applied. |
 |`ca-entity-type` |string\|`*` |action |Entity type this action applies to, or `*` for global |
 |`ca-default` |`yes`\|empty |action |Marks the "Enter on entity result" default action |
+|`ca-action-when` |filter |action |Optional applicability predicate. Evaluated with `<currentTiddler>` bound to the picked entity. Non-empty result ⇒ action is applicable; empty/missing filter ⇒ always applicable. Used to hide actions that don't make sense for a specific tiddler (e.g. "Mark done" only when `done` field is empty). |
 |`ca-next-scope` |filter |drill items |Filter expression for the new stage's items (mutually exclusive with `ca-items-from`) |
 |`ca-items-from` |filter |drill items |Filter that returns one JSON-encoded item shape per result. The palette parses each as a synthetic cascade item (no backing tiddler). Use for stages populated from configuration data rather than tiddlers. Mutually exclusive with `ca-next-scope`. |
 |`ca-next-title` |string |drill items |Title shown in breadcrumb for the new stage |
@@ -154,6 +155,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-view-containers-first` |`yes`\|`no` |view |Containers float above leaves at each tree level. Default `yes` for tree views |
 |`ca-view-show-count` |`yes`\|`no` |view |Render a child-count badge on tree-container rows. Default `no` |
 |`ca-view-count-format` |template |view |Badge template, default ` (<<count>>)` |
+|`ca-view-show-action-preview` |`yes`\|`no` |view |Render a small `→N` badge on typed leaf rows showing how many actions would appear on drill (after `ca-action-when` applicability is evaluated per row). Default `yes`. Set to `no` on views where the visual would be noisy or per-row applicability evaluation is too costly. |
 |`ca-view-row-name` / `-hint` / `-icon` / `-kind` / `-group` / `-order` / `-next-scope` / `-items-from` |filter |view |Per-source overrides; evaluated with `<currentTiddler>` bound to the source. Unset filters fall through to the source's own `ca-*` field |
 |`ca-view-row-actions` |filter ''or'' wikitext |view |Action fired on a leaf pick. If parses as a filter returning a result, the result is the action wikitext (fetch source's `ca-actions`); otherwise the raw value is the wikitext template with `<<currentTiddler>>` substituted at fire time |
 |`ca-position` |string |entry |Position fallback used by every view when no per-view override is set. `at-root` (default), `none`, a tree path like `Tools/Search`, or multi-position via `:` / newlines |
@@ -196,6 +198,34 @@ Right-arrow on a leaf row that carries a non-empty entity type opens the action-
 Both are evaluated with `<currentTiddler>` bound to the row's title. A non-empty first result is the entity type. Actions tagged `$:/tags/rimir/cascade-palette/action` with `ca-entity-type` matching that type (or `*` for global) populate the action menu.
 
 Containers don't expose the action menu in this version — Right-arrow on a container always descends into children. Container action menus are a planned follow-up via a synthetic `[Actions]` first-child row.
+
+!! Filter-based action applicability
+
+An action may further gate itself per entity instance by declaring `ca-action-when` — a filter evaluated with `<currentTiddler>` bound to the picked entity. A non-empty result means the action is applicable; empty / missing filter means always applicable (the default, back-compat with pre-0.0.39 actions).
+
+Typical patterns:
+* `[<currentTiddler>!has[done]]` — "Mark done" only shows for tiddlers without a `done` field
+* `[<currentTiddler>!is[system]]` — "Delete" only on user tiddlers
+* `[<currentTiddler>tags[]match[project]]` — domain-specific action only on tagged tiddlers
+
+The applicability filter runs both when the action menu opens (deciding which actions to show) and when the per-row action-preview badge is computed (counting applicable actions for each visible typed leaf).
+
+!! Per-row action preview
+
+When a tree-view row carries a resolved entity type, the renderer shows a small `→N` badge next to the row name, where `N` is the count of actions that would appear if the user drilled into the row. The count is computed by running the action loader (entity-type match + `ca-action-when` evaluation) for each visible row.
+
+The count is memoized by `(entity-type, row-title)` within a single render pass — keystroke-driven recomputations that just narrow the visible result list hit the cache. Per-view opt-out: set `ca-view-show-action-preview: no`. Stage / wiki changes invalidate the cache.
+
+!! Perf footer (diagnostic)
+
+When `$:/config/rimir/cascade-palette/show-perf-footer` is `yes`, a small footer renders below the hint row with the latest:
+
+* `recompute` — milliseconds for `recomputeStage` (filter evaluation + sort)
+* `render` — milliseconds for `renderStage` (DOM construction)
+* `items / results` — pre/post query-filter row counts
+* `actions Xms (N rows)` — total action-preview evaluation time + how many rows were preview-evaluated (only shown when non-zero)
+
+Use it to spot slow filters (large `recompute`), expensive views with many rows, or to gauge the cost of per-row action preview before disabling it on a view.
 
 ! Settings
 

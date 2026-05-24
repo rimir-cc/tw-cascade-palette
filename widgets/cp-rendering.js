@@ -25,9 +25,47 @@ module.exports = function (proto) {
     /* ---------- stage rendering ---------- */
 
     proto.renderStage = function () {
+        var perfNow = (typeof performance !== "undefined" && performance.now)
+            ? performance : Date;
+        var t0 = perfNow.now();
         this.renderBreadcrumb();
         this.renderInput();
         this.renderResults();
+        this._lastPerf = this._lastPerf || {};
+        this._lastPerf.renderMs = perfNow.now() - t0;
+        this._lastPerf.actionPreviewMs = this._actionPreviewMs || 0;
+        this._lastPerf.actionPreviewRows = this._actionPreviewRows || 0;
+        this._renderPerfFooter();
+    };
+
+    proto._renderPerfFooter = function () {
+        if (!this.perfFooterEl) return;
+        var enabled = (this.wiki.getTiddlerText(C.PERF_FOOTER_CONFIG, "no") || "")
+            .trim().toLowerCase() === "yes";
+        if (!enabled) {
+            this.perfFooterEl.style.display = "none";
+            this.perfFooterEl.textContent = "";
+            return;
+        }
+        var p = this._lastPerf || {};
+        var stage = this.topStage();
+        var kind = (p.stageKind || (stage && stage.kind) || "—");
+        var items = (p.itemCount != null) ? p.itemCount : "—";
+        var results = (p.resultCount != null) ? p.resultCount : "—";
+        var rcm = (typeof p.recomputeMs === "number") ? p.recomputeMs.toFixed(1) + "ms" : "—";
+        var rnd = (typeof p.renderMs === "number") ? p.renderMs.toFixed(1) + "ms" : "—";
+        var extra = "";
+        if (typeof p.actionPreviewMs === "number") {
+            extra = " · actions " + p.actionPreviewMs.toFixed(1) + "ms"
+                + (typeof p.actionPreviewRows === "number" ? " (" + p.actionPreviewRows + " rows)" : "");
+        }
+        this.perfFooterEl.style.display = "";
+        this.perfFooterEl.textContent =
+            "perf · " + kind +
+            " · recompute " + rcm +
+            " · render " + rnd +
+            " · items " + items + "/" + results +
+            extra;
     };
 
     proto.renderBreadcrumb = function () {
@@ -67,6 +105,12 @@ module.exports = function (proto) {
         while (this.resultsEl.firstChild) {
             this.resultsEl.removeChild(this.resultsEl.firstChild);
         }
+        // Reset per-renderResults caches. Action-preview counts are keyed
+        // by (entityType, title) and only valid within this render pass —
+        // any wiki change or stage push invalidates them.
+        this._actionPreviewCountCache = {};
+        this._actionPreviewMs = 0;
+        this._actionPreviewRows = 0;
         var stage = this.topStage();
         if (!stage) return;
         if (stage.results.length === 0) {
@@ -152,6 +196,11 @@ module.exports = function (proto) {
         }
 
         this._renderRowValue(rowEl, item);
+
+        // Action preview badge — for typed leaf rows, show how many
+        // actions would appear on Right-arrow drill into this tiddler.
+        // Per-view opt-out via `ca-view-show-action-preview: no`.
+        this._maybeAppendActionPreview(rowEl, item, stage);
 
         // Overridden-default marker — small dot after the value, before any
         // chevron. Only meaningful for bindable kinds.
@@ -584,6 +633,43 @@ module.exports = function (proto) {
             dl.appendChild(dd);
         }
         this.previewEl.appendChild(dl);
+    };
+
+    // Add a small badge to typed leaf rows showing how many actions
+    // would be applicable when the user drills into the row. Counts are
+    // memoized by (entityType, title) within a renderResults pass so a
+    // keystroke that just narrows the visible list doesn't reevaluate
+    // already-computed rows.
+    proto._maybeAppendActionPreview = function (rowEl, item, stage) {
+        if (!item || !item.entityType || item.kind !== "leaf") return;
+        var view = this._getViewByTitle(stage.viewTitle || this.activeView);
+        if (view && view.showActionPreview === false) return;
+        var key = item.entityType + " " + (item.title || "");
+        var cache = this._actionPreviewCountCache || (this._actionPreviewCountCache = {});
+        var count;
+        if (Object.prototype.hasOwnProperty.call(cache, key)) {
+            count = cache[key];
+        } else {
+            var perfNow = (typeof performance !== "undefined" && performance.now)
+                ? performance : Date;
+            var t0 = perfNow.now();
+            try {
+                var actions = this.loadActionsForType(item.entityType, item.title);
+                count = actions.length;
+            } catch (err) {
+                count = 0;
+            }
+            this._actionPreviewMs = (this._actionPreviewMs || 0) + (perfNow.now() - t0);
+            this._actionPreviewRows = (this._actionPreviewRows || 0) + 1;
+            cache[key] = count;
+        }
+        if (count <= 0) return;
+        var badge = this.document.createElement("span");
+        badge.className = "rcp-row-action-preview";
+        badge.textContent = "→" + count;
+        badge.title = count + " action" + (count === 1 ? "" : "s") +
+            " available on drill (Right-arrow)";
+        rowEl.appendChild(badge);
     };
 
 };

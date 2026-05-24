@@ -245,6 +245,13 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.hintEl.className = "rcp-hint";
         this.hintEl.textContent = C.HINT_INPUT;
 
+        // Perf footer — opt-in via $:/config/rimir/cascade-palette/show-perf-footer.
+        // Shows recompute / render timings + item counts. Hidden by default
+        // (display:none until renderPerfFooter decides to show it).
+        this.perfFooterEl = this.document.createElement("div");
+        this.perfFooterEl.className = "rcp-perf-footer";
+        this.perfFooterEl.style.display = "none";
+
         popup.appendChild(this.breadcrumbEl);
         popup.appendChild(this.presetStripEl);
         popup.appendChild(this.visibilityStripEl);
@@ -255,6 +262,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         popup.appendChild(this.resultsEl);
         popup.appendChild(this.previewEl);
         popup.appendChild(this.hintEl);
+        popup.appendChild(this.perfFooterEl);
         this.backdropEl.appendChild(popup);
 
         parent.insertBefore(this.backdropEl, nextSibling);
