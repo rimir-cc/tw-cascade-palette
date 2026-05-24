@@ -108,6 +108,110 @@ type: text/css
     box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.35);
 }
 
+/* View-config strip — read-only pills depicting the active view's
+   filter primitives (roots / children / leaf / label). Subdued styling
+   distinguishes it from the actionable strips above (these pills are
+   informational, not clickable in this pass). Hidden via
+   `rcp-has-view-config` on the popup when no primitives apply. */
+.rcp-view-config-strip {
+    display: none;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px 14px;
+    background: #fafaf9;
+    border-bottom: 1px solid #ececec;
+}
+
+.rcp-popup.rcp-has-view-config .rcp-view-config-strip {
+    display: flex;
+}
+
+.rcp-view-config-strip::before {
+    flex-shrink: 0;
+    align-self: center;
+    min-width: 56px;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #9ca3af;
+    padding-right: 8px;
+    user-select: none;
+    pointer-events: none;
+    content: "Structure";
+}
+
+.rcp-view-config-pill {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    padding: 1px 8px;
+    background: #f3f4f6;
+    color: #4b5563;
+    border-radius: 10px;
+    font-size: 10px;
+    line-height: 1.5;
+    user-select: none;
+    border: 1px solid #e5e7eb;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.rcp-view-config-pill-label {
+    color: #9ca3af;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 8px;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+}
+
+.rcp-view-config-pill-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #374151;
+}
+
+.rcp-view-config-pill-roots .rcp-view-config-pill-label    { color: #2563eb; }
+.rcp-view-config-pill-children .rcp-view-config-pill-label { color: #047857; }
+.rcp-view-config-pill-leaf .rcp-view-config-pill-label     { color: #b45309; }
+.rcp-view-config-pill-label .rcp-view-config-pill-label    { color: #6b7280; }
+.rcp-view-config-pill-actions .rcp-view-config-pill-label  { color: #7c3aed; }
+.rcp-view-config-pill-row-name .rcp-view-config-pill-label,
+.rcp-view-config-pill-row-group .rcp-view-config-pill-label,
+.rcp-view-config-pill-row-kind .rcp-view-config-pill-label { color: #6b7280; }
+.rcp-view-config-pill-sort .rcp-view-config-pill-label     { color: #475569; }
+.rcp-view-config-pill-pick .rcp-view-config-pill-label     { color: #be185d; }
+
+@media (prefers-color-scheme: dark) {
+    .rcp-view-config-strip {
+        background: #181d24;
+        border-bottom-color: #2a2f38;
+    }
+    .rcp-view-config-strip::before {
+        color: #6b7280;
+    }
+    .rcp-view-config-pill {
+        background: #1f2937;
+        color: #d1d5db;
+        border-color: #374151;
+    }
+    .rcp-view-config-pill-value {
+        color: #e5e7eb;
+    }
+    .rcp-view-config-pill-roots .rcp-view-config-pill-label    { color: #60a5fa; }
+    .rcp-view-config-pill-children .rcp-view-config-pill-label { color: #34d399; }
+    .rcp-view-config-pill-leaf .rcp-view-config-pill-label     { color: #fbbf24; }
+    .rcp-view-config-pill-actions .rcp-view-config-pill-label  { color: #c4b5fd; }
+    .rcp-view-config-pill-row-name .rcp-view-config-pill-label,
+    .rcp-view-config-pill-row-group .rcp-view-config-pill-label,
+    .rcp-view-config-pill-row-kind .rcp-view-config-pill-label { color: #9ca3af; }
+    .rcp-view-config-pill-sort .rcp-view-config-pill-label     { color: #94a3b8; }
+    .rcp-view-config-pill-pick .rcp-view-config-pill-label     { color: #f472b6; }
+}
+
 /* Container count badge — small dimmed digit after the segment name on
    tree-view container rows when the view declares show-count. */
 .rcp-row-count {

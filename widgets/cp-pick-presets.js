@@ -34,10 +34,13 @@ module.exports = function (proto) {
             return;
         }
         var arg;
-        if (picked && picked._treeContainer && picked._treePath) {
-            // Container: join the full tree path. For path-segments
-            // strategy this gives a usable title-prefix (e.g. "work/customers/A").
-            arg = picked._treePath.join("/");
+        if (picked && picked._treeContainer && picked._treeParent) {
+            // Container: the tiddler title at this node IS the path arg
+            // — for the by-namespace view (roots: titles without `/`,
+            // children: cp-child-of<currentTiddler>) that's exactly the
+            // prefix the user picked. For other tree shapes, it's still
+            // the most meaningful path-like identifier we have.
+            arg = picked._treeParent;
         } else if (picked && picked.title) {
             arg = picked.title;
         } else if (picked && picked.name) {

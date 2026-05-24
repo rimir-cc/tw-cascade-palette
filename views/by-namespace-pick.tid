@@ -2,8 +2,8 @@ title: $:/plugins/rimir/cascade-palette/views/by-namespace-pick
 tags: $:/tags/rimir/cascade-palette/view
 ca-view-name: By namespace (pick)
 ca-view-hint: Drill `/`-segments; Enter on any row commits the path as a title-prefix filter.
-ca-view-source: [!is[system]]
-ca-view-tree-strategy: path-segments
+ca-view-roots: [!is[system]cp-child-of[]]
+ca-view-children: [!is[system]cp-child-of<currentTiddler>]
 ca-view-row-actions: <$action-navigate $to=<<currentTiddler>>/>
 ca-view-sort: alphabetical
 ca-view-containers-first: yes
@@ -11,3 +11,4 @@ ca-view-show-count: yes
 ca-view-pick-mode: yes
 ca-view-pick-emits-filter: $:/plugins/rimir/cascade-palette/filters/title-prefix
 ca-order: 350
+type: text/vnd.tiddlywiki

@@ -10,7 +10,7 @@ type: text/vnd.tiddlywiki
 
 The palette is one popup with up to seven focusable sections, partitioned into two groups:
 
-* ''pills group'' (top of the palette, visually stacked): ''preset'' (always present — trailing ''+'' pill is the save-as affordance even when no presets exist), ''visibility'' (only when ≥ 1 visibility rule active), ''filter'' (only when ≥ 1 filter active), ''view'' (only when ≥ 2 views declared)
+* ''pills group'' (top of the palette, visually stacked): ''preset'' (always present — trailing ''+'' pill is the save-as affordance even when no presets exist), ''visibility'' (only when ≥ 1 visibility rule active), ''filter'' (only when ≥ 1 filter active), ''view'' (only when ≥ 2 views declared). Below the view strip a read-only ''structure'' row depicts the active view's `roots` / `children` / `leaf` / `label` filter primitives as pills — not focusable in this version, purely informational.
 * ''main group'': ''input'' (search box), ''menu'' (result list), ''details'' (preview drawer, only when open)
 
 The active section gets the browser-level focus and a visual cue; keyboard gestures route accordingly. ''Tab'' cycles within the current group; ''Shift-Tab'' jumps between groups (lands on the bottom-most pill when entering pills, on input when returning). ''↑ / ↓'' inside the pill group walks vertically across rows — ↑ from input enters pills at the bottom-most row, ↓ from the bottom-most pill drops back into input. Esc steps "outward" — section → input → close.
@@ -129,10 +129,10 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-view-name` |string |view |Display name on the view-strip pill and as the root breadcrumb segment |
 |`ca-view-hint` |string |view |Tooltip on hover; appears in the details pane when the view pill is focused |
 |`ca-view-default` |`yes`\|empty |view |One view declares `yes` to be the initial selection on page load |
-|`ca-view-source` |filter |view |TW filter producing the source-tiddler set |
-|`ca-view-tree-strategy` |`path-segments`\|`parent-tag`\|`custom-key`\|empty |view |Empty = flat view. Tree strategies fold sources into a hierarchy that the user drills into |
-|`ca-view-tree-key` |filter |view (custom-key) |Per-source filter returning a list of path segments |
-|`ca-view-root-tag` |string |view (parent-tag) |Stop-tag for the ancestor walk |
+|`ca-view-roots` |filter |view |Filter producing the root rows (no `<currentTiddler>` binding). Required. Back-compat alias: `ca-view-source` is honoured when `ca-view-roots` is absent. |
+|`ca-view-children` |filter |view |Filter producing direct children of a node, with `<currentTiddler>` bound to the parent tiddler. Empty = flat view (every root row is a leaf). |
+|`ca-view-leaf` |filter |view |Optional leaf-test. With `<currentTiddler>` bound to the candidate, returns truthy when the candidate should not drill. Default: node is a leaf iff `ca-view-children` returns empty for it. |
+|`ca-view-label` |filter |view |Optional display-name override. With `<currentTiddler>` bound to the node, returns the row's display name. Default precedence: caption → last `/`-segment → title. |
 |`ca-view-sort` |`alphabetical`\|`natural`\|`by-field`\|`custom` |view |Row sort policy; default `alphabetical` |
 |`ca-view-sort-field` |string |view (by-field) |Field name read off each row |
 |`ca-view-sort-key` |filter |view (custom) |Per-row filter returning a sortable key |
@@ -154,6 +154,21 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-preset-name` |string |preset |Display name (e.g. "PersonsOfA"). Required. |
 |`ca-preset-view` |view-title |preset |View active at save time. |
 |`ca-preset-constraints` |JSON |preset |Object `{"filters": [{title, arg}, …], "visibility": [{title, arg}, …]}` — both lists at save time. |
+
+! Shipped views (concrete shapes)
+
+The four built-in views compose the declarative primitives as follows:
+
+|!View |!Roots |!Children |!Notes |
+|`entries` |`[all[shadows+tiddlers]tag[…/entry]]` |(none — flat) |Default view; surfaces all plugin-declared entry tiddlers |
+|`all-tiddlers` |`[!is[system]]` |(none — flat) |Flat list of user tiddlers; row-actions navigate |
+|`by-namespace` |`[!is[system]cp-child-of[]]` |`[!is[system]cp-child-of<currentTiddler>]` |Path-segment tree using the plugin's `cp-child-of` filter operator |
+|`by-parent` |`[tag[TableOfContents]]` |`[tag<currentTiddler>]` |TW tag-tree via native filter ops |
+|`by-namespace-pick` |same as `by-namespace` plus `ca-view-pick-mode: yes` |- |Hidden pick variant — Enter commits picked tiddler as filter arg |
+
+The `cp-child-of` filter operator is shipped by this plugin (`widgets/cp-filter-ops.js`). Its operand is the parent tiddler title; with an empty operand it returns titles that contain no `/`. Authors writing custom path-style views can reuse it directly.
+
+A behavioural note for `by-namespace`: tree nodes are tiddlers, not derived path segments. If `foo/bar/baz` exists but no tiddler `foo` or `foo/bar` is present, those intermediate segments do not appear as drillable folders — create real tiddlers (even with empty body) at the parent paths to make them navigable. Earlier versions of this view synthesised the missing folders implicitly; the new model trades that bottom-up magic for a self-describing top-down filter pair.
 
 ! Settings
 

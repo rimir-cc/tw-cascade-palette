@@ -3,17 +3,35 @@ title: $:/plugins/rimir/cascade-palette/widgets/cp-views
 type: application/javascript
 module-type: library
 
-View subsystem — declarative root-stage strategies.
+View subsystem — declarative root-stage strategies via composable
+filter primitives.
 
-A view is a tiddler tagged `$:/tags/rimir/cascade-palette/view` that
-produces root-stage rows by:
-  - flat:  evaluate `ca-view-source`, then run each `ca-view-row-*`
-           filter per source item; assemble cascade items
-  - tree:  evaluate `ca-view-source`, build a tree via the chosen
-           `ca-view-tree-strategy`, render the active branch
+A view is a tiddler tagged `$:/tags/rimir/cascade-palette/view`. Its
+structure is expressed declaratively through two filters:
 
-Views are loaded once per palette instance (cached); switching the
-active view always pops the stage stack to root and rebuilds.
+    ca-view-roots     filter (no current-binding) — produces root rows
+    ca-view-children  filter with <currentTiddler> = parent
+                       — produces children of a node (empty = flat view)
+
+Optional refinements:
+
+    ca-view-leaf      filter with <currentTiddler> = candidate
+                       — truthy when the candidate is a terminal node;
+                         default is "leaf iff children() returns empty".
+    ca-view-label     filter with <currentTiddler> = node
+                       — display name override; default is last `/`
+                         segment, then caption, then title.
+
+Back-compat: `ca-view-source` is accepted as an alias for `ca-view-roots`
+on flat views (the four shipped views and many existing authored views
+predate the rename).
+
+The descent is a single recursive evaluation: at every node (root or
+nested), the engine runs the appropriate filter, layers `ca-view-row-*`
+overrides on each candidate, decides leaf-vs-container, and emits rows.
+Tree containers carry `_treeContainer` + `_treeParent` so drillSelected
+(cp-firing) can push a tree-stage; the pick-mode commit (cp-pick-presets)
+reads `_treeParent` to derive the path arg.
 
 \*/
 "use strict";
@@ -42,15 +60,19 @@ module.exports = function (proto) {
             var order = orderRaw !== undefined && orderRaw !== ""
                 ? parseFloat(orderRaw) : DEFAULT_ORDER;
             if (isNaN(order)) order = DEFAULT_ORDER;
+            // `roots` falls back to legacy `ca-view-source` so the four
+            // shipped flat views (and any user-authored views from before
+            // the rename) continue to work without edits.
+            var rootsFilter = f["ca-view-roots"] || f["ca-view-source"] || "";
             var view = {
                 title: title,
                 name: f["ca-view-name"] || title.split("/").pop(),
                 hint: f["ca-view-hint"] || "",
                 isDefault: (f["ca-view-default"] || "").toLowerCase() === "yes",
-                source: f["ca-view-source"] || "",
-                treeStrategy: (f["ca-view-tree-strategy"] || "").toLowerCase(),
-                treeKey: f["ca-view-tree-key"] || "",
-                rootTag: f["ca-view-root-tag"] || "",
+                roots: rootsFilter,
+                children: f["ca-view-children"] || "",
+                leaf: f["ca-view-leaf"] || "",
+                label: f["ca-view-label"] || "",
                 sort: (f["ca-view-sort"] || "alphabetical").toLowerCase(),
                 sortField: f["ca-view-sort-field"] || "",
                 sortKey: f["ca-view-sort-key"] || "",
@@ -69,18 +91,19 @@ module.exports = function (proto) {
                 rowNextScope: f["ca-view-row-next-scope"] || "",
                 rowItemsFrom: f["ca-view-row-items-from"] || "",
                 // Pick-mode: when `yes`, firing a leaf row pushes the
-                // configured filter with the row's effective tree-path as
-                // arg, then returns to the prior view. Used by the `>`
-                // leader (see views/by-namespace-pick.tid).
+                // configured filter with the row's title as arg, then
+                // returns to the prior view. Used by the `>` leader.
                 pickMode: (f["ca-view-pick-mode"] || "").toLowerCase() === "yes",
                 pickEmitsFilter: f["ca-view-pick-emits-filter"] || "",
                 // View-wide after-fire policy. Sets ca-after-fire on every
                 // row built from this view (unless the row's source already
-                // declares one). Lets a view say "all my rows keep the
-                // palette open" without authors stamping each source tiddler.
+                // declares one).
                 afterFire: (f["ca-view-after-fire"] || "").toLowerCase(),
                 order: order
             };
+            // Convenience flag: a view is "tree-like" iff it declares a
+            // children filter. Read by grouping / sort / strip-rendering.
+            view.isTree = !!view.children;
             if (view.isDefault && !defaultTitle) defaultTitle = title;
             return view;
         });
@@ -109,73 +132,216 @@ module.exports = function (proto) {
         return String(viewTitle).split("/").pop();
     };
 
-    // Central row builder. Dispatches flat vs tree based on `treeStrategy`.
-    // parentContext carries either `{kind: "root"}` (root stage) or
-    // `{kind: "tree", parentPath}` (drilled tree stage).
+    // ---- node descent -----------------------------------------------------
+
+    // Single entry point. parentContext shapes:
+    //   { kind: "root" }                       — descending from root
+    //   { kind: "tree", parentPath: [...] }    — descending into a sub-node;
+    //     parentPath is the chain of parent tiddler titles from root onward;
+    //     the last entry is the immediate parent for the children filter.
     proto._buildRowsForView = function (view, parentContext) {
         if (!view) return [];
-        if (view.treeStrategy) {
-            return this._buildTreeRowsForView(view, parentContext || {});
+        var parentTitle = "";
+        if (parentContext && parentContext.parentPath &&
+            parentContext.parentPath.length) {
+            parentTitle = parentContext.parentPath[
+                parentContext.parentPath.length - 1
+            ];
         }
-        return this._buildFlatRowsForView(view, parentContext || {});
+        return this._buildNodeForView(view, parentTitle);
     };
 
-    // Flat view: evaluate ca-view-source, layer row-* filter results on
-    // top of each source tiddler's fields, hand off to _buildCascadeItem.
-    // The "start from source fields" approach means row-* are OVERRIDES —
-    // fields not mentioned by the view fall through to the source's own
-    // values (bind-tiddler, ca-confirm, etc.).
-    //
-    // Position fields (ca-position-<slug> on the source) apply too:
-    //   `none`        → entry excluded from this view
-    //   `at-root`     → no remap (sits in the default group bucket)
-    //   anything else → ca-group reassigned to the first position string
-    //                    (flat views don't support multi-placement; the
-    //                    first position wins).
-    proto._buildFlatRowsForView = function (view, parentContext) {
-        if (!view.source) return [];
+    // Evaluate the appropriate filter for this node, layer row overrides,
+    // tag containers vs leaves, return the row list (plus positioned entries
+    // merged in).
+    proto._buildNodeForView = function (view, parentTitle) {
         var self = this;
-        var slug = this._slugForView(view.title);
-        var sources;
-        try {
-            sources = this.wiki.filterTiddlers(
-                view.source + this._composeFilterSuffix()
-            );
-        } catch (err) {
-            if (console && console.error) {
-                console.error(
-                    "[cascade-palette] view source filter error",
-                    view.title, "—", err && err.message
+        var filterExpr = parentTitle ? view.children : view.roots;
+        var widget = parentTitle
+            ? this.makeFakeWidget({ currentTiddler: parentTitle })
+            : null;
+        var candidates = [];
+        if (filterExpr) {
+            try {
+                candidates = this.wiki.filterTiddlers(
+                    filterExpr + this._composeFilterSuffix(),
+                    widget
                 );
-            }
-            return [];
-        }
-        var rows = [];
-        sources.forEach(function (sourceTitle) {
-            if (!self.isEntryVisible(sourceTitle)) return;
-            var sourceTid = self.wiki.getTiddler(sourceTitle);
-            var srcFields = (sourceTid && sourceTid.fields) || {};
-            var posRaw = srcFields["ca-position-" + slug] || srcFields["ca-position"];
-            if (posRaw === "none") return;
-            var fieldsObj = $tw.utils.extend({}, srcFields);
-            self._applyRowFiltersToFields(view, sourceTitle, fieldsObj);
-            if (posRaw && posRaw !== "at-root") {
-                var firstPos = String(posRaw).split(/[:\n]/)[0].trim();
-                if (firstPos && firstPos !== "at-root") {
-                    fieldsObj["ca-group"] = firstPos;
+            } catch (err) {
+                if (console && console.error) {
+                    console.error(
+                        "[cascade-palette] view filter error",
+                        view.title,
+                        parentTitle ? ("children of " + parentTitle) : "roots",
+                        "—", err && err.message
+                    );
                 }
             }
-            rows.push(self._buildCascadeItem(fieldsObj, sourceTitle));
+        }
+        var slug = this._slugForView(view.title);
+        var rows = [];
+        candidates.forEach(function (title) {
+            if (!self.isEntryVisible(title)) return;
+            // Immediate self-loop guard. Full ancestor-cycle detection lives
+            // in the stage stack's soft-depth warning (cp-stack).
+            if (title === parentTitle) return;
+            var srcTid = self.wiki.getTiddler(title);
+            var srcFields = (srcTid && srcTid.fields) || {};
+            // Position-field exclusion. At root: `ca-position: none` hides
+            // the source entirely (it might still appear via a positioned-
+            // entries pass elsewhere). At inner nodes: same rule applies so
+            // the user has one knob that works at every depth.
+            var posRaw = srcFields["ca-position-" + slug];
+            if (posRaw === undefined) posRaw = srcFields["ca-position"];
+            if (posRaw === "none") return;
+            var fieldsObj = $tw.utils.extend({}, srcFields);
+            self._applyRowFiltersToFields(view, title, fieldsObj);
+            if (!fieldsObj["ca-name"]) {
+                var label = self._labelForNode(view, title);
+                if (label) fieldsObj["ca-name"] = label;
+            }
+            var isLeaf = self._isLeafInView(view, title);
+            if (!fieldsObj["ca-kind"]) {
+                fieldsObj["ca-kind"] = isLeaf ? "leaf" : "drill";
+            }
+            var item = self._buildCascadeItem(fieldsObj, title);
+            // Pure tree container: drillSelected pushes a tree-stage rather
+            // than a filter-stage. Authors who set ca-next-scope or
+            // ca-items-from explicitly opt out of tree-drill semantics.
+            if (!isLeaf && item.kind === "drill" &&
+                !item.nextScope && !item.itemsFrom) {
+                item._treeContainer = true;
+                item._treeParent = title;
+                item._childCount = self._childCountForNode(view, title);
+            }
+            rows.push(item);
+        });
+        // Positioned entries land at this node when their ca-position field
+        // names this parent (or "at-root" matches the root level). Skipped
+        // on flat views — those views surface entries via their `roots`
+        // filter (e.g. the Entries view's `[…tag[…/entry]]`). Re-injecting
+        // would duplicate entries already matched by `roots` and would
+        // pollute unrelated flat views (All tiddlers etc.) with entries
+        // they didn't ask for.
+        if (view.isTree) {
+            var positioned = this._resolveEntryPositionsForView(view, parentTitle);
+            return rows.concat(positioned);
+        }
+        return rows;
+    };
+
+    // Decide if a candidate node is a leaf in this view.
+    //   - With `ca-view-leaf` declared: filter returns truthy ⇒ leaf.
+    //   - Otherwise: leaf iff the view's children filter returns empty
+    //     for this candidate. A view without a children filter (flat)
+    //     treats every candidate as a leaf.
+    proto._isLeafInView = function (view, candidateTitle) {
+        if (view.leaf) {
+            try {
+                var r = this.wiki.filterTiddlers(
+                    view.leaf,
+                    this.makeFakeWidget({ currentTiddler: candidateTitle })
+                );
+                return r.length > 0;
+            } catch (err) { return true; }
+        }
+        if (!view.children) return true;
+        try {
+            var children = this.wiki.filterTiddlers(
+                view.children,
+                this.makeFakeWidget({ currentTiddler: candidateTitle })
+            );
+            // Don't count invisible children towards the "is leaf" decision
+            // — a node whose only children are hidden by visibility should
+            // still drill so the user can find their way back.
+            var self = this;
+            return children.filter(function (t) {
+                return self.isEntryVisible(t);
+            }).length === 0;
+        } catch (err) { return true; }
+    };
+
+    // Count visible children of a node — used by the show-count badge.
+    proto._childCountForNode = function (view, parentTitle) {
+        if (!view.children) return 0;
+        try {
+            var r = this.wiki.filterTiddlers(
+                view.children,
+                this.makeFakeWidget({ currentTiddler: parentTitle })
+            );
+            var self = this;
+            return r.filter(function (t) {
+                return self.isEntryVisible(t);
+            }).length;
+        } catch (err) { return 0; }
+    };
+
+    // Display name for a node. ca-view-label wins; then caption; then the
+    // last `/` segment of the title; then the bare title.
+    proto._labelForNode = function (view, title) {
+        if (view.label) {
+            try {
+                var r = this.wiki.filterTiddlers(
+                    view.label,
+                    this.makeFakeWidget({ currentTiddler: title })
+                );
+                if (r.length && r[0]) return r[0];
+            } catch (err) { /* fall through */ }
+        }
+        var t = this.wiki.getTiddler(title);
+        var caption = t && t.fields && t.fields.caption;
+        if (caption) return String(caption);
+        if (title.indexOf("/") >= 0) {
+            var seg = title.split("/").pop();
+            if (seg) return seg;
+        }
+        return title;
+    };
+
+    // Walk every entry tiddler and emit a row for each one positioned at
+    // `parentTitle`. Pick-mode views skip positioning entirely — the
+    // entries would clutter the namespace the user is trying to browse.
+    //
+    // Positions: ca-position-<slug> (per-view) > ca-position (default).
+    // Multi-position is supported via `:` / newline split. Special value
+    // `at-root` matches the root level; `none` excludes the entry entirely.
+    proto._resolveEntryPositionsForView = function (view, parentTitle) {
+        if (view && view.pickMode) return [];
+        var slug = this._slugForView(view.title);
+        var self = this;
+        var entryTitles = this.wiki.filterTiddlers(
+            "[all[shadows+tiddlers]tag[" + ENTRY_TAG + "]]"
+        );
+        var rows = [];
+        entryTitles.forEach(function (entryTitle) {
+            if (!self.isEntryVisible(entryTitle)) return;
+            var t = self.wiki.getTiddler(entryTitle);
+            var f = (t && t.fields) || {};
+            var posRaw = f["ca-position-" + slug];
+            if (posRaw === undefined) posRaw = f["ca-position"];
+            if (posRaw === undefined) posRaw = "at-root";
+            if (posRaw === "none") return;
+            var positions = String(posRaw).split(/[:\n]/).map(function (s) {
+                return s.trim();
+            }).filter(function (s) { return s; });
+            if (!positions.length) positions = ["at-root"];
+            var matched = false;
+            positions.forEach(function (pos) {
+                if (matched) return;
+                if (pos === "at-root" && parentTitle === "") matched = true;
+                else if (pos === parentTitle) matched = true;
+            });
+            if (matched) rows.push(self.readCascadeFields(entryTitle));
         });
         return rows;
     };
 
+    // ---- row-* field overlay ---------------------------------------------
+
     // Run each ca-view-row-* filter with <currentTiddler> bound to the
     // source item and overlay the result onto fieldsObj. ca-view-row-actions
     // is dual-mode: try filter eval first; if it throws or returns empty,
-    // fall back to the raw value as a wikitext template (lets authors
-    // declare a literal `<$action-navigate $to=<<currentTiddler>>/>` etc.
-    // without `[[…]]` wrapping).
+    // fall back to the raw value as a wikitext template.
     proto._applyRowFiltersToFields = function (view, sourceTitle, fieldsObj) {
         var self = this;
         var filterMap = {
@@ -211,256 +377,19 @@ module.exports = function (proto) {
             if (raw === undefined || raw === "") raw = view.rowActions;
             fieldsObj["ca-actions"] = raw;
         }
-        // View-wide afterFire policy fills in where the row's source tiddler
-        // didn't declare one. Source-tiddler value still wins.
         if (view.afterFire && !fieldsObj["ca-after-fire"]) {
             fieldsObj["ca-after-fire"] = view.afterFire;
         }
     };
 
-    // Build the in-memory tree for a tree view. Each node is
-    // `{ children: { seg → node }, leaves: [sourceTitle, …] }`. A source
-    // tiddler lands at the child node named after its last path segment.
-    // `path-segments` splits the title on `/`; `parent-tag` walks the
-    // `tags[0]` ancestor chain; `custom-key` evaluates the view's
-    // `ca-view-tree-key` filter per source.
-    proto._buildTree = function (view) {
-        var self = this;
-        var sources;
-        try {
-            sources = this.wiki.filterTiddlers(
-                view.source + this._composeFilterSuffix()
-            );
-        } catch (err) {
-            if (console && console.error) {
-                console.error(
-                    "[cascade-palette] tree source filter error",
-                    view.title, "—", err && err.message
-                );
-            }
-            return { children: {}, leaves: [] };
-        }
-        var root = { children: {}, leaves: [], entries: [] };
-        sources.forEach(function (title) {
-            if (!self.isEntryVisible(title)) return;
-            var path = self._pathForTreeSource(view, title);
-            if (!path || !path.length) return;
-            var node = root;
-            for (var i = 0; i < path.length - 1; i++) {
-                var seg = path[i];
-                if (!seg) continue;
-                if (!node.children[seg]) {
-                    node.children[seg] = { children: {}, leaves: [], entries: [] };
-                }
-                node = node.children[seg];
-            }
-            var last = path[path.length - 1];
-            if (!last) return;
-            if (!node.children[last]) {
-                node.children[last] = { children: {}, leaves: [], entries: [] };
-            }
-            node.children[last].leaves.push(title);
-        });
-        this._resolveEntryPositionsForView(view, root);
-        return root;
-    };
-
-    // Walk every entry tiddler and attach it to the tree at the position
-    // declared by `ca-position-<slug>` (view-specific) / `ca-position`
-    // (fallback) / `at-root` (default). Multi-position values are split
-    // on `:` and newlines. Missing intermediate path segments are
-    // auto-created as synthetic container nodes — they drill normally but
-    // have no source backing.
-    //
-    // Pick-mode views skip entry positioning entirely: entries don't
-    // produce meaningful path segments for `pickEmitsFilter` (e.g. a
-    // `prefix:$:/plugins/.../entries/save-wiki` filter is nonsense), and
-    // their presence at-root would clutter the namespace tree the user
-    // is trying to browse.
-    proto._resolveEntryPositionsForView = function (view, tree) {
-        if (view && view.pickMode) return;
-        var slug = this._slugForView(view.title);
-        var self = this;
-        var entryTitles = this.wiki.filterTiddlers(
-            "[all[shadows+tiddlers]tag[" + ENTRY_TAG + "]]"
-        );
-        entryTitles.forEach(function (entryTitle) {
-            if (!self.isEntryVisible(entryTitle)) return;
-            var t = self.wiki.getTiddler(entryTitle);
-            var f = (t && t.fields) || {};
-            var posRaw = f["ca-position-" + slug];
-            if (posRaw === undefined) posRaw = f["ca-position"];
-            if (posRaw === undefined) posRaw = "at-root";
-            if (posRaw === "none") return;
-            var positions = String(posRaw).split(/[:\n]/).map(function (s) {
-                return s.trim();
-            }).filter(function (s) { return s; });
-            if (!positions.length) positions = ["at-root"];
-            positions.forEach(function (pos) {
-                var node;
-                if (pos === "at-root") {
-                    node = tree;
-                } else {
-                    var segs = pos.split("/").filter(function (s) {
-                        return s && s.length;
-                    });
-                    node = tree;
-                    for (var i = 0; i < segs.length; i++) {
-                        if (!node.children[segs[i]]) {
-                            node.children[segs[i]] = {
-                                children: {}, leaves: [], entries: [],
-                                _synthetic: true
-                            };
-                        }
-                        node = node.children[segs[i]];
-                    }
-                }
-                if (!node.entries) node.entries = [];
-                node.entries.push(entryTitle);
-            });
-        });
-    };
-
-    // Compute the path-segments list for one source tiddler under a view's
-    // tree strategy. Returns [] for empty / cyclic walks; callers skip.
-    proto._pathForTreeSource = function (view, sourceTitle) {
-        if (view.treeStrategy === "path-segments") {
-            return String(sourceTitle).split("/").filter(function (s) {
-                return s && s.length;
-            });
-        }
-        if (view.treeStrategy === "parent-tag") {
-            return this._walkParentTagChain(sourceTitle, view.rootTag);
-        }
-        if (view.treeStrategy === "custom-key") {
-            if (!view.treeKey) return [sourceTitle];
-            try {
-                var r = this.wiki.filterTiddlers(
-                    view.treeKey,
-                    this.makeFakeWidget({ currentTiddler: sourceTitle })
-                );
-                return r.filter(function (s) { return s && s.length; });
-            } catch (err) { return [sourceTitle]; }
-        }
-        return [sourceTitle];
-    };
-
-    // Walk the tags[0] ancestor chain from a tiddler outward. Stops at the
-    // rootTag (without including it) or on a tagless / cycled ancestor.
-    // Returns the path root → leaf so callers can use last-segment as the
-    // leaf display name.
-    proto._walkParentTagChain = function (title, rootTag) {
-        var path = [];
-        var seen = Object.create(null);
-        var current = title;
-        while (current && !seen[current]) {
-            seen[current] = true;
-            path.unshift(current);
-            var t = this.wiki.getTiddler(current);
-            var tags = (t && t.fields && t.fields.tags) || [];
-            if (!tags.length) break;
-            var parent = tags[0];
-            if (rootTag && parent === rootTag) break;
-            current = parent;
-        }
-        return path;
-    };
-
-    // Build the result rows for the tree-stage at parentContext.parentPath.
-    // Walks the tree to that depth, then for each child:
-    //   - terminal (no grandchildren, one leaf) → leaf row using the source
-    //   - container (has grandchildren or multiple leaves) → drill row
-    //     with `_treeContainer: true` marker for drillSelected.
-    // Self-leaves (sources landing on this exact path) appear above
-    // children to keep the "files before folders" mental model.
-    proto._buildTreeRowsForView = function (view, parentContext) {
-        var tree = this._buildTree(view);
-        var parentPath = (parentContext && parentContext.parentPath) || [];
-        var node = tree;
-        for (var i = 0; i < parentPath.length; i++) {
-            node = node.children && node.children[parentPath[i]];
-            if (!node) return [];
-        }
-        var self = this;
-        var rows = [];
-        // Positioned entries at this node — rendered with their full
-        // entry-tiddler identity (kind / actions / bind / confirm etc.).
-        (node.entries || []).forEach(function (entryTitle) {
-            rows.push(self.readCascadeFields(entryTitle));
-        });
-        (node.leaves || []).forEach(function (sourceTitle) {
-            var lastSeg = parentPath.length
-                ? parentPath[parentPath.length - 1] : sourceTitle;
-            rows.push(self._buildTreeLeafRow(view, sourceTitle, lastSeg));
-        });
-        Object.keys(node.children || {}).forEach(function (seg) {
-            var child = node.children[seg];
-            var childTreePath = parentPath.concat([seg]);
-            var hasGrand = child.children && Object.keys(child.children).length > 0;
-            var leafCount = (child.leaves || []).length;
-            var entryCount = (child.entries || []).length;
-            // Terminal-collapse only when the single thing is a NATURAL
-            // leaf (source tiddler at this path). Positioned entries
-            // never collapse — the user named that path explicitly, so
-            // the structural intent overrides the "single thing inside"
-            // heuristic. Same for synthetic intermediates with no real
-            // content (defensive).
-            if (!hasGrand && leafCount === 1 && entryCount === 0 && !child._synthetic) {
-                rows.push(self._buildTreeLeafRow(view, child.leaves[0], seg));
-            } else if (!hasGrand && leafCount + entryCount === 0) {
-                // Empty container — drill into it anyway (rare; happens
-                // when a tree-key returns a path that doesn't resolve).
-                rows.push(self._buildTreeLeafRow(view, "", seg));
-            } else {
-                rows.push(self._buildTreeContainerRow(view, seg, childTreePath, child));
-            }
-        });
-        return rows;
-    };
-
-    // Construct a leaf row for a tree view. The source tiddler's fields
-    // feed the standard cascade-item building (so bind/confirm etc. work);
-    // row-* filters layer on top; finally, the displayName overrides
-    // ca-name when no row-name filter is set so containers display their
-    // segment, not the full source title.
-    proto._buildTreeLeafRow = function (view, sourceTitle, displayName) {
-        var fieldsObj;
-        if (sourceTitle) {
-            var sourceTid = this.wiki.getTiddler(sourceTitle);
-            fieldsObj = $tw.utils.extend({}, (sourceTid && sourceTid.fields) || {});
-            this._applyRowFiltersToFields(view, sourceTitle, fieldsObj);
-        } else {
-            fieldsObj = {};
-        }
-        if (!view.rowName) fieldsObj["ca-name"] = displayName;
-        if (!fieldsObj["ca-kind"]) fieldsObj["ca-kind"] = "leaf";
-        return this._buildCascadeItem(fieldsObj, sourceTitle || "");
-    };
-
-    // Construct a container row — synthetic drill that pushes a tree-stage
-    // when fired. Carries `_treeContainer` / `_treePath` / `_childCount`
-    // so drillSelected and the count-badge renderer can find them.
-    proto._buildTreeContainerRow = function (view, segment, treePath, node) {
-        var childCount = Object.keys(node.children || {}).length +
-            (node.leaves ? node.leaves.length : 0) +
-            (node.entries ? node.entries.length : 0);
-        var item = this._buildCascadeItem(
-            { "ca-name": segment, "ca-kind": "drill" }, ""
-        );
-        item.isSynthetic = true;
-        item._treeContainer = true;
-        item._treePath = treePath;
-        item._childCount = childCount;
-        return item;
-    };
+    // ---- sorting ----------------------------------------------------------
 
     // Sort rows according to a view's declared sort policy. Supports
     // `alphabetical` (default), `natural` (numeric-aware), `by-field`
     // (reads `ca-view-sort-field` value off each row), and `custom`
-    // (per-row filter from `ca-view-sort-key`). Containers-first is
-    // layered as a stable post-sort when `ca-view-containers-first: yes`
-    // on a tree view (default) — containers float above leaves at each
-    // level without disturbing intra-class order.
+    // (per-row filter from `ca-view-sort-key`). Containers-first floats
+    // tree containers above leaves at each level when the view declares
+    // a children filter.
     proto._sortRowsForView = function (rows, view) {
         if (!view || !rows || !rows.length) return rows;
         var self = this;
@@ -495,9 +424,7 @@ module.exports = function (proto) {
             };
         }
         var sorted = rows.slice().sort(sortFn);
-        if (view.treeStrategy && view.containersFirst) {
-            // Tag each item with its pre-sort index so JS engines without
-            // strictly-stable sort still preserve intra-class order.
+        if (view.isTree && view.containersFirst) {
             sorted.forEach(function (r, i) { r._sortIdx = i; });
             sorted.sort(function (a, b) {
                 var ac = a._treeContainer ? 0 : 1;
@@ -509,11 +436,6 @@ module.exports = function (proto) {
         return sorted;
     };
 
-    // Read a row's value for a named field. Tries the item's backing
-    // tiddler fields first (for view-built rows where the source carries
-    // the field), then falls back to canonical item-record keys (ca-order
-    // → .order, ca-name → .name) so by-field sort works on synthetic
-    // tree containers too.
     proto._sortFieldValueFor = function (item, field) {
         if (item.title) {
             var t = this.wiki.getTiddler(item.title);
@@ -535,9 +457,8 @@ module.exports = function (proto) {
         } catch (err) { return ""; }
     };
 
-    // Index of the currently-active view in the VISIBLE view list (or
-    // -1 if not present — happens when the active view is a hidden
-    // pick-mode view). Used by view-strip focus initialisation.
+    // ---- view-strip rendering --------------------------------------------
+
     proto._indexOfActiveView = function () {
         if (!this.activeView) return -1;
         var visible = this._visibleViews();
@@ -547,18 +468,10 @@ module.exports = function (proto) {
         return -1;
     };
 
-    // Visible views = all views EXCEPT pick-mode ones (those are only
-    // activated via leader actions; surfacing them as clickable pills
-    // would let the user enter a half-modal state without a return target).
     proto._visibleViews = function () {
         return (this.views || []).filter(function (v) { return !v.pickMode; });
     };
 
-    // (Re)render the view-strip pill row. Hidden via `rcp-has-views` on
-    // the popup when fewer than two views are declared. The active view
-    // is marked with `rcp-view-pill-active`; the keyboard-focused pill
-    // (only meaningful while focus === "view") is marked with
-    // `rcp-view-pill-focused`.
     proto._renderViewStrip = function () {
         if (!this.viewStripEl) return;
         while (this.viewStripEl.firstChild) {
@@ -569,7 +482,10 @@ module.exports = function (proto) {
         if (this.popupEl) {
             this.popupEl.classList.toggle("rcp-has-views", hasMultiple);
         }
-        if (!hasMultiple) return;
+        if (!hasMultiple) {
+            this._renderViewConfigStrip();
+            return;
+        }
         var self = this;
         visible.forEach(function (view, i) {
             var pillEl = self.document.createElement("span");
@@ -589,14 +505,108 @@ module.exports = function (proto) {
             });
             self.viewStripEl.appendChild(pillEl);
         });
+        this._renderViewConfigStrip();
     };
 
-    // Render the focused view's hint into the details pane. Mirrors
-    // _maybeRenderFilterHelp / _maybeRenderVisibilityHelp.
+    // ---- view-config strip (Track B) -------------------------------------
+
+    // Read-only visualization of the active view's primitives. One pill
+    // per declared filter (`roots`, `children`, `leaf`, `label`). Mouse
+    // hover surfaces the filter text. The strip is hidden when no view
+    // is loaded or the active view declares nothing meaningful.
+    proto._renderViewConfigStrip = function () {
+        if (!this.viewConfigStripEl) return;
+        while (this.viewConfigStripEl.firstChild) {
+            this.viewConfigStripEl.removeChild(this.viewConfigStripEl.firstChild);
+        }
+        var view = this._getViewByTitle(this.activeView);
+        var pills = view ? this._viewConfigPillsFor(view) : [];
+        var hasPills = pills.length > 0;
+        if (this.popupEl) {
+            this.popupEl.classList.toggle("rcp-has-view-config", hasPills);
+        }
+        if (!hasPills) return;
+        var self = this;
+        pills.forEach(function (pill) {
+            var el = self.document.createElement("span");
+            el.className = "rcp-view-config-pill rcp-view-config-pill-" + pill.kind;
+            var labelEl = self.document.createElement("span");
+            labelEl.className = "rcp-view-config-pill-label";
+            labelEl.textContent = pill.label;
+            el.appendChild(labelEl);
+            var valueEl = self.document.createElement("span");
+            valueEl.className = "rcp-view-config-pill-value";
+            valueEl.textContent = pill.value;
+            el.appendChild(valueEl);
+            el.title = pill.label + ": " + pill.value;
+            self.viewConfigStripEl.appendChild(el);
+        });
+    };
+
+    proto._viewConfigPillsFor = function (view) {
+        var pills = [];
+        if (view.roots) {
+            pills.push({ kind: "roots", label: "roots", value: view.roots });
+        }
+        if (view.children) {
+            pills.push({ kind: "children", label: "children", value: view.children });
+        }
+        if (view.leaf) {
+            pills.push({ kind: "leaf", label: "leaf", value: view.leaf });
+        }
+        if (view.label) {
+            pills.push({ kind: "label", label: "label", value: view.label });
+        }
+        if (view.rowActions) {
+            pills.push({
+                kind: "actions",
+                label: "Enter",
+                value: this._truncate(view.rowActions, 80)
+            });
+        }
+        if (view.rowName) {
+            pills.push({ kind: "row-name", label: "name", value: view.rowName });
+        }
+        if (view.rowGroup) {
+            pills.push({ kind: "row-group", label: "group", value: view.rowGroup });
+        }
+        if (view.rowKind) {
+            pills.push({ kind: "row-kind", label: "kind", value: view.rowKind });
+        }
+        // Sort policy: surface explicit non-default choices. Alphabetical
+        // is the default and isn't worth a pill.
+        if (view.sort && view.sort !== "alphabetical") {
+            var sortVal = view.sort;
+            if (view.sort === "by-field" && view.sortField) {
+                sortVal = "by-field: " + view.sortField;
+            } else if (view.sort === "custom" && view.sortKey) {
+                sortVal = "custom: " + view.sortKey;
+            }
+            pills.push({ kind: "sort", label: "sort", value: sortVal });
+        }
+        if (view.pickMode && view.pickEmitsFilter) {
+            pills.push({
+                kind: "pick",
+                label: "pick→",
+                value: this._slugForView(view.pickEmitsFilter)
+            });
+        }
+        return pills;
+    };
+
+    proto._truncate = function (s, max) {
+        if (!s) return "";
+        var str = String(s);
+        return str.length > max ? str.slice(0, max - 1) + "…" : str;
+    };
+
+    // ---- help / activation -----------------------------------------------
+
     proto._maybeRenderViewHelp = function () {
         if (this.focus !== "view") return;
         if (!this.views.length) return;
-        var view = this.views[this.viewFocusIdx];
+        var visible = this._visibleViews();
+        var view = visible[this.viewFocusIdx];
         if (!view) return;
         while (this.previewEl.firstChild) {
             this.previewEl.removeChild(this.previewEl.firstChild);
@@ -610,11 +620,14 @@ module.exports = function (proto) {
         helpEl.className = "rcp-details-help";
         helpEl.textContent = view.hint || view.name;
         this.previewEl.appendChild(helpEl);
-        // Surface the view's source filter and strategy for author debug.
         var rows = [];
-        if (view.source) rows.push(["Source", view.source]);
-        if (view.treeStrategy) rows.push(["Tree strategy", view.treeStrategy]);
-        if (view.rootTag) rows.push(["Root tag", view.rootTag]);
+        if (view.roots) rows.push(["Roots", view.roots]);
+        if (view.children) rows.push(["Children", view.children]);
+        if (view.leaf) rows.push(["Leaf", view.leaf]);
+        if (view.label) rows.push(["Label", view.label]);
+        if (view.pickMode) {
+            rows.push(["Pick mode", view.pickEmitsFilter || "yes"]);
+        }
         rows.push(["View tiddler", view.title]);
         if (rows.length) {
             var dl = this.document.createElement("dl");
@@ -635,18 +648,12 @@ module.exports = function (proto) {
     // Activate the named view. Pops the stage stack to root and rebuilds.
     // Cleared selection state lands the user back at top-of-menu. Focus
     // returns to the input (the user's expected next interaction).
-    //
-    // Pick-mode awareness: when activating a pick-mode view, the prior
-    // view is remembered in `_pickModeReturnTo` so a row pick can return.
-    // When activating a non-pick view, that memory is cleared.
     proto._setActiveView = function (viewTitle) {
         var view = this._getViewByTitle(viewTitle);
         if (!view) return;
         var prev = this.activeView;
         var prevView = this._getViewByTitle(prev);
         if (view.pickMode) {
-            // Only set return-target when entering pick-mode from a
-            // non-pick view; chained pick-modes are rare and confusing.
             if (!prevView || !prevView.pickMode) {
                 this._pickModeReturnTo = prev || null;
             }
@@ -659,7 +666,6 @@ module.exports = function (proto) {
         this._renderViewStrip();
         this._refreshPresetActiveCue();
         this.renderStage();
-        // Flash the newly-active pill when the switch was leader-triggered.
         if (this._leaderFiring) this._flashActiveViewPill();
         this.setFocus("input");
     };

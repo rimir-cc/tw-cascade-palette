@@ -409,14 +409,16 @@ Active view persists ''session-only'' — page reload returns to the `ca-view-de
 :Tooltip on hover. Optional.
 ;`ca-view-default`
 :Set to `yes` on exactly one view — the initial selection on page load.
+;`ca-view-roots`
+:Filter producing the root rows. No `<currentTiddler>` binding. E.g. `[all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/entry]]` for Entries, `[!is[system]]` for All tiddlers, `[!is[system]cp-child-of[]]` for the namespace tree's root level. Required.
 ;`ca-view-source`
-:TW filter producing the source-tiddler set for this view. E.g. `[all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/entry]]` for Entries, `[!is[system]]` for All tiddlers.
-;`ca-view-tree-strategy`
-:`path-segments` \| `parent-tag` \| `custom-key`. Absent / empty = flat view. Tree views fold sources into a hierarchical structure; drilling into a container pushes a tree-stage.
-;`ca-view-tree-key`
-:Per-source-tiddler filter returning the path (one segment per result). Used only with `tree-strategy: custom-key`. The filter is evaluated with `<currentTiddler>` bound to the source.
-;`ca-view-root-tag`
-:Stop-tag for the `parent-tag` walk. The chain breaks (without including the tag) when it reaches this tag. Omit to walk until a tagless ancestor.
+:Back-compat alias for `ca-view-roots` (honoured when `ca-view-roots` is absent). Use on flat views authored before the rename.
+;`ca-view-children`
+:Filter producing the direct children of a node, evaluated with `<currentTiddler>` bound to the parent tiddler title. Empty = flat view (every root row is a leaf, no descent). E.g. `[tag<currentTiddler>]` for a tag-tree, `[!is[system]cp-child-of<currentTiddler>]` for a path-segment tree.
+;`ca-view-leaf`
+:Optional leaf-test filter, evaluated with `<currentTiddler>` bound to the candidate node. Truthy result ⇒ the node is a leaf (no drill chevron, Enter fires actions). Default behaviour: a node is a leaf iff `ca-view-children` returns empty for it.
+;`ca-view-label`
+:Optional display-name filter, evaluated with `<currentTiddler>` bound to the node. Default precedence: `caption` field → last `/`-segment of title → bare title.
 ;`ca-view-sort`
 :`alphabetical` (default) \| `natural` (numeric-aware) \| `by-field` \| `custom`.
 ;`ca-view-sort-field`
@@ -444,45 +446,41 @@ Existing entry tiddlers can opt into per-view placement by declaring ''`ca-posit
 
 Values:
 
-* ''`at-root`'' — leaf at the view's root level (flat view: default group; tree view: top-level leaf).
+* ''`at-root`'' — entry appears at the root level of the view.
 * ''`none`'' — entry excluded from this view entirely.
-* ''`<segment>/…`'' — leaf at this tree-path. Missing intermediate path segments are auto-created as synthetic drill-only containers.
+* ''`<tiddler-title>`'' — entry appears under the named tiddler when descent reaches it. The position is matched literally against the parent tiddler at each tree-stage.
 * ''`<pos1> : <pos2>`'' or ''newline-separated'' — multi-position; entry appears at every listed position.
 
-''Flat-view semantics:'' the position string becomes the entry's `ca-group` for this view's rendering. Multi-position is collapsed to the first position (flat views don't support multi-placement).
-
-''Tree-view semantics:'' the entry is attached as a leaf at the named tree node. The entry retains its full identity in the row (kind / actions / bind-* / confirm-* etc.) — it's rendered via the standard cascade-item path, not via the view's row-* filters.
+''Position semantics:'' nodes are tiddlers in the new model, so position values are tiddler titles, not synthetic path strings. `at-root` matches the root level for every view. To place an entry under `Tools/Search`, a tiddler titled `Tools/Search` must exist (and be reachable through the view's `roots`/`children` descent). If you need a virtual folder that has no backing tiddler, create the tiddler — e.g. an empty `Tools` and `Tools/Search` — so the tree has a node to descend into.
 
 ```
 title: $:/plugins/example/entries/advanced-search
 tags: $:/tags/rimir/cascade-palette/entry
 ca-name: Advanced Search
 ca-actions: <$action-sendmessage $message="tm-show-switcher"/>
-ca-position-by-namespace: $:/core/ui : Tools/Search
+ca-position-by-namespace: $:/core/ui
 ca-position-by-parent: SystemPalette
 ca-position-all-tiddlers: none
 ```
 
-The above places ''Advanced Search'' under both ''`$:/core/ui/`'' and synthetic ''`Tools/Search/`'' in By namespace, under ''`SystemPalette/`'' in By parent, and excludes it from the All tiddlers view entirely.
+! Custom tree shapes via the children filter
 
-! Custom-key tree views
-
-For path semantics that aren't title-splitting or tag-walking, use `ca-view-tree-strategy: custom-key` plus `ca-view-tree-key`:
+Anything you can express as "given a parent, what are its direct children?" is a one-line view. Examples:
 
 ```
 title: $:/plugins/example/views/by-author
 tags: $:/tags/rimir/cascade-palette/view
 ca-view-name: By author
-ca-view-source: [!is[system]has[author]]
-ca-view-tree-strategy: custom-key
-ca-view-tree-key: [<currentTiddler>get[author]] [<currentTiddler>]
+ca-view-roots: [!is[system]has[author]get[author]] +[!is[blank]] +[unique[]]
+ca-view-children: [!is[system]has[author]] :filter[get[author]match<currentTiddler>]
+ca-view-leaf: [!is[system]has[author]is[tiddler]]
 ca-view-row-actions: <$action-navigate $to=<<currentTiddler>>/>
 ca-order: 500
 ```
 
-The tree-key filter returns a list of path segments per source. The example puts each tiddler under its author name. Note the trailing `[<currentTiddler>]` so the LAST segment is the tiddler title (avoids author/author collapse when an author has only one tiddler).
+The example above produces a two-level tree: roots are distinct author names; children of each author are the tiddlers attributed to that author. The `ca-view-leaf` test forces tiddler rows to be leaves (since `:filter` would otherwise treat them as containers with no children).
 
-''Performance note:'' `custom-key` runs the filter per source tiddler. For ≥10k sources the cumulative cost is measurable (tens to hundreds of ms). Prefer the bundled `path-segments` / `parent-tag` strategies for large sets, and keep custom keys cheap.
+''Performance note:'' tree views run the children filter once per drilled node and once per show-count badge (when enabled). The cost scales with the number of candidates the filter examines, not with the depth of the tree. Keep filters tight (lead with `!is[system]` / `[tag[...]]` / `[prefix[...]]` operators that benefit from TW's title index) for large stores.
 
 ! Leader keys
 

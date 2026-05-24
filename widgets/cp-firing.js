@@ -446,13 +446,17 @@ module.exports = function (proto) {
         if (!stage || stage.results.length === 0) return;
         var picked = stage.results[stage.selectedIndex];
 
-        // Tree-view container row → push a tree-stage with the new
-        // parentPath. Distinct from filter-drill: there's no ca-next-scope
-        // — navigation is purely through the cached tree structure.
-        if (picked._treeContainer && picked._treePath) {
+        // Tree-view container row → push a tree-stage. The new parentPath
+        // extends the current stage's path with the picked container's
+        // tiddler title (`_treeParent`). Distinct from filter-drill:
+        // there's no ca-next-scope — navigation is purely through repeated
+        // children-filter evaluation.
+        if (picked._treeContainer && picked._treeParent) {
             var viewTitle = stage.viewTitle || this.activeView;
+            var basePath = (stage.parentPath || []).slice();
+            basePath.push(picked._treeParent);
             this.pushStage(this.buildTreeStage(
-                viewTitle, picked._treePath, picked.name
+                viewTitle, basePath, picked.name
             ));
             return;
         }

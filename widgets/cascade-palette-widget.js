@@ -197,6 +197,15 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.viewStripEl.className = "rcp-view-strip";
         this.viewStripEl.setAttribute("tabindex", "-1");
 
+        // View-config strip — read-only pills depicting the active view's
+        // primitives (roots / children / leaf / label filters). Hidden
+        // via `rcp-has-view-config` on the popup when the active view
+        // declares no primitives. Not focusable in this pass — the strip
+        // is informational so the implicit structure of the active view
+        // is externally visible.
+        this.viewConfigStripEl = this.document.createElement("div");
+        this.viewConfigStripEl.className = "rcp-view-config-strip";
+
         // Visibility strip — pills that hide root entries (predicate
         // filters). Sits ABOVE the filter strip in the visual hierarchy
         // because "removal" reads as a more drastic operation than
@@ -241,6 +250,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         popup.appendChild(this.visibilityStripEl);
         popup.appendChild(this.filterStripEl);
         popup.appendChild(this.viewStripEl);
+        popup.appendChild(this.viewConfigStripEl);
         popup.appendChild(this.inputEl);
         popup.appendChild(this.resultsEl);
         popup.appendChild(this.previewEl);

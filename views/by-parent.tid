@@ -1,10 +1,9 @@
 title: $:/plugins/rimir/cascade-palette/views/by-parent
 tags: $:/tags/rimir/cascade-palette/view
 ca-view-name: By parent
-ca-view-hint: TW tag-tree, walking `tags[0]` ancestor chain
-ca-view-source: [!is[system]]
-ca-view-tree-strategy: parent-tag
-ca-view-root-tag: TableOfContents
+ca-view-hint: TW tag-tree — roots tagged `TableOfContents`; children via `tags[0]` parent pointer.
+ca-view-roots: [tag[TableOfContents]]
+ca-view-children: [tag<currentTiddler>]
 ca-view-row-actions: <$action-navigate $to=<<currentTiddler>>/>
 ca-view-sort: alphabetical
 ca-view-containers-first: yes

@@ -104,8 +104,11 @@ module.exports = function (proto) {
     };
 
     // Tree-view stages carry a viewTitle and a parentPath (array of
-    // segment strings naming the tree branch). Reuses the filter-stage
-    // result-list machinery; differentiated by stage.kind.
+    // tiddler titles naming the tree branch — each is a real node, since
+    // the new descent model treats nodes as tiddlers). The last entry is
+    // the immediate parent whose `view.children` filter populates this
+    // stage. Reuses the filter-stage result-list machinery; differentiated
+    // by stage.kind.
     proto.buildTreeStage = function (viewTitle, parentPath, title) {
         return {
             kind: "tree",
@@ -329,7 +332,7 @@ module.exports = function (proto) {
         if (!this.isGroupingEnabled()) return false;
         if (!stage) return true;
         var view = this._getViewByTitle(stage.viewTitle || this.activeView);
-        if (view && view.treeStrategy) return false;
+        if (view && view.isTree) return false;
         return true;
     };
 
