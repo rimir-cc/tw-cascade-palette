@@ -10,7 +10,7 @@ type: text/vnd.tiddlywiki
 
 The palette is one popup with up to seven focusable sections, partitioned into two groups:
 
-* ''pills group'' (top of the palette, visually stacked): ''preset'' (only when ≥ 1 preset exists), ''visibility'' (only when ≥ 1 visibility rule active), ''filter'' (only when ≥ 1 filter active), ''view'' (only when ≥ 2 views declared)
+* ''pills group'' (top of the palette, visually stacked): ''preset'' (always present — trailing ''+'' pill is the save-as affordance even when no presets exist), ''visibility'' (only when ≥ 1 visibility rule active), ''filter'' (only when ≥ 1 filter active), ''view'' (only when ≥ 2 views declared)
 * ''main group'': ''input'' (search box), ''menu'' (result list), ''details'' (preview drawer, only when open)
 
 The active section gets the browser-level focus and a visual cue; keyboard gestures route accordingly. ''Tab'' cycles within the current group; ''Shift-Tab'' jumps between groups (lands on the bottom-most pill when entering pills, on input when returning). ''↑ / ↓'' inside the pill group walks vertically across rows — ↑ from input enters pills at the bottom-most row, ↓ from the bottom-most pill drops back into input. Esc steps "outward" — section → input → close.
@@ -33,10 +33,10 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''← / →'' |preset / visibility / filter / view |Move focus between pills within the row (clamps at edges) |
 |''↑ / ↓'' |preset / visibility / filter / view |Walk between pill rows. ↓ at the bottom-most row drops into input; ↑ at the top-most row no-ops. |
 |''Enter / Space'' |view |Activate the highlighted view — pops the stack to root, rebuilds the menu |
-|''Enter / Space'' |preset |Apply the focused preset (replaces filters + visibility, switches view, keeps palette open). The applied preset becomes the ''active'' preset until cleared. |
-|''Ctrl-Enter'' |preset |Overwrite the focused preset with the current state. Only effective when the focused pill IS the active preset AND it's dirty (current state diverges from the captured baseline). |
-|''DEL / Backspace'' |preset |Push a confirm-drill to permanently delete the focused preset tiddler. Confirm with Enter, cancel with Esc. |
-|''Home / End'' |preset |Jump focus to the first / last preset |
+|''Enter / Space'' |preset |Apply the focused preset (replaces filters + visibility, switches view, keeps palette open). The applied preset becomes the ''active'' preset until cleared. On the trailing ''+'' pill: open the save-as prompt to capture current state as a new preset (same as the `s` leader). |
+|''Ctrl-Enter'' |preset |Overwrite the focused preset with the current state. Only effective when the focused pill IS the active preset AND it's dirty (current state diverges from the captured baseline). No-op on the ''+'' pill. |
+|''DEL / Backspace'' |preset |Push a confirm-drill to permanently delete the focused preset tiddler. Confirm with Enter, cancel with Esc. No-op on the ''+'' pill. |
+|''Home / End'' |preset |Jump focus to the first preset / to the ''+'' save pill (last position) |
 |''DEL / Backspace'' |filter / visibility |Remove the focused pill |
 |''Enter'' |filter / visibility |Move focus into the details pane to scroll through the full help text |
 |''↑'' |menu |Move selection up; at top-of-list, returns focus to input |

@@ -846,16 +846,22 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         else if (this.focus === "visibility") this.hintEl.textContent = C.HINT_VISIBILITY;
         else if (this.focus === "view")       this.hintEl.textContent = C.HINT_VIEW;
         else if (this.focus === "preset") {
-            // Per-pill hint variants — overwrite-aware when the focused
-            // pill IS the active preset.
+            // Per-pill hint variants. The trailing "+" pill (idx ===
+            // pills.length) gets a save-specific hint; on real presets,
+            // the message is overwrite-aware when the focused pill IS
+            // the active preset.
             var pills = this._loadPresetPills();
-            var focused = pills[this.presetFocusIdx];
-            if (focused && focused.title === this.activePresetTitle) {
-                this.hintEl.textContent = this._isActivePresetDirty()
-                    ? C.HINT_PRESET_ACTIVE_DIRTY
-                    : C.HINT_PRESET_ACTIVE;
+            if (this.presetFocusIdx === pills.length) {
+                this.hintEl.textContent = C.HINT_PRESET_PLUS;
             } else {
-                this.hintEl.textContent = C.HINT_PRESET;
+                var focused = pills[this.presetFocusIdx];
+                if (focused && focused.title === this.activePresetTitle) {
+                    this.hintEl.textContent = this._isActivePresetDirty()
+                        ? C.HINT_PRESET_ACTIVE_DIRTY
+                        : C.HINT_PRESET_ACTIVE;
+                } else {
+                    this.hintEl.textContent = C.HINT_PRESET;
+                }
             }
         }
         else                                  this.hintEl.textContent = C.HINT_INPUT;

@@ -62,24 +62,24 @@ module.exports = function (proto) {
         this._presetPills = null;
     };
 
-    // (Re)render the preset-strip pill row. Hidden via `rcp-has-presets`
-    // on the popup when no presets exist. The keyboard-focused pill (only
-    // meaningful while focus === "preset") gets the focused class and is
-    // scrolled into view so navigation across the overflow window feels
-    // continuous.
+    // (Re)render the preset-strip pill row. The strip is always visible
+    // because the trailing "+" save pill is always present — it doubles
+    // as the discoverable "save current state as new preset" affordance,
+    // mirroring the `s` leader. The keyboard-focused pill (only meaningful
+    // while focus === "preset") gets the focused class and is scrolled
+    // into view so navigation across the overflow window feels continuous.
+    // The "+" pill is the last navigable index (= pills.length).
     proto._renderPresetStrip = function () {
         if (!this.presetStripEl) return;
         while (this.presetStripEl.firstChild) {
             this.presetStripEl.removeChild(this.presetStripEl.firstChild);
         }
         var pills = this._loadPresetPills();
-        var hasAny = pills.length > 0;
-        if (this.popupEl) {
-            this.popupEl.classList.toggle("rcp-has-presets", hasAny);
-        }
-        if (!hasAny) return;
-        if (this.presetFocusIdx >= pills.length) {
-            this.presetFocusIdx = Math.max(0, pills.length - 1);
+        // Strip is always visible — the "+" pill is always there.
+        if (this.popupEl) this.popupEl.classList.add("rcp-has-presets");
+        var navigableCount = pills.length + 1; // real presets + the "+" pill
+        if (this.presetFocusIdx >= navigableCount) {
+            this.presetFocusIdx = Math.max(0, navigableCount - 1);
         }
         var self = this;
         var focusedEl = null;
@@ -111,6 +111,24 @@ module.exports = function (proto) {
             });
             self.presetStripEl.appendChild(pillEl);
         });
+        // Trailing "+" save pill — always present, always last index.
+        var plusIdx = pills.length;
+        var plusEl = self.document.createElement("span");
+        var plusCls = "rcp-preset-pill rcp-preset-pill-plus";
+        if (self.focus === "preset" && self.presetFocusIdx === plusIdx) {
+            plusCls += " rcp-preset-pill-focused";
+            focusedEl = plusEl;
+        }
+        plusEl.className = plusCls;
+        plusEl.textContent = "+";
+        plusEl.title = "Save current state as new preset";
+        plusEl.dataset.presetIdx = String(plusIdx);
+        plusEl.addEventListener("mousedown", function (e) {
+            e.preventDefault();
+            self.presetFocusIdx = plusIdx;
+            self.enterSaveMode();
+        });
+        self.presetStripEl.appendChild(plusEl);
         // Scroll the focused pill into view in the horizontal overflow.
         // Defer one frame so the just-appended DOM has layout.
         if (focusedEl) {
@@ -129,7 +147,23 @@ module.exports = function (proto) {
     proto._maybeRenderPresetHelp = function () {
         if (this.focus !== "preset") return;
         var pills = this._loadPresetPills();
-        if (!pills.length) return;
+        // Plus pill — last navigable index. Show save-help instead of
+        // per-preset metadata.
+        if (this.presetFocusIdx === pills.length) {
+            while (this.previewEl.firstChild) {
+                this.previewEl.removeChild(this.previewEl.firstChild);
+            }
+            var ptitleEl = this.document.createElement("div");
+            ptitleEl.className = "rcp-preview-title";
+            ptitleEl.textContent = "Save preset as…";
+            this.previewEl.appendChild(ptitleEl);
+            var phelpEl = this.document.createElement("div");
+            phelpEl.className = "rcp-details-help";
+            phelpEl.textContent = "Capture the current state (view + filters + visibility) as a new preset. Press Enter to open the name prompt; type a name, Enter to commit, Esc to cancel.";
+            this.previewEl.appendChild(phelpEl);
+            this.popupEl.classList.add("rcp-previewing");
+            return;
+        }
         var preset = pills[this.presetFocusIdx];
         if (!preset) return;
         while (this.previewEl.firstChild) {
@@ -189,10 +223,14 @@ module.exports = function (proto) {
         this.popupEl.classList.add("rcp-previewing");
     };
 
-    // Number of preset pills — used by _cycleFocus to decide whether the
-    // preset section participates in the Tab cycle.
+    // Number of NAVIGABLE pills in the preset strip = real presets + the
+    // trailing "+" save pill, which is always present. Used by the Tab
+    // cycle, the pill-strip dispatcher (arrow bounds), and the setFocus
+    // sanity check. Always ≥ 1, so the preset section is always part of
+    // the Tab cycle (the "+" pill is keyboard-reachable even when no
+    // presets exist).
     proto._presetPillCount = function () {
-        return this._loadPresetPills().length;
+        return this._loadPresetPills().length + 1;
     };
 
 };

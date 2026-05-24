@@ -74,4 +74,5 @@ exports.HINT_VIEW       = "Tab section · ←→ select · ↵ activate · Esc i
 exports.HINT_PRESET             = "Tab section · ←→ select · ↵ apply · DEL delete · Esc input";
 exports.HINT_PRESET_ACTIVE      = "Tab section · ←→ select · ↵ apply · DEL delete · Esc input · (active preset)";
 exports.HINT_PRESET_ACTIVE_DIRTY = "preset modified · Ctrl-↵ overwrite · ↵ re-apply · DEL delete · Esc input";
+exports.HINT_PRESET_PLUS        = "↵ save current state as new preset · Esc input";
 exports.HINT_EDIT       = "↵ commit · Esc cancel";

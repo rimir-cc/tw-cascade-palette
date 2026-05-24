@@ -247,6 +247,32 @@ type: text/css
     box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.45);
 }
 
+/* Trailing "+" save pill — visually distinct from real presets so the
+   user can immediately tell it's an action affordance, not a saved
+   bundle. Dashed border + neutral grey palette + bolder glyph. */
+.rcp-preset-pill-plus {
+    background: transparent;
+    color: #6b7280;
+    border-style: dashed;
+    border-color: #d1d5db;
+    font-weight: 700;
+    min-width: 18px;
+    justify-content: center;
+}
+
+.rcp-preset-pill-plus:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+    color: #374151;
+}
+
+.rcp-preset-pill-plus.rcp-preset-pill-focused {
+    background: #e5e7eb;
+    border-color: #6b7280;
+    color: #1f2937;
+    box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.45);
+}
+
 @media (prefers-color-scheme: dark) {
     .rcp-preset-strip {
         background: #1f1825;
@@ -288,6 +314,22 @@ type: text/css
         border-color: #fde68a;
         color: #fffbeb;
         box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.55);
+    }
+    .rcp-preset-pill-plus {
+        background: transparent;
+        color: #9ca3af;
+        border-color: #4b5563;
+    }
+    .rcp-preset-pill-plus:hover {
+        background: #1f2937;
+        border-color: #9ca3af;
+        color: #f3f4f6;
+    }
+    .rcp-preset-pill-plus.rcp-preset-pill-focused {
+        background: #374151;
+        border-color: #d1d5db;
+        color: #f9fafb;
+        box-shadow: 0 0 0 2px rgba(156, 163, 175, 0.55);
     }
 }
 

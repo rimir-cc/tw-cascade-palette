@@ -397,7 +397,14 @@ module.exports = function (proto) {
         enterAcceptsSpace: true,
         homeEnd:     true,
         onEnter:     function (i) {
-            var preset = this._loadPresetPills()[i];
+            var presets = this._loadPresetPills();
+            // The trailing "+" pill (last navigable index) triggers the
+            // save-as flow rather than applying a preset.
+            if (i === presets.length) {
+                this.enterSaveMode();
+                return;
+            }
+            var preset = presets[i];
             if (!preset) return;
             this._applyPreset(preset.title);
             // _applyPreset → _setActiveView jumps focus to input; restore
@@ -408,7 +415,9 @@ module.exports = function (proto) {
             // Overwrite the focused preset with current state — only
             // meaningful when this IS the active preset AND it's dirty.
             // Silently no-ops otherwise (the cue/hint tell the user why).
-            var preset = this._loadPresetPills()[i];
+            var presets = this._loadPresetPills();
+            if (i === presets.length) return; // plus pill — no overwrite
+            var preset = presets[i];
             if (!preset) return;
             if (preset.title !== this.activePresetTitle) return;
             if (!this._isActivePresetDirty()) return;
@@ -416,7 +425,9 @@ module.exports = function (proto) {
             this.setFocus("preset");
         },
         onDelete: function (i) {
-            var preset = this._loadPresetPills()[i];
+            var presets = this._loadPresetPills();
+            if (i === presets.length) return; // plus pill — not deletable
+            var preset = presets[i];
             if (!preset) return;
             this._pushDeletePresetConfirm(preset);
         }
