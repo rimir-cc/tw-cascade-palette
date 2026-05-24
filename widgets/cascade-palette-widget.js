@@ -128,6 +128,13 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // invalidated via _invalidatePresetPills on relevant wiki changes.
         this._presetPills = null;
         this.presetFocusIdx = 0;
+        // Active-preset tracking. Set on _applyPreset / _capturePreset;
+        // cleared on Ctrl-DEL (reset constraints) and on deletion of the
+        // active preset. `activePresetBaseline` snapshots the canonical
+        // state at apply/save time so _isActivePresetDirty can detect
+        // user edits afterwards.
+        this.activePresetTitle = null;
+        this.activePresetBaseline = null;
     };
 
     CascadePaletteWidget.prototype = Object.create(Widget.prototype);
@@ -429,6 +436,13 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 });
                 if (presetsChanged) {
                     self._invalidatePresetPills();
+                    // If the active preset got deleted, clear the marker
+                    // (and its baseline) so the strip stops claiming it.
+                    if (self.activePresetTitle &&
+                        !self.wiki.tiddlerExists(self.activePresetTitle)) {
+                        self.activePresetTitle = null;
+                        self.activePresetBaseline = null;
+                    }
                     if (self.open) self._renderPresetStrip();
                 }
                 if (self.open) {
@@ -739,6 +753,12 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (section === "preset" && this._presetPillCount() === 0) {
             section = "input";
         }
+        // Don't focus the details pane when the drawer isn't actually
+        // visible — `detailsOpen` can be true while the drawer is hidden
+        // (e.g. always-on with empty menu). The visual state is the truth.
+        if (section === "details" && !this._isDetailsVisible()) {
+            section = "input";
+        }
         var prevFocus = this.focus;
         if (this.focus === section) {
             this._applyFocusAttr();
@@ -825,7 +845,19 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         else if (this.focus === "filter")     this.hintEl.textContent = C.HINT_FILTER;
         else if (this.focus === "visibility") this.hintEl.textContent = C.HINT_VISIBILITY;
         else if (this.focus === "view")       this.hintEl.textContent = C.HINT_VIEW;
-        else if (this.focus === "preset")     this.hintEl.textContent = C.HINT_PRESET;
+        else if (this.focus === "preset") {
+            // Per-pill hint variants — overwrite-aware when the focused
+            // pill IS the active preset.
+            var pills = this._loadPresetPills();
+            var focused = pills[this.presetFocusIdx];
+            if (focused && focused.title === this.activePresetTitle) {
+                this.hintEl.textContent = this._isActivePresetDirty()
+                    ? C.HINT_PRESET_ACTIVE_DIRTY
+                    : C.HINT_PRESET_ACTIVE;
+            } else {
+                this.hintEl.textContent = C.HINT_PRESET;
+            }
+        }
         else                                  this.hintEl.textContent = C.HINT_INPUT;
     };
 

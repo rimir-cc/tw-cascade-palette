@@ -46,9 +46,15 @@ module.exports = function (proto) {
         }
 
         // Tier 2a — global section-cycling.
+        //   Tab        cycles within the current focus group (pills xor main).
+        //   Shift-Tab  jumps between the two groups.
         if (e.key === "Tab") {
             e.preventDefault();
-            this._cycleFocus(e.shiftKey ? -1 : 1);
+            if (e.shiftKey) {
+                this._jumpFocusGroup();
+            } else {
+                this._cycleFocus(1);
+            }
             return;
         }
         // Tier 2a' — Esc cancels pick-mode globally (input / menu / etc.)
@@ -66,14 +72,19 @@ module.exports = function (proto) {
             (this.filters && this.filters.length > 0) ||
             (this.visibilities && this.visibilities.length > 0);
         if ((e.key === "Delete" || e.key === "Backspace") && e.ctrlKey &&
-            hasAnyConstraint) {
+            (hasAnyConstraint || this.activePresetTitle)) {
             // Backspace in input has its native "delete char" semantic when
             // not paired with Ctrl — Ctrl-Backspace is "delete word", which
             // we deliberately repurpose as "wipe constraints" since the
-            // user is unlikely to need word-delete mid-palette.
+            // user is unlikely to need word-delete mid-palette. Also wipes
+            // the active-preset marker so the user returns to a clean,
+            // no-preset baseline.
             e.preventDefault();
             this._clearAllFilters();
             this._clearAllVisibility();
+            this.activePresetTitle = null;
+            this.activePresetBaseline = null;
+            this._renderPresetStrip();
             return;
         }
         // Tier 2c — Enter fires selection when focus is on input/menu/
@@ -141,6 +152,16 @@ module.exports = function (proto) {
                 e.preventDefault();
                 this.setFocus("menu");
             }
+            return;
+        }
+        if (e.key === "ArrowUp") {
+            // Step into the pill section (bottom-most active row) if any.
+            var pills = this._pillsCycle();
+            if (pills.length > 0) {
+                e.preventDefault();
+                this.setFocus(pills[pills.length - 1]);
+            }
+            return;
         }
         // Typing is handled by the input event listener.
     };
@@ -178,7 +199,10 @@ module.exports = function (proto) {
         }
         if (e.key === "ArrowLeft") {
             e.preventDefault();
-            this.popStage();
+            // ArrowLeft pops one stage (back). At root depth it would
+            // close the palette, but closing is reserved for Esc — at
+            // root, ArrowLeft is a no-op.
+            if (this.stack.length > 1) this.popStage();
             return;
         }
         if (e.key === " " || e.code === "Space") {
@@ -296,175 +320,183 @@ module.exports = function (proto) {
         return String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     };
 
-    proto._handleKeydownFilter = function (e, stage) {
-        if (e.key === "Escape") {
-            e.preventDefault();
-            this.setFocus("input");
-            return;
-        }
-        if (e.key === "ArrowRight") {
-            e.preventDefault();
-            if (this.filterFocusIdx < this.filters.length - 1) {
-                this.filterFocusIdx += 1;
-                this._renderFilterStrip();
-                this._maybeRenderFilterHelp();
-            }
-            return;
-        }
-        if (e.key === "ArrowLeft") {
-            e.preventDefault();
-            if (this.filterFocusIdx > 0) {
-                this.filterFocusIdx -= 1;
-                this._renderFilterStrip();
-                this._maybeRenderFilterHelp();
-            }
-            return;
-        }
-        if (e.key === "Delete" || e.key === "Backspace") {
-            e.preventDefault();
-            this._removeFilterAt(this.filterFocusIdx);
-            return;
-        }
-        if (e.key === "Enter") {
-            // Enter moves focus into the details pane so the user can
-            // read / scroll the longer-form help. If details isn't
-            // visible, open it for the duration of the help readout.
-            e.preventDefault();
+    //
+    // Pill-strip keyboard model
+    // -----------------------------------------------------------------
+    // The four strips (preset, visibility, filter, view) share an
+    // identical navigation skeleton — Esc returns to input, Arrow
+    // Left/Right walks the focused index. Enter / Delete / Home / End
+    // dispatch to zone-specific behaviour declared in a descriptor.
+    //
+    // Descriptor fields:
+    //   getCount, getFocusIdx, setFocusIdx, render — index plumbing
+    //   maybeHelp           (optional) re-render help pane after move
+    //   onEnter(idx)        Enter (and Space, if enterAcceptsSpace)
+    //   onCtrlEnter(idx)    (optional) Ctrl-Enter — distinct gesture
+    //   onDelete(idx)       (optional) Delete / Backspace
+    //   enterAcceptsSpace   (optional) true on view / preset
+    //   homeEnd             (optional) true on preset
+    //
+    var FILTER_KEY_DESC = {
+        getCount:    function () { return this.filters.length; },
+        getFocusIdx: function () { return this.filterFocusIdx; },
+        setFocusIdx: function (i) { this.filterFocusIdx = i; },
+        render:      function () { this._renderFilterStrip(); },
+        maybeHelp:   function () { this._maybeRenderFilterHelp(); },
+        onDelete:    function (i) { this._removeFilterAt(i); },
+        onEnter:     function () {
+            // Enter opens the details pane (if closed) and parks focus
+            // there so the user can read / scroll the longer help.
             if (!this.detailsOpen) {
                 this.detailsOpen = true;
                 this._maybeRenderFilterHelp();
             }
             this.setFocus("details");
-            return;
         }
     };
 
-    proto._handleKeydownVisibility = function (e, stage) {
-        if (e.key === "Escape") {
-            e.preventDefault();
-            this.setFocus("input");
-            return;
-        }
-        if (e.key === "ArrowRight") {
-            e.preventDefault();
-            if (this.visibilityFocusIdx < this.visibilities.length - 1) {
-                this.visibilityFocusIdx += 1;
-                this._renderVisibilityStrip();
-                this._maybeRenderVisibilityHelp();
-            }
-            return;
-        }
-        if (e.key === "ArrowLeft") {
-            e.preventDefault();
-            if (this.visibilityFocusIdx > 0) {
-                this.visibilityFocusIdx -= 1;
-                this._renderVisibilityStrip();
-                this._maybeRenderVisibilityHelp();
-            }
-            return;
-        }
-        if (e.key === "Delete" || e.key === "Backspace") {
-            e.preventDefault();
-            this._removeVisibilityAt(this.visibilityFocusIdx);
-            return;
-        }
-        if (e.key === "Enter") {
-            e.preventDefault();
+    var VISIBILITY_KEY_DESC = {
+        getCount:    function () { return this.visibilities.length; },
+        getFocusIdx: function () { return this.visibilityFocusIdx; },
+        setFocusIdx: function (i) { this.visibilityFocusIdx = i; },
+        render:      function () { this._renderVisibilityStrip(); },
+        maybeHelp:   function () { this._maybeRenderVisibilityHelp(); },
+        onDelete:    function (i) { this._removeVisibilityAt(i); },
+        onEnter:     function () {
             if (!this.detailsOpen) {
                 this.detailsOpen = true;
                 this._maybeRenderVisibilityHelp();
             }
             this.setFocus("details");
-            return;
         }
     };
 
-    proto._handleKeydownView = function (e, stage) {
-        var visible = this._visibleViews();
+    var VIEW_KEY_DESC = {
+        getCount:    function () { return this._visibleViews().length; },
+        getFocusIdx: function () { return this.viewFocusIdx; },
+        setFocusIdx: function (i) { this.viewFocusIdx = i; },
+        render:      function () { this._renderViewStrip(); },
+        maybeHelp:   function () { this._maybeRenderViewHelp(); },
+        enterAcceptsSpace: true,
+        onEnter:     function (i) {
+            var view = this._visibleViews()[i];
+            if (!view) return;
+            this._setActiveView(view.title);
+            // _setActiveView jumps focus to input; restore to the view
+            // strip so keyboard activation feels "sticky".
+            this.setFocus("view");
+        }
+    };
+
+    var PRESET_KEY_DESC = {
+        getCount:    function () { return this._presetPillCount(); },
+        getFocusIdx: function () { return this.presetFocusIdx; },
+        setFocusIdx: function (i) { this.presetFocusIdx = i; },
+        render:      function () { this._renderPresetStrip(); },
+        maybeHelp:   function () { this._maybeRenderPresetHelp(); },
+        enterAcceptsSpace: true,
+        homeEnd:     true,
+        onEnter:     function (i) {
+            var preset = this._loadPresetPills()[i];
+            if (!preset) return;
+            this._applyPreset(preset.title);
+            // _applyPreset → _setActiveView jumps focus to input; restore
+            // to the preset strip so keyboard activation feels "sticky".
+            this.setFocus("preset");
+        },
+        onCtrlEnter: function (i) {
+            // Overwrite the focused preset with current state — only
+            // meaningful when this IS the active preset AND it's dirty.
+            // Silently no-ops otherwise (the cue/hint tell the user why).
+            var preset = this._loadPresetPills()[i];
+            if (!preset) return;
+            if (preset.title !== this.activePresetTitle) return;
+            if (!this._isActivePresetDirty()) return;
+            this._overwriteActivePreset();
+            this.setFocus("preset");
+        },
+        onDelete: function (i) {
+            var preset = this._loadPresetPills()[i];
+            if (!preset) return;
+            this._pushDeletePresetConfirm(preset);
+        }
+    };
+
+    proto._handleKeydownPillStrip = function (e, d) {
         if (e.key === "Escape") {
             e.preventDefault();
             this.setFocus("input");
             return;
         }
+        var self = this;
+        var count = d.getCount.call(this);
+        var idx = d.getFocusIdx.call(this);
+        function moveTo(target) {
+            d.setFocusIdx.call(self, target);
+            d.render.call(self);
+            if (d.maybeHelp) d.maybeHelp.call(self);
+        }
         if (e.key === "ArrowRight") {
             e.preventDefault();
-            if (this.viewFocusIdx < visible.length - 1) {
-                this.viewFocusIdx += 1;
-                this._renderViewStrip();
-                this._maybeRenderViewHelp();
-            }
+            if (idx < count - 1) moveTo(idx + 1);
             return;
         }
         if (e.key === "ArrowLeft") {
             e.preventDefault();
-            if (this.viewFocusIdx > 0) {
-                this.viewFocusIdx -= 1;
-                this._renderViewStrip();
-                this._maybeRenderViewHelp();
+            if (idx > 0) moveTo(idx - 1);
+            return;
+        }
+        // Up/Down walk vertically between pill rows. At the bottom-most
+        // active row, Down drops into the input below (continuous flow).
+        if (e.key === "ArrowUp") {
+            e.preventDefault();
+            var pillsU = this._pillsCycle();
+            var posU = pillsU.indexOf(this.focus);
+            if (posU > 0) this.setFocus(pillsU[posU - 1]);
+            return;
+        }
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            var pillsD = this._pillsCycle();
+            var posD = pillsD.indexOf(this.focus);
+            if (posD >= 0 && posD < pillsD.length - 1) {
+                this.setFocus(pillsD[posD + 1]);
+            } else {
+                this.setFocus("input");
             }
             return;
         }
-        if (e.key === "Enter" || e.key === " " || e.code === "Space") {
+        if (d.homeEnd && e.key === "Home") {
             e.preventDefault();
-            var view = visible[this.viewFocusIdx];
-            if (view) this._setActiveView(view.title);
+            if (count > 0) moveTo(0);
             return;
         }
-        // Other keys ignored at this section.
+        if (d.homeEnd && e.key === "End") {
+            e.preventDefault();
+            if (count > 0) moveTo(count - 1);
+            return;
+        }
+        if (d.onDelete && (e.key === "Delete" || e.key === "Backspace")) {
+            e.preventDefault();
+            d.onDelete.call(this, idx);
+            return;
+        }
+        if (e.key === "Enter" && e.ctrlKey && d.onCtrlEnter) {
+            e.preventDefault();
+            d.onCtrlEnter.call(this, idx);
+            return;
+        }
+        if (e.key === "Enter" || (d.enterAcceptsSpace && (e.key === " " || e.code === "Space"))) {
+            e.preventDefault();
+            d.onEnter.call(this, idx);
+            return;
+        }
     };
 
-    proto._handleKeydownPreset = function (e, stage) {
-        var count = this._presetPillCount();
-        if (e.key === "Escape") {
-            e.preventDefault();
-            this.setFocus("input");
-            return;
-        }
-        if (e.key === "ArrowRight") {
-            e.preventDefault();
-            if (this.presetFocusIdx < count - 1) {
-                this.presetFocusIdx += 1;
-                this._renderPresetStrip();
-                this._maybeRenderPresetHelp();
-            }
-            return;
-        }
-        if (e.key === "ArrowLeft") {
-            e.preventDefault();
-            if (this.presetFocusIdx > 0) {
-                this.presetFocusIdx -= 1;
-                this._renderPresetStrip();
-                this._maybeRenderPresetHelp();
-            }
-            return;
-        }
-        if (e.key === "Home") {
-            e.preventDefault();
-            if (count > 0) {
-                this.presetFocusIdx = 0;
-                this._renderPresetStrip();
-                this._maybeRenderPresetHelp();
-            }
-            return;
-        }
-        if (e.key === "End") {
-            e.preventDefault();
-            if (count > 0) {
-                this.presetFocusIdx = count - 1;
-                this._renderPresetStrip();
-                this._maybeRenderPresetHelp();
-            }
-            return;
-        }
-        if (e.key === "Enter" || e.key === " " || e.code === "Space") {
-            e.preventDefault();
-            var pills = this._loadPresetPills();
-            var preset = pills[this.presetFocusIdx];
-            if (preset) this._applyPreset(preset.title);
-            return;
-        }
-        // Other keys ignored at this section.
-    };
+    proto._handleKeydownFilter     = function (e) { this._handleKeydownPillStrip(e, FILTER_KEY_DESC); };
+    proto._handleKeydownVisibility = function (e) { this._handleKeydownPillStrip(e, VISIBILITY_KEY_DESC); };
+    proto._handleKeydownView       = function (e) { this._handleKeydownPillStrip(e, VIEW_KEY_DESC); };
+    proto._handleKeydownPreset     = function (e) { this._handleKeydownPillStrip(e, PRESET_KEY_DESC); };
 
     proto._handleKeydownDetails = function (e, stage) {
         if (e.key === "Escape") {
@@ -490,23 +522,65 @@ module.exports = function (proto) {
         // ArrowUp/Down let the browser scroll the pane natively.
     };
 
-    // Cycle focus across the active sections. Each strip joins the cycle
-    // only when it has something to navigate: preset ≥ 1 preset; view ≥ 2
-    // visible views; visibility ≥ 1 rule; filter ≥ 1 rule; details when
-    // the drawer is open. Full cycle:
-    //   input → preset → visibility → filter → view → menu → details → input
-    proto._cycleFocus = function (delta) {
-        var order = ["input"];
+    // ----------------------------------------------------------------
+    // Focus groups
+    // ----------------------------------------------------------------
+    // Focus is partitioned into two groups:
+    //   pills group:  preset → visibility → filter → view (top-to-bottom)
+    //   main group:   input → menu → details
+    // Tab cycles within the current group; Shift-Tab jumps to the other
+    // group (lands on the bottom-most pill when entering pills, on input
+    // when returning to main). A row joins its group's cycle only when
+    // it has something to navigate.
+    proto._isPillFocus = function (f) {
+        f = f || this.focus;
+        return f === "preset" || f === "visibility" ||
+               f === "filter" || f === "view";
+    };
+
+    proto._pillsCycle = function () {
+        var order = [];
         if (this._presetPillCount() >= 1) order.push("preset");
         if (this.visibilities && this.visibilities.length) order.push("visibility");
         if (this.filters && this.filters.length) order.push("filter");
         if (this._visibleViews().length >= 2) order.push("view");
-        order.push("menu");
-        if (this.detailsOpen) order.push("details");
-        var idx = order.indexOf(this.focus);
+        return order;
+    };
+
+    // True iff the preview drawer is currently visible. `detailsOpen` can
+    // be stale (e.g. always-on with an empty menu — renderDetails calls
+    // hidePreview without resetting the flag); the rcp-previewing class
+    // is the visual source of truth.
+    proto._isDetailsVisible = function () {
+        return !!(this.popupEl && this.popupEl.classList &&
+                  this.popupEl.classList.contains("rcp-previewing"));
+    };
+
+    proto._mainCycle = function () {
+        var order = ["input", "menu"];
+        if (this._isDetailsVisible()) order.push("details");
+        return order;
+    };
+
+    proto._cycleFocus = function (delta) {
+        var cycle = this._isPillFocus() ? this._pillsCycle() : this._mainCycle();
+        if (!cycle.length) return;
+        var idx = cycle.indexOf(this.focus);
         if (idx < 0) idx = 0;
-        idx = (idx + delta + order.length) % order.length;
-        this.setFocus(order[idx]);
+        idx = (idx + delta + cycle.length) % cycle.length;
+        this.setFocus(cycle[idx]);
+    };
+
+    proto._jumpFocusGroup = function () {
+        if (this._isPillFocus()) {
+            this.setFocus("input");
+            return;
+        }
+        var pills = this._pillsCycle();
+        if (pills.length === 0) return;
+        // Enter pills at the bottom-most active row (visually closest to
+        // the input the user is jumping from).
+        this.setFocus(pills[pills.length - 1]);
     };
 
 };

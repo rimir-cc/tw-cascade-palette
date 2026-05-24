@@ -83,6 +83,9 @@ module.exports = function (proto) {
         }
         var self = this;
         var focusedEl = null;
+        // Compute dirty once per render — _isActivePresetDirty walks the
+        // current lists so we don't want to call it per pill.
+        var dirty = this._isActivePresetDirty();
         pills.forEach(function (preset, i) {
             var pillEl = self.document.createElement("span");
             var cls = "rcp-preset-pill";
@@ -90,8 +93,15 @@ module.exports = function (proto) {
                 cls += " rcp-preset-pill-focused";
                 focusedEl = pillEl;
             }
+            var isActive = preset.title === self.activePresetTitle;
+            if (isActive) {
+                cls += " rcp-preset-pill-active";
+                if (dirty) cls += " rcp-preset-pill-dirty";
+            }
             pillEl.className = cls;
-            pillEl.textContent = preset.name;
+            // Dirty marker — a trailing "*" makes the state visible even
+            // without colour cues (e.g. on screen readers / B&W displays).
+            pillEl.textContent = preset.name + (isActive && dirty ? " *" : "");
             if (preset.hint) pillEl.title = preset.hint;
             pillEl.dataset.presetIdx = String(i);
             pillEl.addEventListener("mousedown", function (e) {

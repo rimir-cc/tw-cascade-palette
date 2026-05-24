@@ -213,6 +213,40 @@ type: text/css
     box-shadow: 0 0 0 2px rgba(190, 24, 93, 0.35);
 }
 
+/* Active preset — currently loaded. Heavier border to stand out from
+   the surrounding pills regardless of focus. */
+.rcp-preset-pill-active {
+    border-color: #be185d;
+    border-width: 2px;
+    padding: 1px 9px; /* compensate for thicker border */
+    font-weight: 600;
+}
+
+/* Active + dirty — user has edited filters / visibility / view since
+   the preset was loaded. Distinct accent so the user notices the
+   pending overwrite opportunity. The trailing " *" in the label is the
+   text-only fallback. */
+.rcp-preset-pill-dirty {
+    background: #fef3c7;
+    color: #78350f;
+    border-color: #d97706;
+}
+
+.rcp-preset-pill-dirty:hover {
+    background: #fde68a;
+}
+
+.rcp-preset-pill-active.rcp-preset-pill-focused {
+    box-shadow: 0 0 0 2px rgba(190, 24, 93, 0.55);
+}
+
+.rcp-preset-pill-dirty.rcp-preset-pill-focused {
+    background: #fde68a;
+    border-color: #b45309;
+    color: #451a03;
+    box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.45);
+}
+
 @media (prefers-color-scheme: dark) {
     .rcp-preset-strip {
         background: #1f1825;
@@ -237,6 +271,23 @@ type: text/css
         border-color: #fbcfe8;
         color: #fdf2f8;
         box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.45);
+    }
+    .rcp-preset-pill-active {
+        border-color: #fbcfe8;
+    }
+    .rcp-preset-pill-dirty {
+        background: #422a18;
+        color: #fef3c7;
+        border-color: #d97706;
+    }
+    .rcp-preset-pill-dirty:hover {
+        background: #5a3a22;
+    }
+    .rcp-preset-pill-dirty.rcp-preset-pill-focused {
+        background: #78350f;
+        border-color: #fde68a;
+        color: #fffbeb;
+        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.55);
     }
 }
 

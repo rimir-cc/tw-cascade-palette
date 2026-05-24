@@ -657,6 +657,7 @@ module.exports = function (proto) {
         this.stack = [this.buildRootStage()];
         this.recomputeStage(this.topStage());
         this._renderViewStrip();
+        this._refreshPresetActiveCue();
         this.renderStage();
         // Flash the newly-active pill when the switch was leader-triggered.
         if (this._leaderFiring) this._flashActiveViewPill();

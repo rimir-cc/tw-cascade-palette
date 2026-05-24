@@ -81,6 +81,7 @@ module.exports = function (proto) {
         });
         this.filters.push(instance);
         this._renderFilterStrip();
+        this._refreshPresetActiveCue();
         var top = this.topStage();
         if (top) {
             this.recomputeStage(top);
@@ -101,6 +102,7 @@ module.exports = function (proto) {
             this.filterFocusIdx = Math.max(0, this.filters.length - 1);
         }
         this._renderFilterStrip();
+        this._refreshPresetActiveCue();
         var top = this.topStage();
         if (top) {
             this.recomputeStage(top);
@@ -118,6 +120,7 @@ module.exports = function (proto) {
         this.filters = [];
         this.filterFocusIdx = 0;
         this._renderFilterStrip();
+        this._refreshPresetActiveCue();
         var top = this.topStage();
         if (top) {
             this.recomputeStage(top);

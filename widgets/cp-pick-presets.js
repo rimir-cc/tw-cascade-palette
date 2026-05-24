@@ -165,12 +165,8 @@ module.exports = function (proto) {
             n++;
         }
         var bundle = {
-            filters: (this.filters || []).map(function (s) {
-                return { title: s.constraintTiddler, arg: s.arg || "" };
-            }),
-            visibility: (this.visibilities || []).map(function (s) {
-                return { title: s.constraintTiddler, arg: s.arg || "" };
-            })
+            filters: this._currentFiltersSnapshot(),
+            visibility: this._currentVisibilitySnapshot()
         };
         this.wiki.addTiddler(new $tw.Tiddler({
             title: finalTitle,
@@ -182,6 +178,116 @@ module.exports = function (proto) {
             // the user sees the resulting state.
             "ca-after-fire": "keep"
         }));
+        // The just-saved preset becomes the active one; baseline = the
+        // state we just persisted.
+        this.activePresetTitle = finalTitle;
+        this.activePresetBaseline = {
+            view: this.activeView || "",
+            filters: bundle.filters,
+            visibility: bundle.visibility
+        };
+    };
+
+    // Snapshot helpers — used by capture, apply baseline, and dirty check.
+    // Filters store the meta tiddler directly. Visibility strips the per-
+    // instance "::arg" suffix (hide-entry uses it for dedup uniqueness).
+    proto._currentFiltersSnapshot = function () {
+        return (this.filters || []).map(function (s) {
+            return { title: s.constraintTiddler, arg: s.arg || "" };
+        });
+    };
+
+    proto._currentVisibilitySnapshot = function () {
+        return (this.visibilities || []).map(function (s) {
+            var ct = String(s.constraintTiddler || "");
+            var sep = ct.indexOf("::");
+            return {
+                title: sep >= 0 ? ct.slice(0, sep) : ct,
+                arg: s.arg || ""
+            };
+        });
+    };
+
+    proto._constraintListsEqual = function (a, b) {
+        a = a || []; b = b || [];
+        if (a.length !== b.length) return false;
+        for (var i = 0; i < a.length; i++) {
+            if ((a[i].title || "") !== (b[i].title || "")) return false;
+            if ((a[i].arg || "") !== (b[i].arg || "")) return false;
+        }
+        return true;
+    };
+
+    // Cheap repaint of the preset strip — used by state-mutating
+    // operations (filter/visibility push/remove/clear, view switch) so
+    // the active-pill dirty cue stays in sync. Also re-renders the hint
+    // line so the "preset modified" message updates the moment dirty
+    // status flips. Skips work when no preset is active or the strip
+    // isn't mounted yet.
+    proto._refreshPresetActiveCue = function () {
+        if (!this.activePresetTitle) return;
+        if (!this.presetStripEl) return;
+        this._renderPresetStrip();
+        if (this.focus === "preset" && this._renderHint) this._renderHint();
+    };
+
+    // True iff there's an active preset AND current state diverges from
+    // its captured baseline (view, filters, or visibility list).
+    proto._isActivePresetDirty = function () {
+        if (!this.activePresetTitle || !this.activePresetBaseline) return false;
+        var base = this.activePresetBaseline;
+        if ((base.view || "") !== (this.activeView || "")) return true;
+        if (!this._constraintListsEqual(base.filters, this._currentFiltersSnapshot())) {
+            return true;
+        }
+        if (!this._constraintListsEqual(base.visibility, this._currentVisibilitySnapshot())) {
+            return true;
+        }
+        return false;
+    };
+
+    // Overwrite the active preset tiddler with the current state. Returns
+    // true on success, false if no active preset / tiddler missing.
+    proto._overwriteActivePreset = function () {
+        if (!this.activePresetTitle) return false;
+        var t = this.wiki.getTiddler(this.activePresetTitle);
+        if (!t || !t.fields) return false;
+        var bundle = {
+            filters: this._currentFiltersSnapshot(),
+            visibility: this._currentVisibilitySnapshot()
+        };
+        // Preserve preset metadata (name, hint, order); only the state-
+        // bearing fields change.
+        var newFields = $tw.utils.extend({}, t.fields, {
+            "ca-preset-view": this.activeView || "",
+            "ca-preset-constraints": JSON.stringify(bundle)
+        });
+        this.wiki.addTiddler(new $tw.Tiddler(newFields));
+        this.activePresetBaseline = {
+            view: this.activeView || "",
+            filters: bundle.filters,
+            visibility: bundle.visibility
+        };
+        this._invalidatePresetPills();
+        this._renderPresetStrip();
+        return true;
+    };
+
+    // Push a confirm-drill stage to delete a preset. On confirm, the
+    // action runs `<$action-deletetiddler>`; the wiki change hook clears
+    // the active marker if the deleted preset was active. Focus moves
+    // to the menu so the user can fire the confirm/cancel option without
+    // first having to leave the preset strip.
+    proto._pushDeletePresetConfirm = function (preset) {
+        if (!preset || !preset.title) return;
+        this.pushStage(this.buildConfirmStage({
+            title: "Delete preset " + preset.name,
+            consequence: "This will permanently delete the preset “" +
+                preset.name + "” (`" + preset.title + "`).",
+            actions: '<$action-deletetiddler $tiddler="' +
+                this._escapeAttr(preset.title) + '"/>'
+        }));
+        this.setFocus("menu");
     };
 
     // Apply a saved preset — replace both constraint lists with the
@@ -227,21 +333,43 @@ module.exports = function (proto) {
         this.visibilities = [];
         visList.forEach(function (s) {
             if (!s || !s.title) return;
+            // Tolerate the legacy capture shape that stored the per-
+            // instance pseudo-title ("...hide-entry::SomeEntry") — strip
+            // the suffix and fall back to the suffix-as-arg if `s.arg`
+            // wasn't recorded. Re-saving the preset cleans this up.
+            var lookupTitle = String(s.title);
+            var sep = lookupTitle.indexOf("::");
+            var argFromTitle = "";
+            if (sep >= 0) {
+                argFromTitle = lookupTitle.slice(sep + 2);
+                lookupTitle = lookupTitle.slice(0, sep);
+            }
             var meta = null;
             for (var i = 0; i < vmetas.length; i++) {
-                if (vmetas[i].title === s.title) { meta = vmetas[i]; break; }
+                if (vmetas[i].title === lookupTitle) { meta = vmetas[i]; break; }
             }
             if (!meta) {
                 if (console && console.warn) {
                     console.warn(
                         "[cascade-palette] preset references missing visibility:",
-                        s.title
+                        lookupTitle
                     );
                 }
                 return;
             }
-            self.visibilities.push(self._buildVisibilityInstance(meta, s.arg || ""));
+            self.visibilities.push(self._visibilityInstanceFor(meta, s.arg || argFromTitle));
         });
+
+        // Re-render the constraint strips after replacing both lists —
+        // _setActiveView only refreshes the view strip and results, not
+        // these. Do it before the view branch so it's done either way.
+        this._renderFilterStrip();
+        this._renderVisibilityStrip();
+
+        // Mark this preset as active. The baseline is captured after the
+        // view-switch below so it reflects the effective state (in case
+        // the preset's view doesn't exist).
+        this.activePresetTitle = presetTitle;
 
         if (viewTitle && this._getViewByTitle(viewTitle)) {
             this._setActiveView(viewTitle);
@@ -253,10 +381,16 @@ module.exports = function (proto) {
                 );
             }
             this.recomputeStage(this.topStage());
-            this._renderFilterStrip();
-            this._renderVisibilityStrip();
             this.renderStage();
         }
+
+        // Capture baseline AFTER the view-switch so it matches the now-
+        // effective state. Dirty detection compares against this.
+        this.activePresetBaseline = {
+            view: this.activeView || "",
+            filters: this._currentFiltersSnapshot(),
+            visibility: this._currentVisibilitySnapshot()
+        };
     };
 
 };

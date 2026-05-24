@@ -27,6 +27,7 @@ suffixes the per-title to the tiddler key so multiple coexist.
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
 var VISIBILITY_TAG = C.VISIBILITY_TAG;
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
+var HIDE_ENTRY_VISIBILITY = "$:/plugins/rimir/cascade-palette/visibility/hide-entry";
 
 module.exports = function (proto) {
 
@@ -50,6 +51,20 @@ module.exports = function (proto) {
                 order: self._parseNumOrDefault(f["ca-order"], DEFAULT_ORDER)
             };
         });
+    };
+
+    // Build a visibility instance and apply any meta-specific tweaks
+    // needed for the dedup key. Only special case today: hide-entry uses
+    // one backing tiddler but needs one pill per hidden title, so we
+    // override the constraintTiddler with a per-arg pseudo-key. Both the
+    // Shift-DEL path and the preset-restore path go through this so the
+    // de-dup key is identical in either origin.
+    proto._visibilityInstanceFor = function (meta, arg) {
+        var instance = this._buildVisibilityInstance(meta, arg);
+        if (meta.title === HIDE_ENTRY_VISIBILITY) {
+            instance.constraintTiddler = meta.title + "::" + (arg || "");
+        }
+        return instance;
     };
 
     proto._buildVisibilityInstance = function (meta, arg) {
@@ -85,6 +100,7 @@ module.exports = function (proto) {
         });
         this.visibilities.push(instance);
         this._renderVisibilityStrip();
+        this._refreshPresetActiveCue();
         var top = this.topStage();
         if (top) {
             this.recomputeStage(top);
@@ -105,6 +121,7 @@ module.exports = function (proto) {
             this.visibilityFocusIdx = Math.max(0, this.visibilities.length - 1);
         }
         this._renderVisibilityStrip();
+        this._refreshPresetActiveCue();
         var top = this.topStage();
         if (top) {
             this.recomputeStage(top);
@@ -122,6 +139,7 @@ module.exports = function (proto) {
         this.visibilities = [];
         this.visibilityFocusIdx = 0;
         this._renderVisibilityStrip();
+        this._refreshPresetActiveCue();
         var top = this.topStage();
         if (top) {
             this.recomputeStage(top);
@@ -267,26 +285,22 @@ module.exports = function (proto) {
     };
 
     // Push a hide-entry visibility for the given title — used by Shift-DEL
-    // on root entries. Per-instance tiddler key includes the title so
-    // multiple hide-entry pills coexist (replace-by-kind would otherwise
-    // overwrite each other since they share the same backing tiddler).
+    // on root entries. Per-instance tiddler key is set by
+    // `_visibilityInstanceFor` so multiple hide-entry pills coexist.
     proto._addHideEntryVisibility = function (title) {
-        var hideEntry = "$:/plugins/rimir/cascade-palette/visibility/hide-entry";
         var metas = this._loadVisibilityTiddlers();
         var meta = null;
         for (var i = 0; i < metas.length; i++) {
-            if (metas[i].title === hideEntry) { meta = metas[i]; break; }
+            if (metas[i].title === HIDE_ENTRY_VISIBILITY) { meta = metas[i]; break; }
         }
         if (!meta) {
             if (console && console.warn) {
                 console.warn("[cascade-palette] hide-entry visibility not installed:",
-                    hideEntry);
+                    HIDE_ENTRY_VISIBILITY);
             }
             return;
         }
-        var instance = this._buildVisibilityInstance(meta, title);
-        instance.constraintTiddler = hideEntry + "::" + title;
-        this._pushVisibility(instance);
+        this._pushVisibility(this._visibilityInstanceFor(meta, title));
     };
 
 };
