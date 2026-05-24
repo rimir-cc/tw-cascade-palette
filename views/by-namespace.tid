@@ -1,0 +1,12 @@
+title: $:/plugins/rimir/cascade-palette/views/by-namespace
+tags: $:/tags/rimir/cascade-palette/view
+ca-view-name: By namespace
+ca-view-hint: Tiddlers grouped by `/` path segments
+ca-view-source: [!is[system]]
+ca-view-tree-strategy: path-segments
+ca-view-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+ca-view-sort: alphabetical
+ca-view-containers-first: yes
+ca-view-show-count: yes
+ca-order: 300
+type: text/vnd.tiddlywiki

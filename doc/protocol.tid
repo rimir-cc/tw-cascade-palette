@@ -278,3 +278,355 @@ When a drill row carries `ca-bind-tiddler` + `ca-bind-field`, the palette render
 ! Sensitivity of stage-state
 
 Stages are populated by re-running `ca-next-scope` whenever the user types in the input. Filters that hit ''many'' tiddlers can be slow if you're searching the entire wiki on every keystroke — prefer a tighter base set (`[rrt.type[...]]` first, then `+[search<query>]`) over a broad search of all titles.
+
+! Filters & Visibility (declarative constraints)
+
+The palette has two parallel constraint kinds, each surfacing its own pill strip:
+
+* A ''filter'' is a tiddler tagged ''`$:/tags/rimir/cascade-palette/filter`''. Its expression is appended (intersected) to every result-list filter — it ''narrows what's shown''. Filter pills sit in a blue strip.
+* A ''visibility'' rule is a tiddler tagged ''`$:/tags/rimir/cascade-palette/visibility`''. Its expression is a predicate evaluated against each root-entry title — non-empty result means ''hide that entry from the root menu''. Visibility pills sit in an orange/red strip.
+
+The two kinds share grammar (prefix + arg) and shape (chip / hint / help / order). Differences are limited to which pipeline stage their expression feeds into.
+
+! Adding & removing constraints
+
+Three input paths (filters and visibility share these):
+
+* ''Prefix typing.'' Each constraint declares an optional prefix. Type the prefix in the search input, then the argument, then Enter to commit the pill — the input picks up a colour cue (blue for filter, orange for visibility) and a hint while a prefix matches. E.g. `/parser` → search-text filter pill with arg `parser`; `hide:appify` → hide-group visibility pill with arg `appify`.
+* ''Add via message.'' Send the rootWidget message ''`rimir-cascade-palette-add-filter`'' / ''`rimir-cascade-palette-add-visibility`'' with a ''`filter`'' / ''`visibility`'' param naming the tiddler. The input is pre-filled with the constraint's prefix so the user can type the argument and Enter to commit.
+* ''Shift-DEL on a root entry'' adds a ''Hide selected entry'' visibility pill with the picked entry as its argument.
+
+Removal:
+
+* ''Focus the strip'' (Tab cycle includes `visibility` and `filter` whenever those strips have content).
+* ''`←` / `→`'' move between pills within the focused strip.
+* ''DEL'' / ''Backspace'' removes the focused pill.
+* ''Ctrl-DEL'' (any focus section) clears ''both'' strips.
+* ''Reset constraints'' leader (`x` key, idle 200ms) — same effect as Ctrl-DEL.
+
+Pills ''persist within session'' — closing and reopening the palette keeps both strips intact. A full page reload clears everything.
+
+! Filter tiddler fields
+
+;`ca-filter-name`
+:Display name shown in help readouts. Required.
+;`ca-filter-prefix`
+:Short string that triggers the filter from the input (e.g. `/`, `#`, `prefix:`, `@`). Optional — filters without a prefix can only be added via the add-filter message.
+;`ca-filter-arg`
+:How the trailing input is interpreted: `text` (free-text), `tag`, `tiddler`, or `none`. Drives sanitisation. Default: `text`.
+;`ca-filter-expr`
+:TW filter snippet appended (intersected) with every result-list filter. Use ''`<arg>`'' as the operand placeholder — the engine substitutes the user's argument as `[<arg>]` at pill-push time. E.g. ''`+[prefix<arg>]`'' → `+[prefix[work/]]` for `prefix:work/`.
+;`ca-filter-chip`
+:Plain-text template for the pill label. Use ''`<<arg>>`'' for argument substitution. Defaults to `ca-filter-name` when omitted.
+;`ca-filter-hint`
+:One-line tooltip shown on pill hover.
+;`ca-filter-help`
+:Multi-line help text shown in the details pane when the pill is focused. Falls back to `ca-filter-hint` when omitted.
+;`ca-order`
+:Sort key.
+
+! Visibility tiddler fields
+
+Identical shape with the `ca-filter-*` prefix replaced by `ca-visibility-*`:
+
+;`ca-visibility-name`
+:Display name.
+;`ca-visibility-prefix`
+:Short string that triggers it from the input (e.g. `hide:`). Optional.
+;`ca-visibility-arg`
+:`text` / `tag` / `tiddler` / `none`. Default: `text`.
+;`ca-visibility-expr`
+:''Predicate filter''. Evaluated per root-entry with `<currentTiddler>` bound to the entry title; if non-empty result, the entry is hidden. Use ''`<arg>`'' for the operand placeholder. E.g. ''`[<currentTiddler>get[ca-group]match<arg>]`'' hides entries whose `ca-group` field matches the typed argument.
+;`ca-visibility-chip` / `ca-visibility-hint` / `ca-visibility-help` / `ca-order`
+:Display fields (same shape as filter).
+
+! Replacement semantics
+
+At most ''one pill per backing tiddler'' is active at a time, within each kind. Adding a new instance evicts any prior instance with the same backing tiddler — so typing `prefix:work/` then `prefix:private/` leaves only the second filter pill on the strip. The ''Hide selected entry'' visibility is the exception: its per-instance key is augmented with the hidden title so multiple hide-entry pills coexist (one per hidden entry).
+
+! Context tiddler
+
+The palette captures the tiddler the user was looking at when the hotkey fired (focused `[data-tiddler-title]` ancestor, falling back to `$:/HistoryList`'s last entry). It is exposed to ''every'' filter/visibility expression and action as `<<context-tiddler>>` — independent of any visible pill. The `@` filter is an opt-in that turns the captured tiddler (or a typed override) into a visible filter pill.
+
+! Worked example — Title-prefix filter
+
+```
+title: $:/plugins/example/filters/title-prefix
+tags: $:/tags/rimir/cascade-palette/filter
+ca-filter-name: Restrict to title prefix
+ca-filter-prefix: prefix:
+ca-filter-arg: text
+ca-filter-expr: +[prefix<arg>]
+ca-filter-chip: prefix: <<arg>>
+ca-filter-hint: Keep only tiddlers whose title starts with the given string.
+```
+
+Type `prefix:work/` → pill ''`prefix: work/`'' appears, every result list now intersects with `[prefix[work/]]`. Type `prefix:private/` afterwards → the old pill is replaced (per-kind uniqueness).
+
+! Worked example — Hide a group (visibility)
+
+```
+title: $:/plugins/example/visibility/hide-group
+tags: $:/tags/rimir/cascade-palette/visibility
+ca-visibility-name: Hide a group
+ca-visibility-prefix: hide:
+ca-visibility-arg: text
+ca-visibility-expr: [<currentTiddler>get[ca-group]match<arg>]
+ca-visibility-chip: hide: <<arg>>
+ca-visibility-hint: Remove entries with this group from the root menu.
+```
+
+Type `hide:appify` → pill ''`hide: appify`'' appears in the visibility strip; every entry with `ca-group: appify` is hidden from the root menu (other stages unaffected).
+
+! Prefix collision rules
+
+Prefix matching is ''greedy by length'', across both filter and visibility tag families. With `/` (filter) and `prefix:` (filter) and `hide:` (visibility) all declared, typing `prefix:foo` matches the `prefix:` filter (longer match wins). Ties between two same-length prefixes use the tiddler iteration order (alphabetical by title) — declare different prefixes if disambiguation matters.
+
+! Views (multi-view root menu)
+
+A ''view'' is a tiddler tagged ''`$:/tags/rimir/cascade-palette/view`'' that describes how to build the root menu. Each registered view shows as a pill in the ''view strip''; the active view is highlighted. The strip is hidden when fewer than two views are declared.
+
+The plugin ships four views out of the box:
+
+* ''Entries'' (default) — plugin-declared entry tiddlers (the prior behaviour).
+* ''All tiddlers'' — flat list of non-system tiddlers.
+* ''By namespace'' — tree built by splitting tiddler titles on `/`. Drill into containers.
+* ''By parent'' — TW tag-tree: walks `tags[0]` ancestor chain up to `TableOfContents`.
+
+! Switching views
+
+* ''Click'' a pill — activates that view; stage stack pops to root; menu rebuilds.
+* ''Tab into the view strip'', ''←/→'' to highlight a pill, ''Enter'' or ''Space'' to activate.
+* ''Esc'' from the strip returns focus to the input without activating.
+
+Active view persists ''session-only'' — page reload returns to the `ca-view-default: yes` view.
+
+! View tiddler fields
+
+;`ca-view-name`
+:Display name on the pill and as the root breadcrumb segment. Required.
+;`ca-view-hint`
+:Tooltip on hover. Optional.
+;`ca-view-default`
+:Set to `yes` on exactly one view — the initial selection on page load.
+;`ca-view-source`
+:TW filter producing the source-tiddler set for this view. E.g. `[all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/entry]]` for Entries, `[!is[system]]` for All tiddlers.
+;`ca-view-tree-strategy`
+:`path-segments` \| `parent-tag` \| `custom-key`. Absent / empty = flat view. Tree views fold sources into a hierarchical structure; drilling into a container pushes a tree-stage.
+;`ca-view-tree-key`
+:Per-source-tiddler filter returning the path (one segment per result). Used only with `tree-strategy: custom-key`. The filter is evaluated with `<currentTiddler>` bound to the source.
+;`ca-view-root-tag`
+:Stop-tag for the `parent-tag` walk. The chain breaks (without including the tag) when it reaches this tag. Omit to walk until a tagless ancestor.
+;`ca-view-sort`
+:`alphabetical` (default) \| `natural` (numeric-aware) \| `by-field` \| `custom`.
+;`ca-view-sort-field`
+:Field name used by `sort: by-field`. Numeric values sort numerically; otherwise locale-compared.
+;`ca-view-sort-key`
+:Per-row filter returning a sortable key. Used by `sort: custom`. Receives `<currentTiddler>` bound to the row's source.
+;`ca-view-containers-first`
+:`yes` (default for tree views) \| `no`. Containers float above leaves at each tree level as a stable post-sort.
+;`ca-view-show-count`
+:`yes` \| `no` (default). Render a child-count badge on tree-container rows.
+;`ca-view-count-format`
+:Badge template, default ` (<<count>>)`. The `<<count>>` token is substituted with the integer child count.
+;`ca-view-row-name` / `ca-view-row-hint` / `ca-view-row-icon` / `ca-view-row-kind` / `ca-view-row-group` / `ca-view-row-order`
+:Per-source TW filters that ''override'' the named field on each row, evaluated with `<currentTiddler>` bound to the source. Unset filters fall through to the source tiddler's own `ca-*` field — so the Entries view doesn't need to declare any row-* override (entries already carry the right fields).
+;`ca-view-row-next-scope` / `ca-view-row-items-from`
+:Same dual-mode as the entry/action fields, but provided ''per source'' via filter. Used when drill items should fan out into a stage configured per-source.
+;`ca-view-row-actions`
+:Wikitext fired when the user picks a leaf row. Receives `<<currentTiddler>>` (= the source tiddler title) at fire time. ''Dual-mode'': if the value parses as a TW filter that returns a result, the result is used as the action wikitext (lets the Entries view fetch the entry's own `ca-actions` via `[<currentTiddler>get[ca-actions]]`); otherwise the raw value is used as a wikitext template directly (lets the All tiddlers view declare `<$action-navigate $to=<<currentTiddler>>/>` without `[[…]]` wrapping).
+;`ca-order`
+:Position in the view strip (left → right by `ca-order` ascending).
+
+! Per-view entry positioning
+
+Existing entry tiddlers can opt into per-view placement by declaring ''`ca-position-<view-slug>`'' fields. The slug is the basename of the view tiddler (e.g. `by-namespace` from `$:/plugins/rimir/cascade-palette/views/by-namespace`). Falls back to ''`ca-position`'' (applies to all views), then to ''`at-root`'' (default).
+
+Values:
+
+* ''`at-root`'' — leaf at the view's root level (flat view: default group; tree view: top-level leaf).
+* ''`none`'' — entry excluded from this view entirely.
+* ''`<segment>/…`'' — leaf at this tree-path. Missing intermediate path segments are auto-created as synthetic drill-only containers.
+* ''`<pos1> : <pos2>`'' or ''newline-separated'' — multi-position; entry appears at every listed position.
+
+''Flat-view semantics:'' the position string becomes the entry's `ca-group` for this view's rendering. Multi-position is collapsed to the first position (flat views don't support multi-placement).
+
+''Tree-view semantics:'' the entry is attached as a leaf at the named tree node. The entry retains its full identity in the row (kind / actions / bind-* / confirm-* etc.) — it's rendered via the standard cascade-item path, not via the view's row-* filters.
+
+```
+title: $:/plugins/example/entries/advanced-search
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Advanced Search
+ca-actions: <$action-sendmessage $message="tm-show-switcher"/>
+ca-position-by-namespace: $:/core/ui : Tools/Search
+ca-position-by-parent: SystemPalette
+ca-position-all-tiddlers: none
+```
+
+The above places ''Advanced Search'' under both ''`$:/core/ui/`'' and synthetic ''`Tools/Search/`'' in By namespace, under ''`SystemPalette/`'' in By parent, and excludes it from the All tiddlers view entirely.
+
+! Custom-key tree views
+
+For path semantics that aren't title-splitting or tag-walking, use `ca-view-tree-strategy: custom-key` plus `ca-view-tree-key`:
+
+```
+title: $:/plugins/example/views/by-author
+tags: $:/tags/rimir/cascade-palette/view
+ca-view-name: By author
+ca-view-source: [!is[system]has[author]]
+ca-view-tree-strategy: custom-key
+ca-view-tree-key: [<currentTiddler>get[author]] [<currentTiddler>]
+ca-view-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+ca-order: 500
+```
+
+The tree-key filter returns a list of path segments per source. The example puts each tiddler under its author name. Note the trailing `[<currentTiddler>]` so the LAST segment is the tiddler title (avoids author/author collapse when an author has only one tiddler).
+
+''Performance note:'' `custom-key` runs the filter per source tiddler. For ≥10k sources the cumulative cost is measurable (tens to hundreds of ms). Prefer the bundled `path-segments` / `parent-tag` strategies for large sets, and keep custom keys cheap.
+
+! Leader keys
+
+A ''leader'' is a tiddler tagged ''`$:/tags/rimir/cascade-palette/leader`'' that binds a single character (or short string) to a wikitext action chain. Typing the key into the input and ''pausing for 200ms'' (the idle window) fires the actions. Any keystroke during the window cancels — `@foo` types four chars; `@` then idle fires the `@` leader.
+
+Visual feedback while a leader is pending:
+
+* The input picks up an ''amber underline''.
+* The hint footer shows ''`↵ <key> — <ca-leader-hint>`''.
+* The details pane (if open) renders ''`ca-leader-help`''.
+
+After the leader fires:
+
+* The input clears (so the user can keep typing / filtering naturally).
+* Pills that changed (view / filter / visibility) ''flash briefly'' to signal what just happened.
+* The leader's effects are visible through the standard strips — there's no special "leader mode" indicator to dismiss.
+
+! Leader tiddler fields
+
+;`ca-leader-key`
+:The trigger string. Usually one character (`@`, `>`, `s`, `r`, `x`); multi-char allowed (`>>`). Matched against the FULL input — `@x` is "leader followed by typing", not a pending leader. Required.
+;`ca-leader-name`
+:Display name (used in any future leader-catalogue UI; optional).
+;`ca-leader-hint`
+:One-line hint shown in the footer during the idle window.
+;`ca-leader-help`
+:Multi-line help rendered in the details pane during the idle window. Falls back to hint.
+;`ca-leader-idle-ms`
+:Override the default 200ms idle window. Useful for multi-char leaders where a longer pause feels natural. Optional.
+;`ca-leader-actions`
+:Wikitext fired when the leader commits. Typically a chain of `<$action-sendmessage>` calls. Required.
+;`ca-order`
+:Sort key (for catalogue UIs; ordering doesn't affect dispatch).
+
+! Widget messages usable in leader actions
+
+|!Message |!Params |!Effect |
+|`rimir-cascade-palette-set-view` |`view: <view-title>` |Activate the named view (same as clicking its pill). |
+|`rimir-cascade-palette-add-filter` |`filter: <title>` |Push the named filter. For arg-type `none`, fires directly. For `text`/`tag`/`tiddler`, pre-fills the input with the filter's prefix so the user can type the argument and commit with Enter. |
+|`rimir-cascade-palette-set-filter` |`filter: <title>`, `arg: <value>` |Push the named filter with an explicit literal arg. Skips the interactive prefill — used by leaders that bake the arg in. |
+|`rimir-cascade-palette-add-visibility` |`visibility: <title>` |Same shape as add-filter but pushes onto the visibility strip. |
+|`rimir-cascade-palette-set-visibility` |`visibility: <title>`, `arg: <value>` |Same shape as set-filter but for visibility. |
+|`rimir-cascade-palette-reset-filters` |(none) |Clear every filter pill (leaves visibility alone). |
+|`rimir-cascade-palette-reset-visibility` |(none) |Clear every visibility pill (leaves filters alone). |
+|`rimir-cascade-palette-reset-constraints` |(none) |Clear ''both'' strips. Same as Ctrl-DEL globally. |
+|`rimir-cascade-palette-apply-preset` |`preset: <preset-title>` |Replay a preset: switch to its view, replace both filter and visibility lists with the preset's. |
+|`rimir-cascade-palette-save-preset` |(none) |Open the save mini-prompt — Enter commits, Esc cancels. |
+|`rimir-cascade-palette-recall-preset` |(none) |Move focus to the preset pill strip. |
+
+! Worked example — compound leader
+
+```
+title: $:/plugins/example/leaders/persons-mode
+tags: $:/tags/rimir/cascade-palette/leader
+ca-leader-key: @
+ca-leader-name: Persons mode
+ca-leader-hint: ↵ apply — Persons view + filter by type=person
+ca-leader-help: Switch to a flat list of person tiddlers, narrowed to type=person. Useful when capturing notes about a person who is calling.
+ca-leader-actions:
+  <$action-sendmessage $message="rimir-cascade-palette-set-view" view="$:/plugins/example/views/persons-flat"/>
+  <$action-sendmessage $message="rimir-cascade-palette-add-filter" filter="$:/plugins/example/filters/type-person"/>
+ca-order: 100
+```
+
+Type `@`, pause 200ms → palette switches to Persons + the type-person filter pill appears with a brief amber flash. From there, type to filter the person list normally.
+
+! Modal pick-mode views
+
+A pick-mode view treats Enter on any row as ''commit the row's effective path as a filter arg''. Used by the `>` leader: switch to a tree picker, drill until you land on the desired path, hit Enter to commit a `prefix:` filter and return to the previous view.
+
+Pick-mode is opt-in via two view fields:
+
+;`ca-view-pick-mode`
+:`yes` makes this view a pick-mode variant. Default empty.
+;`ca-view-pick-emits-filter`
+:Title of the filter tiddler to push when a row is committed. The filter's `ca-filter-expr` receives the row's effective path as `<arg>`.
+
+What "effective path" means per row:
+
+* Container row → the joined tree path (e.g. for the by-namespace strategy: ''`work/customers/A`'').
+* Leaf row → the source tiddler title.
+
+Behaviour:
+
+* ''`→`'' (Right-arrow) on a container → drills (lets you narrow further before committing).
+* ''Enter'' on any row (container OR leaf) → commits the path as filter arg, returns to prior view.
+* ''Esc'' anywhere → cancel pick-mode, return to prior view, no pill pushed.
+
+Pick-mode tracks a single return-target (`_pickModeReturnTo` in the widget). Chained pick-modes (one pick-mode view activating another) keep the original return-target, not the intermediate.
+
+! Worked example — pick-mode view + matching leader
+
+```
+title: $:/plugins/example/views/by-namespace-pick
+tags: $:/tags/rimir/cascade-palette/view
+ca-view-name: By namespace (pick)
+ca-view-hint: Drill `/`-segments; Enter on any row commits the path as a title-prefix filter.
+ca-view-source: [!is[system]]
+ca-view-tree-strategy: path-segments
+ca-view-pick-mode: yes
+ca-view-pick-emits-filter: $:/plugins/example/filters/title-prefix
+ca-view-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+ca-order: 350
+```
+
+```
+title: $:/plugins/example/leaders/by-namespace-pick
+tags: $:/tags/rimir/cascade-palette/leader
+ca-leader-key: >
+ca-leader-name: Pick a namespace
+ca-leader-hint: Switch to a tree picker; Enter commits the path as a title-prefix filter.
+ca-leader-actions: <$action-sendmessage $message="rimir-cascade-palette-set-view" view="$:/plugins/example/views/by-namespace-pick"/>
+ca-order: 200
+```
+
+! Presets
+
+A ''preset'' captures the current `(active-view, filters, visibility)` under a name. Apply a preset to replay that state in one step. Tag: ''`$:/tags/rimir/cascade-palette/preset`''.
+
+Fields on a preset tiddler:
+
+|!Field |!Purpose |
+|`ca-preset-name` |Display name (e.g. "PersonsOfA") |
+|`ca-preset-view` |Title of the view active at save time |
+|`ca-preset-constraints` |JSON object `{"filters": [{title, arg}, …], "visibility": [{title, arg}, …]}` — both constraint lists at save time |
+|`ca-order` |Sort key in the preset strip |
+
+! Save flow (`s` leader)
+
+# Press `s`, wait 200ms.
+# The input is repurposed for one-line name entry — placeholder ''"Save preset as…"'', input picks up an emerald background.
+# Type a name, press Enter. The widget writes a preset tiddler at ''`$:/plugins/rimir/cascade-palette/presets/<sanitised-slug>`''. If a tiddler at that title already exists, ''`-2`'', ''`-3`'', … are appended.
+# Esc cancels.
+
+! Recall flow (`r` leader)
+
+# Press `r`, wait 200ms.
+# Focus jumps to the preset pill strip at the top of the popup.
+# Use `←` / `→` to select a preset, Enter to apply. The palette: clears current filters + visibility, pushes the preset's filters and visibility rules (looked up by title), switches to the preset's view.
+
+If a preset references a deleted constraint tiddler, that constraint is skipped (warning to console). If it references a deleted view, the palette stays on its current view and rebuilds with the new constraint state. No data loss — presets are inspectable as regular tiddlers.
+
+! Limitations & follow-ups
+
+* ''Editing presets'' — no in-palette UI for rename / delete. Use the wiki normally (preset tiddlers are real tiddlers).
+* ''Compose presets'' — applying a preset always ''replaces'' both constraint lists. There's no "apply on top of existing state".
+* ''Search-area widening (`>>`/`>>>`)'' — Phase 3 plan; not yet implemented.

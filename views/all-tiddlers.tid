@@ -1,0 +1,12 @@
+title: $:/plugins/rimir/cascade-palette/views/all-tiddlers
+tags: $:/tags/rimir/cascade-palette/view
+ca-view-name: All tiddlers
+ca-view-hint: Flat list of non-system tiddlers
+ca-view-source: [!is[system]]
+ca-view-row-name: [<currentTiddler>]
+ca-view-row-kind: [[leaf]]
+ca-view-row-group: [[Tiddlers]]
+ca-view-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+ca-view-sort: alphabetical
+ca-order: 200
+type: text/vnd.tiddlywiki

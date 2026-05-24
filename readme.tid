@@ -10,8 +10,13 @@ A keyboard-driven cascading command palette for TiddlyWiki. Hit one hotkey (defa
 * ''Cascading stages'' — every drill pushes a new stage; back-arrow / Esc pops. Breadcrumb shows where you are.
 * ''Declarative protocol'' — adding a new cascade is one tiddler. Tag, fields, done.
 * ''Generic engine'' — no domain knowledge baked in. Same widget serves any catalogue plugin.
-* ''Filter substitution'' — `<<query>>`, `<<picked>>`, `<<parent-picked>>` available in every filter and action.
-* ''Keyboard-first'' — Up/Down to select, Tab to drill, Esc to back out (closes at root), Enter to fire. Left/Right preserve normal cursor behaviour.
+* ''Multi-view root menu'' — switch between ''Entries'' / ''All tiddlers'' / ''By namespace'' / ''By parent'' tree views from a pill strip above the input. Entries can opt into per-view placement via `ca-position-<view-slug>` fields. Add your own views as tiddlers tagged `$:/tags/rimir/cascade-palette/view`.
+* ''Leader keys'' — type a single char and idle for 200ms to fire a shortcut: `x` clears all filter+visibility pills, `>` opens a tree-picker that commits a path as a title-prefix filter, `s` saves the current state as a named preset, `r` jumps focus to the preset strip. Author your own as tiddlers tagged `$:/tags/rimir/cascade-palette/leader`.
+* ''Presets'' — save any combination of active view + filter pills + visibility pills under a name; replay later by picking the preset's pill. Tiddlers tagged `$:/tags/rimir/cascade-palette/preset`.
+* ''Filter strip'' — type `/foo`, `prefix:work/`, `#tag`, `@<tiddler>` to stack ''filter'' pills that narrow every result list. Tiddlers tagged `$:/tags/rimir/cascade-palette/filter`.
+* ''Visibility strip'' — type `hide:appify` to hide entries by group, or Shift-DEL on a root row to hide a single entry. Tiddlers tagged `$:/tags/rimir/cascade-palette/visibility`. Ctrl-DEL clears both filter and visibility strips.
+* ''Filter substitution'' — `<<query>>`, `<<picked>>`, `<<parent-picked>>`, `<<context-tiddler>>` available in every filter and action. Filter/visibility expressions also see `<arg>` and `<<arg>>`.
+* ''Keyboard-first'' — Up/Down to select, Tab to cycle sections (input → preset → visibility → filter → view → menu → details), Esc to back out (closes at root), Enter to fire. Left/Right preserve normal cursor behaviour.
 
 ! Prerequisites
 

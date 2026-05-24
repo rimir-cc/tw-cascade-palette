@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/leaders/reset-constraints
+tags: $:/tags/rimir/cascade-palette/leader
+ca-leader-key: x
+ca-leader-name: Reset constraints
+ca-leader-hint: Clear all active filter and visibility pills
+ca-leader-help: Removes every filter and visibility pill in one step — equivalent to clicking the × on each pill or hitting Ctrl-DEL globally. Presets, views, and the input are unaffected.
+ca-leader-actions: <$action-sendmessage $message="rimir-cascade-palette-reset-constraints"/>
+ca-order: 100

@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/leaders/by-namespace-pick
+tags: $:/tags/rimir/cascade-palette/leader
+ca-leader-key: >
+ca-leader-name: Pick a namespace
+ca-leader-hint: Drill `/`-segments and commit one as a title-prefix filter.
+ca-leader-help: Activates By namespace (pick). Right-arrow drills; Enter on a row commits the path as a `prefix:` filter and returns to All tiddlers. Esc cancels.
+ca-leader-actions: <$action-sendmessage $message="rimir-cascade-palette-set-view" view="$:/plugins/rimir/cascade-palette/views/all-tiddlers"/><$action-sendmessage $message="rimir-cascade-palette-set-view" view="$:/plugins/rimir/cascade-palette/views/by-namespace-pick"/>
+ca-order: 200

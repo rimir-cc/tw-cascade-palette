@@ -6,21 +6,29 @@ rdt.section-order: 60
 rdt.title: Reference
 type: text/vnd.tiddlywiki
 
-! Three-section focus model
+! Focus model
 
-The palette is one popup with three focusable sections: ''input'' (search box), ''menu'' (result list), ''details'' (preview drawer). The active section gets the browser-level focus and a visual cue; keyboard gestures route accordingly. Tab cycles between sections, Esc steps "outward" — section → input → close.
+The palette is one popup with up to seven focusable sections: ''input'' (search box), ''preset'' (preset pill strip, only when ≥ 1 preset exists), ''visibility'' (pill strip, only when at least one visibility rule is active), ''filter'' (pill strip, only when at least one filter is active), ''view'' (view-strip pills, only when ≥ 2 views are declared), ''menu'' (result list), ''details'' (preview drawer, only when open). The active section gets the browser-level focus and a visual cue; keyboard gestures route accordingly. Tab cycles between active sections (input → preset → visibility → filter → view → menu → details → input), Esc steps "outward" — section → input → close.
 
 ! Hotkey
 
 |!Key |!Section |!Action |
 |''Ctrl-Space'' |any |Open the palette |
-|''Tab / Shift-Tab'' |any |Cycle focus forward / back (input → menu → details → input) |
-|''Enter'' |any |Fire the selected item and close the palette |
+|''Tab / Shift-Tab'' |any |Cycle focus forward / back (input → preset → visibility → filter → view → menu → details → input). Sections only join the cycle when active. |
+|''Enter'' |input / menu / details |Fire the selected item and close the palette. ''Exception:'' in input focus, if the current text matches a known filter or visibility prefix with a non-empty argument, Enter commits that pill instead. |
 |''Ctrl-Enter'' |any |Fire the selected item but keep the palette open. Shift-Enter is a silent alias for back-compat (removed in v0.3). |
+|''Ctrl-DEL / Ctrl-Backspace'' |any |Clear ''both'' constraint strips (filters + visibility) in one step. |
 |''Esc'' |input |Close the palette entirely (no stage-pop intermediate) |
 |''↓'' |input |Step into the menu (only if results exist) |
-|''(typing)'' |input |Filter the current stage |
-|''Esc'' |menu / details |Return focus to the input (without closing) |
+|''(typing)'' |input |Filter the current stage. When the text matches a filter prefix, the input picks up a blue underline ("↵ commit filter: …"); when it matches a visibility prefix, an orange underline ("↵ commit visibility: …"); when it matches a leader key, an amber underline — leader fires after 200ms idle, any keystroke cancels. |
+|''Esc'' |any (in pick-mode) |Cancel pick-mode — return to prior view without committing a filter |
+|''Esc'' |preset / visibility / filter / view / menu / details |Return focus to the input (without closing) |
+|''← / →'' |preset / visibility / filter / view |Move focus between pills (clamps at edges) |
+|''Enter / Space'' |view |Activate the highlighted view — pops the stack to root, rebuilds the menu |
+|''Enter / Space'' |preset |Apply the focused preset (replaces filters + visibility, switches view, keeps palette open) |
+|''Home / End'' |preset |Jump focus to the first / last preset |
+|''DEL / Backspace'' |filter / visibility |Remove the focused pill |
+|''Enter'' |filter / visibility |Move focus into the details pane to scroll through the full help text |
 |''↑'' |menu |Move selection up; at top-of-list, returns focus to input |
 |''↓'' |menu |Move selection down |
 |''→'' |menu |Drill into the selected item (push a new stage) |
@@ -29,12 +37,17 @@ The palette is one popup with three focusable sections: ''input'' (search box), 
 |''Space'' on text/number |menu |Enter edit mode — bound value pushed into input, Enter commits, Esc cancels |
 |''+ / -'' on number |menu |Adjust by `ca-step` (default 1). Shift = `ca-step-medium` (5). Ctrl = `ca-step-large` (20). Matched on physical key (Equal/NumpadAdd/Minus/NumpadSubtract) so layout is irrelevant. |
 |''DEL / Backspace'' |menu |On an overridden setting → confirm drill to restore default. On a non-shadow tiddler in a diagnostic list → confirm drill to delete. Otherwise no-op. |
+|''Shift-DEL / Shift-Backspace'' |menu (root stage) |Add a ''hide-entry'' visibility pill for the selected row — the entry disappears from the root menu until the pill is removed. |
 |''← / →'' |details |Switch template tab when multiple templates apply |
 |''↑ / ↓'' |details |Scroll the drawer natively |
 |''Hold Ctrl'' |any |Open the details drawer; release to hide. Always-on mode keeps it visible. Suppressed in edit mode. |
 |''Click'' on a result row |menu |Sets focus → selects → fires (Shift-click = keep open) |
+|''Click'' on a filter / visibility pill |filter / visibility |Focus that pill (the × on the pill removes it) |
+|''Click'' on a view pill |view |Activate that view |
+|''Click'' on a preset pill |preset |Apply that preset |
 |''Click'' on a breadcrumb segment | |Pop back to that stage |
 |''Hover'' on any row | |Native browser tooltip shows the row's `ca-hint` text. |
+|''Hover'' on a pill |filter / visibility / preset |Native browser tooltip shows the pill's hint. |
 
 The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 
@@ -47,6 +60,11 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`$:/tags/rimir/cascade-palette/diagnostic` |Diagnostic item exposed under the engine's "Diagnostics" entry |
 |`$:/tags/rimir/cascade-palette/configuration` |Aggregated under the engine's "Configuration" root entry (Settings, Diagnostics, etc.) |
 |`$:/tags/rimir/cascade-palette/template` |Detail-pane template — wikitext rendered with `currentTiddler` bound to the picked item |
+|`$:/tags/rimir/cascade-palette/filter` |Declarative ''filter'' — adds a removable pill whose expression is appended (intersected) to every result-list filter |
+|`$:/tags/rimir/cascade-palette/visibility` |Declarative ''visibility rule'' — adds a removable pill whose predicate filter hides matching root entries |
+|`$:/tags/rimir/cascade-palette/view` |Declarative view — strategy for building the root menu (flat or tree). Each view appears as a pill in the view strip |
+|`$:/tags/rimir/cascade-palette/leader` |Leader-key gesture — key + idle window fires a wikitext action chain |
+|`$:/tags/rimir/cascade-palette/preset` |Saved `(view, filters, visibility)` bundle — surfaced as a pill in the preset strip |
 
 ! Fields
 
@@ -87,6 +105,45 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-help` |string (multiline) |entry, action, setting |Longer-form help text shown in the details drawer. Falls back to `ca-hint` when absent. |
 |`ca-template-applies` |filter |template |Evaluated with `currentTiddler` bound to the picked item; template applies if filter returns the picked title. Omit for a universal template. |
 |`ca-template-name` |string |template |Display name on the template tab (when multiple templates apply). |
+|`ca-filter-name` |string |filter |Display name. Required. |
+|`ca-filter-prefix` |string |filter |Input-prefix that triggers the filter (e.g. `/`, `prefix:`). Optional. Matched greedy-by-length, across both filter and visibility tag families. |
+|`ca-filter-arg` |`text`\|`tag`\|`tiddler`\|`none` |filter |How the trailing input is interpreted. Default `text`. |
+|`ca-filter-expr` |filter snippet |filter |Appended (intersected) with every result-list filter. Use `<arg>` as the argument operand placeholder; engine substitutes `[<arg>]` at pill-push time. |
+|`ca-filter-chip` |string template |filter |Plain-text pill label. Use `<<arg>>` for substitution. Defaults to `ca-filter-name`. |
+|`ca-filter-hint` / `-help` |string |filter |Hover / details-pane help. |
+|`ca-visibility-name` |string |visibility |Display name. Required. |
+|`ca-visibility-prefix` |string |visibility |Input-prefix (e.g. `hide:`). Optional. |
+|`ca-visibility-arg` |`text`\|`tag`\|`tiddler`\|`none` |visibility |How the trailing input is interpreted. Default `text`. |
+|`ca-visibility-expr` |filter snippet |visibility |Predicate evaluated per root entry with `<currentTiddler>` bound to its title — non-empty result hides the entry. Use `<arg>` for the operand placeholder. |
+|`ca-visibility-chip` / `-hint` / `-help` |string |visibility |Same shape as the filter equivalents. |
+|`ca-view-name` |string |view |Display name on the view-strip pill and as the root breadcrumb segment |
+|`ca-view-hint` |string |view |Tooltip on hover; appears in the details pane when the view pill is focused |
+|`ca-view-default` |`yes`\|empty |view |One view declares `yes` to be the initial selection on page load |
+|`ca-view-source` |filter |view |TW filter producing the source-tiddler set |
+|`ca-view-tree-strategy` |`path-segments`\|`parent-tag`\|`custom-key`\|empty |view |Empty = flat view. Tree strategies fold sources into a hierarchy that the user drills into |
+|`ca-view-tree-key` |filter |view (custom-key) |Per-source filter returning a list of path segments |
+|`ca-view-root-tag` |string |view (parent-tag) |Stop-tag for the ancestor walk |
+|`ca-view-sort` |`alphabetical`\|`natural`\|`by-field`\|`custom` |view |Row sort policy; default `alphabetical` |
+|`ca-view-sort-field` |string |view (by-field) |Field name read off each row |
+|`ca-view-sort-key` |filter |view (custom) |Per-row filter returning a sortable key |
+|`ca-view-containers-first` |`yes`\|`no` |view |Containers float above leaves at each tree level. Default `yes` for tree views |
+|`ca-view-show-count` |`yes`\|`no` |view |Render a child-count badge on tree-container rows. Default `no` |
+|`ca-view-count-format` |template |view |Badge template, default ` (<<count>>)` |
+|`ca-view-row-name` / `-hint` / `-icon` / `-kind` / `-group` / `-order` / `-next-scope` / `-items-from` |filter |view |Per-source overrides; evaluated with `<currentTiddler>` bound to the source. Unset filters fall through to the source's own `ca-*` field |
+|`ca-view-row-actions` |filter ''or'' wikitext |view |Action fired on a leaf pick. If parses as a filter returning a result, the result is the action wikitext (fetch source's `ca-actions`); otherwise the raw value is the wikitext template with `<<currentTiddler>>` substituted at fire time |
+|`ca-position` |string |entry |Position fallback used by every view when no per-view override is set. `at-root` (default), `none`, a tree path like `Tools/Search`, or multi-position via `:` / newlines |
+|`ca-position-<view-slug>` |string |entry |Per-view position override. Slug is the view tiddler's basename. Same value space as `ca-position` |
+|`ca-view-pick-mode` |`yes`\|empty |view |When `yes`, Enter on any row commits the row's effective path as a filter arg and returns to the prior view. Right-arrow still drills. |
+|`ca-view-pick-emits-filter` |filter-title |view (pick-mode) |Filter tiddler whose `ca-filter-expr` receives the picked path as `<arg>` |
+|`ca-leader-key` |string |leader |Trigger string (single char or short multi-char). Required. |
+|`ca-leader-name` |string |leader |Display name (for catalogues / details rendering). |
+|`ca-leader-hint` |string |leader |One-line hint shown in the footer during the idle window. |
+|`ca-leader-help` |string (multiline) |leader |Help shown in the details pane during the idle window. Falls back to hint. |
+|`ca-leader-idle-ms` |number |leader |Override the default 200ms idle window. |
+|`ca-leader-actions` |wikitext |leader |Fired when the leader commits. Typically `<$action-sendmessage>` calls to one of the widget messages. Required. |
+|`ca-preset-name` |string |preset |Display name (e.g. "PersonsOfA"). Required. |
+|`ca-preset-view` |view-title |preset |View active at save time. |
+|`ca-preset-constraints` |JSON |preset |Object `{"filters": [{title, arg}, …], "visibility": [{title, arg}, …]}` — both lists at save time. |
 
 ! Settings
 
@@ -102,14 +159,28 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 
 |!Message |!Dispatched from |!Handled by |
 |`rimir-cascade-palette-open` |Keyboard shortcut binding or any wikitext via `$action-sendmessage` |The widget's listener on `$tw.rootWidget` |
+|`rimir-cascade-palette-add-filter` |Leaders / external triggers |The widget; pushes the named filter (no-arg) or pre-fills the input with its prefix for `text`/`tag`/`tiddler` args. Parameter: `filter` = filter tiddler title. |
+|`rimir-cascade-palette-set-filter` |Leaders |Push the named filter with an explicit literal arg (no interactive prefill). Parameters: `filter`, `arg`. |
+|`rimir-cascade-palette-add-visibility` |Leaders / external triggers |Same shape as add-filter but pushes onto the visibility strip. Parameter: `visibility`. |
+|`rimir-cascade-palette-set-visibility` |Leaders |Same shape as set-filter but for visibility. Parameters: `visibility`, `arg`. |
+|`rimir-cascade-palette-reset-filters` |Leaders |Clear all filter pills. No parameters. |
+|`rimir-cascade-palette-reset-visibility` |Leaders |Clear all visibility pills. No parameters. |
+|`rimir-cascade-palette-reset-constraints` |Reset-constraints leader (`x`), Ctrl-DEL |Clear both constraint strips in one step. No parameters. |
+|`rimir-cascade-palette-set-view` |Leaders, view-pill clicks |Activate the named view. Parameter: `view`. |
+|`rimir-cascade-palette-apply-preset` |Preset-pill clicks, leaders |Replay a preset. Parameter: `preset`. |
+|`rimir-cascade-palette-save-preset` |`s` leader |Open the save mini-prompt. No parameters. |
+|`rimir-cascade-palette-recall-preset` |`r` leader |Move focus to the preset pill strip. No parameters. |
 
 ! Filter substitution variables
 
 |!Variable |!Available in |!Value |
-|`<<query>>` |scope, action |Current input text |
+|`<<query>>` |entries, actions, filters |Current input text |
 |`<<picked>>` |action |Title of the item just picked |
-|`<<parent-picked>>` |scope, action |Title picked in the parent stage |
-|`<<stage-N-picked>>` |scope, action |Title picked at stage index N (root = 0) |
+|`<<parent-picked>>` |entries, actions, filters |Title picked in the parent stage |
+|`<<stage-N-picked>>` |entries, actions, filters |Title picked at stage index N (root = 0) |
+|`<<context-tiddler>>` |entries, actions, filters, visibility |Tiddler the user was looking at when the palette opened (focused `[data-tiddler-title]` ancestor, falling back to `$:/HistoryList`'s top entry). Empty when no context was captured. |
+|`<arg>` |filter / visibility tiddler `expr` field |The sanitised user-supplied argument. Operand-form: `[<arg>]`. |
+|`<<arg>>` |filter / visibility tiddler `chip` / `hint` / `help` fields |Plain-text version of the same argument. |
 
 ! Mount point
 

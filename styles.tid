@@ -51,6 +51,428 @@ type: text/css
     color: #a0a0a0;
 }
 
+/* View strip — thin row of pills naming each registered view. Hidden
+   when fewer than two views are declared (single-view setups don't need
+   selectability — `.rcp-has-views` toggles `display: flex`). The active
+   view's pill is visually distinct; the keyboard-focused pill (while
+   focus === "view") gets the focus ring. */
+.rcp-view-strip {
+    display: none;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px 14px;
+    background: #fafaf7;
+    border-bottom: 1px solid #e5e7eb;
+    outline: none;
+}
+
+.rcp-popup.rcp-has-views .rcp-view-strip {
+    display: flex;
+}
+
+.rcp-popup[data-focus="view"] .rcp-view-strip {
+    background: #fef3c7;
+    box-shadow: inset 2px 0 0 0 #d97706;
+}
+
+.rcp-view-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    background: #f3f4f6;
+    color: #1f2937;
+    border-radius: 12px;
+    font-size: 11px;
+    line-height: 1.4;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    border: 1px solid #e5e7eb;
+}
+
+.rcp-view-pill:hover {
+    background: #e5e7eb;
+}
+
+.rcp-view-pill-active {
+    background: #fde68a;
+    color: #78350f;
+    border-color: #d97706;
+    font-weight: 600;
+}
+
+.rcp-view-pill-focused {
+    background: #fbbf24;
+    border-color: #b45309;
+    color: #451a03;
+    box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.35);
+}
+
+/* Container count badge — small dimmed digit after the segment name on
+   tree-view container rows when the view declares show-count. */
+.rcp-row-count {
+    font-size: 11px;
+    color: #6b7280;
+    margin-left: 2px;
+    font-variant-numeric: tabular-nums;
+}
+
+.rcp-popup[data-focus="menu"] .rcp-row-selected .rcp-row-count {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+@media (prefers-color-scheme: dark) {
+    .rcp-view-strip {
+        background: #1f1d18;
+        border-bottom-color: #374151;
+    }
+    .rcp-popup[data-focus="view"] .rcp-view-strip {
+        background: #78350f;
+    }
+    .rcp-view-pill {
+        background: #2d2a23;
+        color: #f3f4f6;
+        border-color: #4b3a1f;
+    }
+    .rcp-view-pill:hover {
+        background: #3d3829;
+    }
+    .rcp-view-pill-active {
+        background: #92400e;
+        color: #fef3c7;
+        border-color: #fbbf24;
+    }
+    .rcp-view-pill-focused {
+        background: #b45309;
+        border-color: #fde68a;
+        color: #fef3c7;
+        box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.45);
+    }
+}
+
+/* Preset strip — thin row of pills, one per saved preset. Sits above
+   the view strip. Pills do NOT wrap (`flex-wrap: nowrap`); on overflow
+   the strip scrolls horizontally and keyboard navigation calls
+   `scrollIntoView` on the focused pill. Pink/rose accent distinguishes
+   presets from view (amber), filter (blue) and visibility (orange). */
+.rcp-preset-strip {
+    display: none;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 4px;
+    padding: 6px 14px;
+    background: #fdf2f8;
+    border-bottom: 1px solid #e5e7eb;
+    outline: none;
+    scroll-behavior: smooth;
+}
+
+.rcp-preset-strip::-webkit-scrollbar {
+    height: 4px;
+}
+.rcp-preset-strip::-webkit-scrollbar-track {
+    background: transparent;
+}
+.rcp-preset-strip::-webkit-scrollbar-thumb {
+    background: #f9a8d4;
+    border-radius: 2px;
+}
+
+.rcp-popup.rcp-has-presets .rcp-preset-strip {
+    display: flex;
+}
+
+.rcp-popup[data-focus="preset"] .rcp-preset-strip {
+    background: #fce7f3;
+    box-shadow: inset 2px 0 0 0 #be185d;
+}
+
+.rcp-preset-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    background: #fce7f3;
+    color: #831843;
+    border-radius: 12px;
+    font-size: 11px;
+    line-height: 1.4;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    border: 1px solid #fbcfe8;
+}
+
+.rcp-preset-pill:hover {
+    background: #fbcfe8;
+}
+
+.rcp-preset-pill-focused {
+    background: #f9a8d4;
+    border-color: #be185d;
+    color: #500724;
+    box-shadow: 0 0 0 2px rgba(190, 24, 93, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+    .rcp-preset-strip {
+        background: #1f1825;
+        border-bottom-color: #374151;
+    }
+    .rcp-preset-strip::-webkit-scrollbar-thumb {
+        background: #be185d;
+    }
+    .rcp-popup[data-focus="preset"] .rcp-preset-strip {
+        background: #500724;
+    }
+    .rcp-preset-pill {
+        background: #2b1d24;
+        color: #fce7f3;
+        border-color: #6b1839;
+    }
+    .rcp-preset-pill:hover {
+        background: #3d2530;
+    }
+    .rcp-preset-pill-focused {
+        background: #9d174d;
+        border-color: #fbcfe8;
+        color: #fdf2f8;
+        box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.45);
+    }
+}
+
+/* Strip labels — small dimmed uppercase prefix in front of each pill row
+   so the user knows at a glance what kind of strip they're on. Rendered
+   as `::before` so no JS changes are needed. `flex-shrink: 0` keeps the
+   label from collapsing when many pills crowd the row; `min-width`
+   forces all three labels to occupy the same horizontal column so each
+   strip's first pill lines up under the next strip's first pill. The
+   preset label is `position: sticky; left: 0` so it stays visible while
+   pills scroll horizontally past it — opaque background masks pills
+   passing underneath; the focused-strip tint carries through. */
+.rcp-preset-strip::before,
+.rcp-visibility-strip::before,
+.rcp-filter-strip::before,
+.rcp-view-strip::before {
+    flex-shrink: 0;
+    align-self: center;
+    min-width: 56px;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #9ca3af;
+    padding-right: 8px;
+    user-select: none;
+    pointer-events: none;
+}
+
+.rcp-preset-strip::before {
+    content: "Presets";
+    position: sticky;
+    left: 0;
+    background: #fdf2f8;
+    z-index: 1;
+}
+
+.rcp-popup[data-focus="preset"] .rcp-preset-strip::before {
+    background: #fce7f3;
+}
+
+.rcp-visibility-strip::before { content: "Visibility"; }
+.rcp-filter-strip::before     { content: "Filters"; }
+.rcp-view-strip::before       { content: "Views"; }
+
+@media (prefers-color-scheme: dark) {
+    .rcp-preset-strip::before,
+    .rcp-visibility-strip::before,
+    .rcp-filter-strip::before,
+    .rcp-view-strip::before {
+        color: #6b7280;
+    }
+    .rcp-preset-strip::before {
+        background: #1f1825;
+    }
+    .rcp-popup[data-focus="preset"] .rcp-preset-strip::before {
+        background: #500724;
+    }
+}
+
+/* Filter strip — pills that intersect every stage's data filter.
+   Sits below the visibility strip. Blue accent. Hidden when no filters
+   are active (the popup picks up `.rcp-has-filters` only when at least
+   one pill is present). The strip stays in the DOM so focus mechanics
+   work cleanly during transitions. */
+.rcp-filter-strip,
+.rcp-visibility-strip {
+    display: none;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px 14px;
+    border-bottom: 1px solid #e5e7eb;
+    outline: none;
+}
+
+.rcp-filter-strip {
+    background: #f9fafb;
+}
+.rcp-popup.rcp-has-filters .rcp-filter-strip {
+    display: flex;
+}
+.rcp-popup[data-focus="filter"] .rcp-filter-strip {
+    background: #eff6ff;
+    box-shadow: inset 2px 0 0 0 #2563eb;
+}
+
+/* Visibility strip — pills that hide root entries via predicate filter.
+   Red/orange accent communicates "removal". Hidden when no visibility
+   rules are active. */
+.rcp-visibility-strip {
+    background: #fef3f0;
+}
+.rcp-popup.rcp-has-visibility .rcp-visibility-strip {
+    display: flex;
+}
+.rcp-popup[data-focus="visibility"] .rcp-visibility-strip {
+    background: #fee2db;
+    box-shadow: inset 2px 0 0 0 #c2410c;
+}
+
+/* Pill — shared shell. The focused-class colour is overridden per
+   strip below to match the strip's accent. */
+.rcp-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: #e5e7eb;
+    color: #1f2937;
+    border-radius: 12px;
+    font-size: 11px;
+    line-height: 1.4;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+
+.rcp-pill:hover {
+    background: #d1d5db;
+}
+
+/* Default focused-pill (used by filter strip — blue). */
+.rcp-pill-focused {
+    background: #bfdbfe;
+    border-color: #2563eb;
+    color: #1e3a8a;
+}
+
+/* Override: visibility strip's focused-pill is orange/red. */
+.rcp-visibility-strip .rcp-pill-focused {
+    background: #fed7aa;
+    border-color: #c2410c;
+    color: #7c2d12;
+}
+
+.rcp-pill-remove {
+    font-size: 13px;
+    line-height: 1;
+    opacity: 0.55;
+    padding: 0 2px;
+    margin-left: 2px;
+}
+
+.rcp-pill:hover .rcp-pill-remove {
+    opacity: 1;
+}
+
+/* Input cue when the current text matches a filter prefix — blue
+   underline + the hint footer changes to "↵ commit filter: …". */
+.rcp-input.rcp-input-filter-match {
+    box-shadow: inset 0 -2px 0 0 #2563eb;
+    border-bottom-color: #2563eb;
+}
+
+/* Input cue when the current text matches a visibility prefix — orange
+   underline + "↵ commit visibility: …". */
+.rcp-input.rcp-input-visibility-match {
+    box-shadow: inset 0 -2px 0 0 #c2410c;
+    border-bottom-color: #c2410c;
+}
+
+/* Input cue when the current text matches a leader key — amber under-
+   line, distinct from filter/visibility tints. The 200ms idle window
+   commits the leader automatically; a further keystroke cancels. */
+.rcp-input.rcp-input-leader-match {
+    box-shadow: inset 0 -2px 0 0 #d97706;
+    border-bottom-color: #d97706;
+    background: #fffbeb;
+}
+
+/* Pill flash — brief amber pulse on a view/filter/visibility pill when
+   a leader action just changed it. Pure perceptual reinforcement that
+   the leader did something; no functional dependency. */
+@keyframes rcp-pill-flash {
+    0%   { background: #fde68a; }
+    50%  { background: #fbbf24; }
+    100% { background: inherit; }
+}
+
+.rcp-pill-flash {
+    animation: rcp-pill-flash 380ms ease-out;
+}
+
+@media (prefers-color-scheme: dark) {
+    .rcp-filter-strip {
+        background: #111827;
+        border-bottom-color: #374151;
+    }
+    .rcp-popup[data-focus="filter"] .rcp-filter-strip {
+        background: #1e3a8a;
+    }
+    .rcp-visibility-strip {
+        background: #1c1411;
+        border-bottom-color: #374151;
+    }
+    .rcp-popup[data-focus="visibility"] .rcp-visibility-strip {
+        background: #7c2d12;
+    }
+    .rcp-pill {
+        background: #374151;
+        color: #f3f4f6;
+    }
+    .rcp-pill:hover {
+        background: #4b5563;
+    }
+    .rcp-pill-focused {
+        background: #1e40af;
+        border-color: #60a5fa;
+        color: #dbeafe;
+    }
+    .rcp-visibility-strip .rcp-pill-focused {
+        background: #9a3412;
+        border-color: #fdba74;
+        color: #fed7aa;
+    }
+    .rcp-input.rcp-input-filter-match {
+        box-shadow: inset 0 -2px 0 0 #60a5fa;
+        border-bottom-color: #60a5fa;
+    }
+    .rcp-input.rcp-input-visibility-match {
+        box-shadow: inset 0 -2px 0 0 #fdba74;
+        border-bottom-color: #fdba74;
+    }
+    .rcp-input.rcp-input-leader-match {
+        box-shadow: inset 0 -2px 0 0 #fbbf24;
+        border-bottom-color: #fbbf24;
+        background: #1f1d18;
+    }
+    @keyframes rcp-pill-flash {
+        0%   { background: #92400e; }
+        50%  { background: #fbbf24; }
+        100% { background: inherit; }
+    }
+}
+
 .rcp-input {
     width: 100%;
     padding: 12px 14px;
@@ -223,10 +645,28 @@ type: text/css
     font-variant-numeric: tabular-nums;
 }
 
-/* Edit-mode visual: dim the result list so attention is on the input. */
-.rcp-popup.rcp-editing .rcp-results {
+/* Edit-mode visual: dim the result list so attention is on the input.
+   Save-mode (preset naming) uses the same treatment. */
+.rcp-popup.rcp-editing .rcp-results,
+.rcp-popup.rcp-saving .rcp-results {
     opacity: 0.35;
     pointer-events: none;
+}
+
+.rcp-popup.rcp-saving .rcp-input {
+    background: #ecfdf5;
+    color: #064e3b;
+    border-bottom-color: #10b981;
+    box-shadow: inset 0 -2px 0 0 #10b981;
+}
+
+@media (prefers-color-scheme: dark) {
+    .rcp-popup.rcp-saving .rcp-input {
+        background: #022c22;
+        color: #d1fae5;
+        border-bottom-color: #34d399;
+        box-shadow: inset 0 -2px 0 0 #34d399;
+    }
 }
 
 /* Parse-error state when committing a date / smart-parsed value fails —

@@ -1,0 +1,188 @@
+/*\
+title: $:/plugins/rimir/cascade-palette/widgets/cp-preset-pills
+type: application/javascript
+module-type: library
+
+Preset pill strip — horizontal scrollable row of preset bundles.
+
+Replaces the legacy Presets view (which presented saved bundles as
+result rows). The strip sits above the view strip and surfaces every
+preset as a pill; ← / → cycle focus across pills, ↵ applies the
+focused one. Pills overflow horizontally — they don't wrap. When
+focus moves past the visible edge, the focused pill is scrolled into
+view via `scrollIntoView({ inline: "nearest" })`.
+
+Pill ordering is static (`ca-order` field, then name). No MRU
+reordering — pills stay in the same visual position across sessions.
+
+\*/
+"use strict";
+
+var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
+var PRESET_TAG = C.PRESET_TAG;
+var DEFAULT_ORDER = C.DEFAULT_ORDER;
+
+module.exports = function (proto) {
+
+    // Discover all preset tiddlers, parse fields, sort by ca-order then
+    // name. Returns the cached list on subsequent calls until invalidated
+    // via `_invalidatePresetPills` (called from the wiki change hook when
+    // a preset tiddler changes / is deleted).
+    proto._loadPresetPills = function () {
+        if (this._presetPills) return this._presetPills;
+        var self = this;
+        var titles = this.wiki.filterTiddlers(
+            "[all[shadows+tiddlers]tag[" + PRESET_TAG + "]!has[draft.of]]"
+        );
+        var pills = titles.map(function (title) {
+            var t = self.wiki.getTiddler(title);
+            var f = (t && t.fields) || {};
+            var orderRaw = f["ca-order"];
+            var order = orderRaw !== undefined && orderRaw !== ""
+                ? parseFloat(orderRaw) : DEFAULT_ORDER;
+            if (isNaN(order)) order = DEFAULT_ORDER;
+            return {
+                title: title,
+                name: f["ca-preset-name"] || title.split("/").pop(),
+                hint: f["ca-preset-hint"] || "",
+                view: f["ca-preset-view"] || "",
+                constraintsJson: f["ca-preset-constraints"] || "{}",
+                order: order
+            };
+        });
+        pills.sort(function (a, b) {
+            if (a.order !== b.order) return a.order - b.order;
+            return a.name.localeCompare(b.name);
+        });
+        this._presetPills = pills;
+        return pills;
+    };
+
+    proto._invalidatePresetPills = function () {
+        this._presetPills = null;
+    };
+
+    // (Re)render the preset-strip pill row. Hidden via `rcp-has-presets`
+    // on the popup when no presets exist. The keyboard-focused pill (only
+    // meaningful while focus === "preset") gets the focused class and is
+    // scrolled into view so navigation across the overflow window feels
+    // continuous.
+    proto._renderPresetStrip = function () {
+        if (!this.presetStripEl) return;
+        while (this.presetStripEl.firstChild) {
+            this.presetStripEl.removeChild(this.presetStripEl.firstChild);
+        }
+        var pills = this._loadPresetPills();
+        var hasAny = pills.length > 0;
+        if (this.popupEl) {
+            this.popupEl.classList.toggle("rcp-has-presets", hasAny);
+        }
+        if (!hasAny) return;
+        if (this.presetFocusIdx >= pills.length) {
+            this.presetFocusIdx = Math.max(0, pills.length - 1);
+        }
+        var self = this;
+        var focusedEl = null;
+        pills.forEach(function (preset, i) {
+            var pillEl = self.document.createElement("span");
+            var cls = "rcp-preset-pill";
+            if (self.focus === "preset" && i === self.presetFocusIdx) {
+                cls += " rcp-preset-pill-focused";
+                focusedEl = pillEl;
+            }
+            pillEl.className = cls;
+            pillEl.textContent = preset.name;
+            if (preset.hint) pillEl.title = preset.hint;
+            pillEl.dataset.presetIdx = String(i);
+            pillEl.addEventListener("mousedown", function (e) {
+                e.preventDefault();
+                self.presetFocusIdx = i;
+                self._applyPreset(preset.title);
+            });
+            self.presetStripEl.appendChild(pillEl);
+        });
+        // Scroll the focused pill into view in the horizontal overflow.
+        // Defer one frame so the just-appended DOM has layout.
+        if (focusedEl) {
+            var target = focusedEl;
+            setTimeout(function () {
+                try {
+                    target.scrollIntoView({ inline: "nearest", block: "nearest" });
+                } catch (err) { /* ignore — older browsers */ }
+            }, 0);
+        }
+    };
+
+    // Render the focused preset's snapshot into the details pane.
+    // Mirrors _maybeRenderViewHelp so the user gets the same level of
+    // affordance from a preset pill as from a view pill.
+    proto._maybeRenderPresetHelp = function () {
+        if (this.focus !== "preset") return;
+        var pills = this._loadPresetPills();
+        if (!pills.length) return;
+        var preset = pills[this.presetFocusIdx];
+        if (!preset) return;
+        while (this.previewEl.firstChild) {
+            this.previewEl.removeChild(this.previewEl.firstChild);
+        }
+        var titleEl = this.document.createElement("div");
+        titleEl.className = "rcp-preview-title";
+        titleEl.textContent = preset.name;
+        this.previewEl.appendChild(titleEl);
+        if (preset.hint) {
+            var helpEl = this.document.createElement("div");
+            helpEl.className = "rcp-details-help";
+            helpEl.textContent = preset.hint;
+            this.previewEl.appendChild(helpEl);
+        }
+        var rows = [];
+        // View name (resolved from the cached views table) — fall back
+        // to the raw title if the view was uninstalled.
+        var viewName = preset.view;
+        var viewMeta = this._getViewByTitle(preset.view);
+        if (viewMeta) viewName = viewMeta.name;
+        if (preset.view) rows.push(["View", viewName]);
+        // Filters / Visibility summary: list each as "name(arg)" with the
+        // human name resolved from the constraint tiddler. Empty list
+        // shows "(none)" explicitly so authors know the field was parsed.
+        var bundle;
+        try { bundle = JSON.parse(preset.constraintsJson); }
+        catch (err) { bundle = {}; }
+        if (!bundle || typeof bundle !== "object") bundle = {};
+        var filtersList = Array.isArray(bundle.filters) ? bundle.filters : [];
+        var visList = Array.isArray(bundle.visibility) ? bundle.visibility : [];
+        function describe(list, metas) {
+            if (!list.length) return "(none)";
+            return list.map(function (s) {
+                var meta = null;
+                for (var i = 0; i < metas.length; i++) {
+                    if (metas[i].title === s.title) { meta = metas[i]; break; }
+                }
+                var label = (meta && meta.name) || s.title || "?";
+                return s.arg ? label + "(" + s.arg + ")" : label;
+            }).join(", ");
+        }
+        rows.push(["Filters", describe(filtersList, this._loadFilterTiddlers())]);
+        rows.push(["Visibility", describe(visList, this._loadVisibilityTiddlers())]);
+        rows.push(["Preset tiddler", preset.title]);
+        var dl = this.document.createElement("dl");
+        dl.className = "rcp-preview-fields";
+        rows.forEach(function (row) {
+            var dt = this.document.createElement("dt");
+            dt.textContent = row[0];
+            var dd = this.document.createElement("dd");
+            dd.textContent = row[1];
+            dl.appendChild(dt);
+            dl.appendChild(dd);
+        }, this);
+        this.previewEl.appendChild(dl);
+        this.popupEl.classList.add("rcp-previewing");
+    };
+
+    // Number of preset pills — used by _cycleFocus to decide whether the
+    // preset section participates in the Tab cycle.
+    proto._presetPillCount = function () {
+        return this._loadPresetPills().length;
+    };
+
+};

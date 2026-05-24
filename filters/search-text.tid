@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/filters/search-text
+tags: $:/tags/rimir/cascade-palette/filter
+ca-filter-name: Search any tiddler text
+ca-filter-prefix: /
+ca-filter-arg: text
+ca-filter-expr: +[!is[system]search:title,text<arg>]
+ca-filter-chip: text: "<<arg>>"
+ca-filter-hint: Restrict results to tiddlers whose title or body contains the text.
+ca-filter-help: Searches title and body, case-insensitive. System tiddlers are excluded. Stacks with other filters.
+ca-order: 100

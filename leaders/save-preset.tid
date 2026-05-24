@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/leaders/save-preset
+tags: $:/tags/rimir/cascade-palette/leader
+ca-leader-key: s
+ca-leader-name: Save preset
+ca-leader-hint: Save current view + filters + visibility as a named preset
+ca-leader-help: Opens a mini-prompt where you type the preset's display name. Enter saves; Esc cancels. The preset captures the active view, every active filter, and every active visibility rule (with their arguments), so a later `r` can replay this exact state.
+ca-leader-actions: <$action-sendmessage $message="rimir-cascade-palette-save-preset"/>
+ca-order: 400

@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/leaders/recall-preset
+tags: $:/tags/rimir/cascade-palette/leader
+ca-leader-key: r
+ca-leader-name: Recall preset
+ca-leader-hint: Jump focus to the preset pill strip
+ca-leader-help: Moves focus to the preset pill strip at the top. Use ←/→ to select a preset and Enter to apply it (replaces the filter + visibility pills and switches view). Esc returns to the input.
+ca-leader-actions: <$action-sendmessage $message="rimir-cascade-palette-recall-preset"/>
+ca-order: 410

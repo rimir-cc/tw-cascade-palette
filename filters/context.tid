@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/filters/context
+tags: $:/tags/rimir/cascade-palette/filter
+ca-filter-name: From current tiddler
+ca-filter-prefix: @
+ca-filter-arg: tiddler
+ca-filter-expr: +[<arg>tagging[]]
+ca-filter-chip: from: <<arg>>
+ca-filter-hint: Restrict results to tiddlers tagged with the named tiddler.
+ca-filter-help: When the palette opens it captures the tiddler that owned focus (the "context tiddler") and exposes it as `<<context-tiddler>>` to all filters. The `@` filter is an explicit opt-in: type `@<title>` to filter results to tiddlers tagged with that title — i.e. its "children" in TW's tagging hierarchy.
+ca-order: 150

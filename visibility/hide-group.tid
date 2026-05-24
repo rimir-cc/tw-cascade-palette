@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/visibility/hide-group
+tags: $:/tags/rimir/cascade-palette/visibility
+ca-visibility-name: Hide a group
+ca-visibility-prefix: hide:
+ca-visibility-arg: text
+ca-visibility-expr: [<currentTiddler>get[ca-group]match<arg>]
+ca-visibility-chip: hide: <<arg>>
+ca-visibility-hint: Remove entries belonging to a group from the root menu.
+ca-visibility-help: Matches the `ca-group` field on root entries. E.g. `hide: appify` removes all entries grouped under "appify". Has no effect on dynamic result lists deeper in the cascade.
+ca-order: 130

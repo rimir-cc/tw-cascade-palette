@@ -36,7 +36,7 @@ The keyboard router does one of:
 Filter and action wikitext receives a synthetic widget context that exposes:
 
 * `<<query>>` — current input
-* `<<picked>>` — the item picked in the current stage (for actions; empty during scope evaluation)
+* `<<picked>>` — the item picked in the current stage (for actions; empty during `ca-next-scope` evaluation)
 * `<<parent-picked>>` — the item picked in the parent stage
 * `<<stage-N-picked>>` — the item picked at stage index N (root = 0)
 

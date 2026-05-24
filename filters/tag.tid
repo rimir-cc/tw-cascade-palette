@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/filters/tag
+tags: $:/tags/rimir/cascade-palette/filter
+ca-filter-name: Filter by tag
+ca-filter-prefix: #
+ca-filter-arg: tag
+ca-filter-expr: +[tag<arg>]
+ca-filter-chip: #<<arg>>
+ca-filter-hint: Restrict results to tiddlers carrying the given tag.
+ca-filter-help: Type the tag name after `#`. Stacks with other filters — e.g. `#draft` plus `prefix:work/` narrows to draft tiddlers under `work/`.
+ca-order: 110

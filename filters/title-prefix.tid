@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/filters/title-prefix
+tags: $:/tags/rimir/cascade-palette/filter
+ca-filter-name: Restrict to title prefix
+ca-filter-prefix: prefix:
+ca-filter-arg: text
+ca-filter-expr: +[prefix<arg>]
+ca-filter-chip: prefix: <<arg>>
+ca-filter-hint: Keep only tiddlers whose title starts with the given string.
+ca-filter-help: Useful for namespaced wikis (e.g. `work/`, `private/`, `$:/plugins/`). The prefix is matched literally — no globbing.
+ca-order: 120

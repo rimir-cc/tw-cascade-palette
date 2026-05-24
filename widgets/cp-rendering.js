@@ -1,0 +1,589 @@
+/*\
+title: $:/plugins/rimir/cascade-palette/widgets/cp-rendering
+type: application/javascript
+module-type: library
+
+DOM rendering — breadcrumb, input, result list, per-row dispatch,
+details drawer with template tabs / fields fallback.
+
+Row rendering is split into three phases per row:
+  - icon slot (left)     — _renderRowIcon
+  - name (centre, flex)  — always rendered inline
+  - value slot (right)   — _renderRowValue, dispatches by kind
+The dispatcher (_appendResultRow) also handles the row container,
+selection state, click handler, and chevron for drill rows.
+
+\*/
+"use strict";
+
+var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
+var TEMPLATE_TAG = C.TEMPLATE_TAG;
+var DEFAULT_ORDER = C.DEFAULT_ORDER;
+
+module.exports = function (proto) {
+
+    /* ---------- stage rendering ---------- */
+
+    proto.renderStage = function () {
+        this.renderBreadcrumb();
+        this.renderInput();
+        this.renderResults();
+    };
+
+    proto.renderBreadcrumb = function () {
+        while (this.breadcrumbEl.firstChild) {
+            this.breadcrumbEl.removeChild(this.breadcrumbEl.firstChild);
+        }
+        var self = this;
+        this.stack.forEach(function (stage, i) {
+            if (i > 0) {
+                var sep = self.document.createElement("span");
+                sep.className = "rcp-breadcrumb-sep";
+                sep.textContent = " › ";
+                self.breadcrumbEl.appendChild(sep);
+            }
+            var seg = self.document.createElement("span");
+            seg.className = "rcp-breadcrumb-seg";
+            if (i < self.stack.length - 1) {
+                seg.classList.add("rcp-breadcrumb-clickable");
+                seg.addEventListener("mousedown", function (e) {
+                    e.preventDefault();
+                    self.popToDepth(i);
+                    self.inputEl.focus();
+                });
+            }
+            seg.textContent = stage.title;
+            self.breadcrumbEl.appendChild(seg);
+        });
+    };
+
+    proto.renderInput = function () {
+        var stage = this.topStage();
+        if (!stage) return;
+        this.inputEl.value = stage.query || "";
+    };
+
+    proto.renderResults = function () {
+        while (this.resultsEl.firstChild) {
+            this.resultsEl.removeChild(this.resultsEl.firstChild);
+        }
+        var stage = this.topStage();
+        if (!stage) return;
+        if (stage.results.length === 0) {
+            var emptyEl = this.document.createElement("li");
+            emptyEl.className = "rcp-empty";
+            emptyEl.textContent = "No results";
+            this.resultsEl.appendChild(emptyEl);
+            return;
+        }
+        var self = this;
+        this._selectedRowEl = null;
+
+        // Headers suppressed when all results belong to a single group
+        // (matches breadcrumb-hide-on-root behaviour) AND for tree views
+        // entirely (the tree structure already organises items; group
+        // headers from plugin source would be redundant noise).
+        // `stage.results` is already reordered into visual-group sequence
+        // by `applyQueryToStage`, so a single pass with prev-group
+        // tracking is enough.
+        var groupingOn = this._isGroupingEnabledForStage(stage);
+        var distinct = {};
+        var distinctCount = 0;
+        stage.results.forEach(function (item) {
+            var g = item.group || "";
+            if (!(g in distinct)) { distinct[g] = true; distinctCount++; }
+        });
+        var showHeaders = groupingOn && distinctCount > 1;
+        var prevGroup = null;
+
+        stage.results.forEach(function (item, i) {
+            var g = item.group || "";
+            if (showHeaders && g !== prevGroup) {
+                var headerEl = self.document.createElement("li");
+                headerEl.className = "rcp-group-header";
+                headerEl.textContent = g || "Other";
+                self.resultsEl.appendChild(headerEl);
+                prevGroup = g;
+            }
+            self._appendResultRow(item, i, stage);
+        });
+
+        if (self._selectedRowEl && self._selectedRowEl.scrollIntoView) {
+            self._selectedRowEl.scrollIntoView({ block: "nearest" });
+        }
+        // Preview drawer mirrors the selected row — refresh content whenever
+        // the result list re-renders (arrow nav, stage push/pop, etc.).
+        if (this.detailsOpen) this.renderDetails();
+    };
+
+    proto._appendResultRow = function (item, i, stage) {
+        var self = this;
+        var rowEl = this.document.createElement("li");
+        rowEl.className =
+            "rcp-row" + (i === stage.selectedIndex ? " rcp-row-selected" : "");
+        if (item.kind === "drill") rowEl.classList.add("rcp-row-drill");
+        if (item.kind === "toggle") rowEl.classList.add("rcp-row-toggle");
+        // Hover help — ca-hint is shown as a subtitle in some rows but is
+        // ALSO surfaced as the native HTML tooltip on every row, so even
+        // settings rows (which use the right slot for the bound value) get
+        // discoverable help text.
+        if (item.hint) rowEl.title = item.hint;
+
+        this._renderRowIcon(rowEl, item);
+
+        var nameEl = this.document.createElement("span");
+        nameEl.className = "rcp-row-name";
+        nameEl.textContent = item.name;
+        rowEl.appendChild(nameEl);
+
+        // Tree container count badge — opt-in via `ca-view-show-count`.
+        // Sits in the value slot before the regular renderRowValue chain
+        // so it doesn't fight with hint/title text on plain rows.
+        if (item._treeContainer && item._childCount !== undefined) {
+            var view = this._getViewByTitle(stage.viewTitle || this.activeView);
+            if (view && view.showCount) {
+                var fmt = view.countFormat || " (<<count>>)";
+                var badgeEl = this.document.createElement("span");
+                badgeEl.className = "rcp-row-count";
+                badgeEl.textContent = String(fmt)
+                    .replace(/<<count>>/g, String(item._childCount));
+                rowEl.appendChild(badgeEl);
+            }
+        }
+
+        this._renderRowValue(rowEl, item);
+
+        // Overridden-default marker — small dot after the value, before any
+        // chevron. Only meaningful for bindable kinds.
+        if (this.isOverridden(item)) {
+            var dotEl = this.document.createElement("span");
+            dotEl.className = "rcp-row-overridden";
+            dotEl.textContent = "●";
+            dotEl.title = "Overridden — DEL to restore default";
+            rowEl.appendChild(dotEl);
+        }
+
+        if (item.kind === "drill") {
+            var chevronEl = this.document.createElement("span");
+            chevronEl.className = "rcp-row-chevron";
+            chevronEl.textContent = "›";
+            rowEl.appendChild(chevronEl);
+        }
+
+        rowEl.addEventListener("mousedown", function (e) {
+            e.preventDefault();
+            stage.selectedIndex = i;
+            self.setFocus("menu");
+            self.fireSelected(e.shiftKey);
+        });
+
+        if (i === stage.selectedIndex) {
+            this._selectedRowEl = rowEl;
+        }
+        this.resultsEl.appendChild(rowEl);
+    };
+
+    // For toggles, a checkbox glyph occupies the icon slot. For other kinds,
+    // ca-icon takes the slot. Slot is shared so the visual column lines up.
+    proto._renderRowIcon = function (rowEl, item) {
+        if (item.kind === "toggle") {
+            var on = this.isToggleOn(item);
+            var cbEl = this.document.createElement("span");
+            cbEl.className = "rcp-row-checkbox" + (on ? " rcp-row-checkbox-on" : "");
+            cbEl.textContent = on ? "☑" : "☐";
+            rowEl.appendChild(cbEl);
+            return;
+        }
+        if (item.icon) {
+            var iconEl = this.document.createElement("span");
+            iconEl.className = "rcp-row-icon";
+            iconEl.textContent = item.icon;
+            rowEl.appendChild(iconEl);
+        }
+    };
+
+    // Right-aligned slot — dispatches by kind. Kept as a sequence of small
+    // helpers so adding a new kind (Phase D's slider/enum etc.) doesn't
+    // require touching the dispatcher.
+    proto._renderRowValue = function (rowEl, item) {
+        switch (item.kind) {
+            case "toggle": this._renderToggleValue(rowEl, item); return;
+            case "text":   this._renderTextValue(rowEl, item); return;
+            case "number": this._renderNumberValue(rowEl, item); return;
+            case "date":   this._renderDateValue(rowEl, item); return;
+        }
+        // Drill carrying a binding (e.g. ref/enum picker sub-drill in a
+        // field-edit flow): surface the currently-bound value on the right
+        // so the user can see their pick without having to drill in again.
+        if (item.kind === "drill" && item.bindTiddler && item.bindField) {
+            this._renderBoundDrillValue(rowEl, item);
+            return;
+        }
+        // Non-edit kinds.
+        if (item.isItem && item.rawTitle && item.rawTitle !== item.name) {
+            var titleEl = this.document.createElement("span");
+            titleEl.className = "rcp-row-title";
+            titleEl.textContent = item.rawTitle;
+            titleEl.title = item.rawTitle;
+            rowEl.appendChild(titleEl);
+            return;
+        }
+        if (item.hint) {
+            var hintEl = this.document.createElement("span");
+            hintEl.className = "rcp-row-hint";
+            hintEl.textContent = item.hint;
+            rowEl.appendChild(hintEl);
+        }
+    };
+
+    proto._renderToggleValue = function (rowEl, item) {
+        var raw = this.readBoundValue(item);
+        var displayed = raw === undefined || raw === null || raw === ""
+            ? "(unset)"
+            : (this.isToggleOn(item) ? item.trueValue : item.falseValue);
+        var valueEl = this.document.createElement("span");
+        valueEl.className = "rcp-row-value";
+        valueEl.textContent = displayed;
+        rowEl.appendChild(valueEl);
+    };
+
+    // Resolve a tiddler reference to a human caption — prefer the target
+    // tiddler's `caption` field; fall back to the raw title.
+    proto._displayRef = function (val) {
+        if (!val) return "";
+        var t = this.wiki.getTiddler(String(val));
+        var caption = t && t.fields && t.fields.caption;
+        return caption ? String(caption) : String(val);
+    };
+
+    proto._renderBoundDrillValue = function (rowEl, item) {
+        var raw = this.readBoundValue(item);
+        var text;
+        if (raw === undefined || raw === null || raw === "") {
+            text = "(unset)";
+        } else if (Array.isArray(raw)) {
+            // string-array multi-select: comma-join captions for compactness.
+            var self = this;
+            text = raw.length
+                ? raw.map(function (v) { return self._displayRef(v); }).join(", ")
+                : "(unset)";
+        } else {
+            text = this._displayRef(String(raw)) || "(unset)";
+        }
+        var valueEl = this.document.createElement("span");
+        valueEl.className = "rcp-row-value rcp-row-value-text";
+        valueEl.textContent = text;
+        valueEl.title = text;
+        rowEl.appendChild(valueEl);
+    };
+
+    proto._renderTextValue = function (rowEl, item) {
+        var raw = this.readBoundValue(item);
+        var text = raw === undefined || raw === null ? "(unset)" : String(raw);
+        var valueEl = this.document.createElement("span");
+        valueEl.className = "rcp-row-value rcp-row-value-text";
+        valueEl.textContent = text;
+        valueEl.title = text;  // full value on hover when truncated
+        rowEl.appendChild(valueEl);
+    };
+
+    proto._renderDateValue = function (rowEl, item) {
+        var raw = this._readBoundRaw(item);
+        var valueEl = this.document.createElement("span");
+        valueEl.className = "rcp-row-value rcp-row-value-date";
+        if (raw === undefined || raw === null || raw === "") {
+            valueEl.textContent = "(unset)";
+            rowEl.appendChild(valueEl);
+            return;
+        }
+        // Format the stored TW date string via the item's ca-date-format.
+        // Falls back to whatever fromField produces if formatting fails.
+        var formatted = "";
+        try {
+            var d = $tw.utils.parseDate(String(raw));
+            if (d && !isNaN(d.getTime())) {
+                formatted = $tw.utils.formatDateString(d, item.dateFormat || "DD.MM.YYYY");
+            }
+        } catch (err) { /* fall through */ }
+        if (!formatted) {
+            formatted = this.readBoundValue(item) || String(raw);
+        }
+        valueEl.textContent = formatted;
+        valueEl.title = formatted;
+        rowEl.appendChild(valueEl);
+    };
+
+    proto._renderNumberValue = function (rowEl, item) {
+        var nVal = this.readNumberValue(item);
+        var hasRange = item.minValue !== null && item.maxValue !== null
+            && item.maxValue > item.minValue;
+        if (hasRange) {
+            var barWrap = this.document.createElement("span");
+            barWrap.className = "rcp-row-slider";
+            var fillEl = this.document.createElement("span");
+            fillEl.className = "rcp-row-slider-fill";
+            var frac = (nVal - item.minValue) / (item.maxValue - item.minValue);
+            if (frac < 0) frac = 0;
+            if (frac > 1) frac = 1;
+            fillEl.style.width = (frac * 100) + "%";
+            barWrap.appendChild(fillEl);
+            rowEl.appendChild(barWrap);
+        }
+        var numEl = this.document.createElement("span");
+        numEl.className = "rcp-row-value";
+        numEl.textContent = String(nVal) + (item.unit || "");
+        rowEl.appendChild(numEl);
+    };
+
+    /* ---------- details drawer ---------- */
+
+    proto.renderDetails = function () {
+        var stage = this.topStage();
+        if (!stage || !stage.results.length) {
+            this.hidePreview();
+            return;
+        }
+        var picked = stage.results[stage.selectedIndex];
+        if (!picked || !picked.title) {
+            this.hidePreview();
+            return;
+        }
+
+        // Reset template-tab index when the selected row changes.
+        if (this._detailsCache && this._detailsCache.title !== picked.title) {
+            this.detailsTemplateIdx = 0;
+        }
+
+        while (this.previewEl.firstChild) {
+            this.previewEl.removeChild(this.previewEl.firstChild);
+        }
+
+        var headerEl = this.document.createElement("div");
+        headerEl.className = "rcp-preview-title";
+        headerEl.textContent = picked.title;
+        this.previewEl.appendChild(headerEl);
+
+        // Confirm-stage consequence banner — surfaces what DEL or Enter
+        // will do. Pre-empts both help text and templates so the user
+        // sees the destructive consequence first.
+        if (stage.kind === "confirm" && stage.consequenceText) {
+            var consEl = this.document.createElement("div");
+            consEl.className = "rcp-details-consequence";
+            consEl.textContent = stage.consequenceText;
+            this.previewEl.appendChild(consEl);
+        }
+
+        var helpText = this._resolveHelpText(picked);
+        if (helpText) {
+            var helpEl = this.document.createElement("div");
+            helpEl.className = "rcp-details-help";
+            helpEl.textContent = helpText;
+            this.previewEl.appendChild(helpEl);
+        }
+
+        // Overridden-default banner — surfaces the shadow value so the user
+        // knows what DEL would restore. Bindable kinds only.
+        if (this.isOverridden(picked)) {
+            var defaultValue = this.getDefaultValue(picked);
+            var defEl = this.document.createElement("div");
+            defEl.className = "rcp-details-default";
+            defEl.textContent = "Default: " + (defaultValue === undefined || defaultValue === ""
+                ? "(empty)" : String(defaultValue));
+            this.previewEl.appendChild(defEl);
+        }
+
+        var templates = this.findTemplatesFor(picked.title);
+        var renderedTemplate = false;
+
+        if (templates.length > 0) {
+            // Clamp template index to current set.
+            if (this.detailsTemplateIdx >= templates.length) {
+                this.detailsTemplateIdx = 0;
+            }
+            if (templates.length > 1) {
+                this.previewEl.appendChild(this._buildTemplateTabStrip(templates));
+            }
+            var bodyEl = this._renderTemplateBody(picked.title, templates[this.detailsTemplateIdx]);
+            if (bodyEl) {
+                this.previewEl.appendChild(bodyEl);
+                renderedTemplate = true;
+            }
+        }
+
+        // Fields-table fallback only when nothing else applies.
+        if (!renderedTemplate && !helpText) {
+            this._appendFieldsTable(picked.title);
+        }
+
+        this.popupEl.classList.add("rcp-previewing");
+    };
+
+    proto.hidePreview = function () {
+        this.popupEl.classList.remove("rcp-previewing");
+    };
+
+    proto._resolveHelpText = function (item) {
+        if (!item) return "";
+        // Synthetic items (ca-items-from) have no backing tiddler; the
+        // help text lives on the item itself rather than as ca-help on
+        // a real tiddler.
+        if (!item.title) return item.hint || "";
+        var t = this.wiki.getTiddler(item.title);
+        var f = (t && t.fields) || {};
+        // ca-help (multiline, long-form) wins over ca-hint (subtitle/tooltip).
+        return f["ca-help"] || f["ca-hint"] || item.hint || "";
+    };
+
+    // Discover applicable templates for a given tiddler title. A template
+    // tiddler is tagged TEMPLATE_TAG; `ca-template-applies` is a filter
+    // evaluated with `currentTiddler` bound to the picked title — if the
+    // filter returns the picked title, the template applies. Missing
+    // filter → universal template (applies to everything). Sorted by
+    // `ca-order` ascending.
+    proto.findTemplatesFor = function (title) {
+        var self = this;
+        var titles = this.wiki.filterTiddlers(
+            "[all[shadows+tiddlers]tag[" + TEMPLATE_TAG + "]]"
+        );
+        var matches = [];
+        titles.forEach(function (tplTitle) {
+            var t = self.wiki.getTiddler(tplTitle);
+            var f = (t && t.fields) || {};
+            var applies = f["ca-template-applies"];
+            if (applies) {
+                try {
+                    var results = self.wiki.filterTiddlers(
+                        applies,
+                        self.makeFakeWidget({ currentTiddler: title })
+                    );
+                    if (results.indexOf(title) === -1) return;
+                } catch (err) {
+                    if (console && console.warn) {
+                        console.warn(
+                            "[cascade-palette] ca-template-applies error on",
+                            tplTitle, "—", err && err.message
+                        );
+                    }
+                    return;
+                }
+            }
+            var orderRaw = f["ca-order"];
+            var order = orderRaw !== undefined && orderRaw !== ""
+                ? parseFloat(orderRaw) : DEFAULT_ORDER;
+            if (isNaN(order)) order = DEFAULT_ORDER;
+            matches.push({
+                title: tplTitle,
+                name: f["ca-template-name"] || tplTitle.split("/").pop(),
+                order: order
+            });
+        });
+        matches.sort(function (a, b) {
+            if (a.order !== b.order) return a.order - b.order;
+            return a.name.localeCompare(b.name);
+        });
+        return matches;
+    };
+
+    proto._buildTemplateTabStrip = function (templates) {
+        var self = this;
+        var stripEl = this.document.createElement("div");
+        stripEl.className = "rcp-details-tabs";
+        templates.forEach(function (tpl, idx) {
+            var tabEl = self.document.createElement("span");
+            tabEl.className = "rcp-details-tab" +
+                (idx === self.detailsTemplateIdx ? " rcp-details-tab-active" : "");
+            tabEl.textContent = tpl.name;
+            tabEl.title = tpl.title;
+            tabEl.addEventListener("mousedown", function (e) {
+                e.preventDefault();
+                self.detailsTemplateIdx = idx;
+                self._detailsCache = null;  // template changed → invalidate
+                self.setFocus("details");
+                self.renderDetails();
+            });
+            stripEl.appendChild(tabEl);
+        });
+        return stripEl;
+    };
+
+    // Render a template tiddler's wikitext with `currentTiddler` bound to
+    // the picked title. Uses the standard TW transclude-style: parse the
+    // template, make a widget tree, render to a real DOM container, return
+    // the container. Cached by (title, templateIdx).
+    proto._renderTemplateBody = function (pickedTitle, template) {
+        var cache = this._detailsCache;
+        if (cache && cache.title === pickedTitle &&
+            cache.templateIdx === this.detailsTemplateIdx &&
+            cache.dom) {
+            return cache.dom;
+        }
+        var container = this.document.createElement("div");
+        container.className = "rcp-details-template";
+        try {
+            var parser = this.wiki.parseTiddler(template.title);
+            var widgetNode = this.wiki.makeWidget(parser, {
+                parentWidget: this.findActionParent() || $tw.rootWidget,
+                document: this.document,
+                variables: { currentTiddler: pickedTitle }
+            });
+            widgetNode.render(container, null);
+        } catch (err) {
+            if (console && console.warn) {
+                console.warn(
+                    "[cascade-palette] template render error",
+                    template.title, "—", err && err.message
+                );
+            }
+            container.textContent = "(template render error: " +
+                (err && err.message) + ")";
+        }
+        this._detailsCache = {
+            title: pickedTitle,
+            templateIdx: this.detailsTemplateIdx,
+            dom: container
+        };
+        return container;
+    };
+
+    proto._appendFieldsTable = function (title) {
+        var t = this.wiki.getTiddler(title);
+        if (!t) {
+            var noEl = this.document.createElement("div");
+            noEl.className = "rcp-preview-empty";
+            noEl.textContent = "(no tiddler — likely a transient filter result)";
+            this.previewEl.appendChild(noEl);
+            return;
+        }
+        var fields = t.fields || {};
+        var keys = Object.keys(fields)
+            .filter(function (k) { return k !== "title"; })
+            .sort(function (a, b) {
+                if (a === "text") return 1;
+                if (b === "text") return -1;
+                return a.localeCompare(b);
+            });
+        if (keys.length === 0) {
+            var nf = this.document.createElement("div");
+            nf.className = "rcp-preview-empty";
+            nf.textContent = "(no fields besides title)";
+            this.previewEl.appendChild(nf);
+            return;
+        }
+        var dl = this.document.createElement("dl");
+        dl.className = "rcp-preview-fields";
+        for (var i = 0; i < keys.length; i++) {
+            var k = keys[i];
+            var v = fields[k];
+            var str = v === null || v === undefined ? "" : String(v);
+            var dt = this.document.createElement("dt");
+            dt.textContent = k;
+            var dd = this.document.createElement("dd");
+            dd.textContent = str;
+            if (k === "text") dd.classList.add("rcp-preview-body");
+            dl.appendChild(dt);
+            dl.appendChild(dd);
+        }
+        this.previewEl.appendChild(dl);
+    };
+
+};

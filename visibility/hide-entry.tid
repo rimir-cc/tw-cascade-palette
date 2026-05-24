@@ -1,0 +1,9 @@
+title: $:/plugins/rimir/cascade-palette/visibility/hide-entry
+tags: $:/tags/rimir/cascade-palette/visibility
+ca-visibility-name: Hide selected entry
+ca-visibility-arg: tiddler
+ca-visibility-expr: [<currentTiddler>match<arg>]
+ca-visibility-chip: hide: <<arg>>
+ca-visibility-hint: Remove one specific entry from the root menu.
+ca-visibility-help: Added via Shift-DEL on a root entry row. Resolved by exact title match. Multiple hide-entry pills can coexist (one per hidden entry).
+ca-order: 140
