@@ -57,21 +57,22 @@ module.exports = function (proto) {
             }
             return;
         }
-        // Tier 2a' — Esc cancels pick-mode globally (input / menu / etc.)
-        // before the section-specific Esc handlers run, so the user can
-        // bail out of a sub-pick from any focus.
-        if (e.key === "Escape" && this._pickModeReturnTo) {
-            e.preventDefault();
-            this._cancelPickMode();
-            return;
-        }
-        // Tier 2a'' — Shift-Esc closes the palette directly from any
-        // focus and any depth. Bare Esc walks the breadcrumb back one
-        // stage at a time; Shift-Esc is the "I'm done" shortcut that
-        // collapses the whole stack in one keystroke.
+        // Tier 2a' — Shift-Esc closes the palette directly from any
+        // focus and any depth. Comes FIRST so it bypasses pick-mode
+        // cleanup (the user explicitly chose "I'm done", not "back out
+        // of pick-mode"). Bare Esc walks the breadcrumb back one stage
+        // at a time.
         if (e.key === "Escape" && e.shiftKey) {
             e.preventDefault();
             this.close();
+            return;
+        }
+        // Tier 2a'' — bare Esc cancels pick-mode globally (input / menu
+        // / etc.) before the section-specific Esc handlers run, so the
+        // user can bail out of a sub-pick from any focus.
+        if (e.key === "Escape" && this._pickModeReturnTo) {
+            e.preventDefault();
+            this._cancelPickMode();
             return;
         }
         // Tier 2b — global Ctrl-DEL clears both constraint strips

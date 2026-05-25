@@ -8,7 +8,7 @@ type: text/vnd.tiddlywiki
 
 ! What it is
 
-A keyboard-driven, ''cascading'' command palette engine. The user opens it with one hotkey, types to filter a menu, and uses ''Tab / Esc / Enter'' to navigate stages of progressively narrower choices.
+A keyboard-driven, ''cascading'' command palette engine. The user opens it with one hotkey, types to filter a menu, and uses ''→ / Space / Esc / Enter'' to navigate stages of progressively narrower choices (Esc walks one stage back; Shift-Esc closes from any depth).
 
 The novelty (vs. flat palettes like souk21/commandpalette or VS Code's Cmd-P) is that picking an item ''drills'' into a new stage — and that stage's items can be follow-up actions on the picked entity, or further drills into related sets. The result feels like Raycast on macOS, but powered by declarative tiddler data instead of code.
 
@@ -17,7 +17,7 @@ The novelty (vs. flat palettes like souk21/commandpalette or VS Code's Cmd-P) is
 * ''Generic engine'' — no domain knowledge. The same widget serves any catalogue plugin that ships ''entry'' and ''action'' tiddlers.
 * ''Declarative cascades'' — extending the palette is writing one tiddler per cascade edge. No JS. No widget changes.
 * ''Filter substitution'' — `<<query>>`, `<<picked>>`, `<<parent-picked>>` available in any filter or action wikitext.
-* ''Keyboard-first'' — Up/Down/Tab/Esc/Enter. Left/Right keep normal cursor semantics inside the input.
+* ''Keyboard-first'' — Up/Down/Tab/Esc/Enter/→/Space. Esc walks one stage back (closes only at root from input), Shift-Esc closes from any depth. Left/Right inside the input keep normal cursor semantics.
 
 ! Catalogue plugins
 

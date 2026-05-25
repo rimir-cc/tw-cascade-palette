@@ -481,16 +481,14 @@ module.exports = function (proto) {
             return;
         }
 
-        // Drill entry/action → push filter stage. parent-picked propagation:
-        //   - From root: no parent-picked (entries don't have one).
-        //   - From action menu: keep the menu's parent-picked (the entity).
-        //   - From filter (e.g. nested cascade entry): keep current parent.
-        // Either `ca-next-scope` or `ca-items-from` qualifies the drill.
+        // Drill entry/action → push filter stage. parent-picked is inherited
+        // from the current stage uniformly (action-menu and filter stages
+        // both carry it; root has none). Either `ca-next-scope` or
+        // `ca-items-from` qualifies the drill.
         if (picked.kind === "drill" && (picked.nextScope || picked.itemsFrom)) {
-            var parentPicked = stage.kind === "actions"
-                ? (stage.parentPicked || null)
-                : (stage.parentPicked || null);
-            this.pushStage(this.buildFilterStage(picked, parentPicked));
+            this.pushStage(this.buildFilterStage(
+                picked, stage.parentPicked || null
+            ));
             return;
         }
 
@@ -507,7 +505,10 @@ module.exports = function (proto) {
             ));
             return;
         }
-        // Tab on a leaf is a no-op.
+        // Right-arrow on a leaf without an entity-type or next-scope is a
+        // no-op — Space on that leaf would also no-op since the kind-
+        // specific Space handlers (toggle/text/etc.) don't claim it
+        // either. Use Enter to fire the leaf's action.
     };
 
 };

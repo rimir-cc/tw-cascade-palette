@@ -50,11 +50,11 @@ ca-next-scope: [rrt.type[person]search<query>]
 ca-next-entity-type: person
 ```
 
-Paired with action tiddlers having `ca-entity-type: person`, Tab on a person opens the action menu.
+Paired with action tiddlers having `ca-entity-type: person`, Right-arrow (or Space) on a person opens the action menu.
 
 ! 4. Cross-entity drill chain
 
-Persons → action menu → "Assigned Teams" (drill into person's teams) → Tab a team → team's action menu → "Members" (drill into team's members) → Tab a member → person's action menu (again, but for the new person).
+Persons → action menu → "Assigned Teams" (drill into person's teams) → Right-arrow a team → team's action menu → "Members" (drill into team's members) → Right-arrow a member → person's action menu (again, but for the new person).
 
 The graph composes — no need to write a "Tasks of team members" macro; just hop through the existing edges.
 
@@ -70,7 +70,7 @@ ca-next-scope: [[low]] [[normal]] [[high]] [[critical]]
 ca-next-default-action: <$action-setfield $tiddler=<<parent-picked>> priority=<<picked>>/>
 ```
 
-User: Tasks → drill → highlight task → Tab → "Set Priority…" → pick "high" → Enter → task.priority = "high".
+User: Tasks → drill → highlight task → Right-arrow → "Set Priority…" → pick "high" → Enter → task.priority = "high".
 
 ! 6. List-append (multi-value field) mutation
 

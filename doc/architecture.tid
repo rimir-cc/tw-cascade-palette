@@ -14,22 +14,28 @@ type: text/vnd.tiddlywiki
 
 ! Stage stack
 
-The palette is a stack of stages, growing on Tab, shrinking on Esc. Stage shapes:
+The palette is a stack of stages, growing on Right-arrow / Space / Enter-on-drill, shrinking on Esc / ArrowLeft. Stage shapes:
 
 ;`kind: "root"`
 :The initial stage. Items come from tiddlers tagged `$:/tags/rimir/cascade-palette/entry`, sorted by `ca-order` then `ca-name`.
+;`kind: "tree"`
+:A tree-stage from a view's structure layer. Pushed when the user Right-arrows into a container (tree node with children). The parent path is carried in `parentPath`; child rows come from the originating layer's `ca-layer-children` filter (or the view's `ca-view-children` for implicit-layer views).
 ;`kind: "filter"`
 :A stage scoped by a filter expression. Pushed when the user drills from a `ca-kind: drill` entry or action. Items are dynamic — tiddler titles (or bare strings) returned by `ca-next-scope`.
 ;`kind: "actions"`
-:An action-menu stage. Pushed when the user Tab's on a dynamic entity item in a filter stage. Items are tiddlers tagged `$:/tags/rimir/cascade-palette/action` whose `ca-entity-type` matches the dynamic item's type (plus globals tagged `ca-entity-type: *`).
+:An action-menu stage. Pushed when the user Right-arrows on a typed leaf (via `ca-layer-row-entity-type`), Space's on any typed row (leaf or container), or drills on a dynamic entity item in a filter stage. Items are tiddlers tagged `$:/tags/rimir/cascade-palette/action` whose `ca-entity-type` matches the resolved type (plus globals tagged `ca-entity-type: *`), further narrowed by each action's optional `ca-action-when` applicability filter.
+;`kind: "confirm"`
+:A two-row Confirm / Cancel stage pushed when a leaf action carries `ca-confirm: yes`, or on Delete-on-row for destructive list operations. The consequence text shows in the details drawer.
 
 The keyboard router does one of:
 
 * ''Type'' → update current stage's `query`, recompute items.
 * ''Up/Down'' → move `selectedIndex`.
-* ''Tab'' → drill from the selected item (push new stage).
+* ''Right-arrow'' → drill from the selected item (push new stage). On typed leaves, pushes the action-menu stage.
+* ''Space'' → on toggle/text/number/date kinds, kind-specific edit; on any other row with a non-empty entity type, pushes the action-menu stage (works for containers too).
 * ''Enter'' → fire the selected item's default behaviour (leaf action OR push if drill).
-* ''Esc'' → pop top stage; if stack depth == 1, close the palette entirely.
+* ''Esc'' → pop one stage. From input at root depth, closes the palette; from menu at root depth, refocuses input.
+* ''Shift-Esc'' → close the palette from any focus and any depth in one keystroke.
 
 ! Variable substitution
 

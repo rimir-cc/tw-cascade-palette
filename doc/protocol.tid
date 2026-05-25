@@ -8,7 +8,7 @@ type: text/vnd.tiddlywiki
 
 ! The cascade-palette protocol
 
-A cascade is a graph of ''entries'' (root-stage items) and ''actions'' (items in the per-entity-type action menu). The engine walks this graph as the user types and presses Tab/Esc/Enter. Adding a new cascade edge is one tiddler.
+A cascade is a graph of ''entries'' (root-stage items) and ''actions'' (items in the per-entity-type action menu). The engine walks this graph as the user types and presses ''→ / Space / Esc / Enter''. Adding a new cascade edge is one tiddler.
 
 Each tiddler has a tag and a small set of `ca-*` fields. The engine reads them at every palette-open.
 
@@ -493,7 +493,7 @@ ca-layer-row-actions: <$action-navigate $to=<<currentTiddler>>/>
 ca-layer-row-entity-type: [[inbox-item]]
 ```
 
-The view above shows projects (with their nested tasks under each) alongside an inbox list. Right-arrow on a task row opens the action-menu stage of type `task` — actions tagged `$:/tags/rimir/cascade-palette/action` with `ca-entity-type: task` populate it. Right-arrow on an inbox row opens `inbox-item` actions.
+The view above shows projects (with their nested tasks under each) alongside an inbox list. ''Right-arrow'' on a task ''leaf'' opens the action-menu stage of type `task` — actions tagged `$:/tags/rimir/cascade-palette/action` with `ca-entity-type: task` populate it. ''Space'' opens the same menu on any typed row — including containers (Projects) where Right-arrow keeps its descend-into-children semantic. So a project ''container'' is reached for actions via Space; an inbox ''leaf'' via either Right-arrow or Space.
 
 Layer-name → default `ca-group` mapping kicks in automatically: with result-list grouping enabled, the menu shows section headers ''Projects'' and ''Inbox''. Per-row overrides (`ca-layer-row-group`) still take precedence when set.
 
