@@ -129,6 +129,7 @@ module.exports = function (proto) {
             case "visibility":  this._handleKeydownVisibility(e, stage); return;
             case "view":        this._handleKeydownView(e, stage); return;
             case "viewconfig":  this._handleKeydownViewConfig(e, stage); return;
+            case "leader":      this._handleKeydownLeader(e, stage); return;
             case "preset":      this._handleKeydownPreset(e, stage); return;
             case "details":     this._handleKeydownDetails(e, stage); return;
         }
@@ -546,10 +547,30 @@ module.exports = function (proto) {
         }
     };
 
+    var LEADER_KEY_DESC = {
+        getCount:    function () { return this._leaderPillCount(); },
+        getFocusIdx: function () { return this.leaderFocusIdx; },
+        setFocusIdx: function (i) { this.leaderFocusIdx = i; },
+        render:      function () { this._renderLeaderStrip(); },
+        maybeHelp:   function () { this._maybeRenderLeaderHelp(); },
+        enterAcceptsSpace: true,
+        onEnter:     function (i) {
+            var leaders = this._visibleLeaders();
+            var leader = leaders[i];
+            if (!leader) return;
+            this._fireLeader(leader);
+            // _fireLeader's actions may switch view / focus input. If
+            // the leader strip is still populated for the new view,
+            // restore focus so keyboard activation feels sticky.
+            if (this._leaderPillCount() > 0) this.setFocus("leader");
+        }
+    };
+
     proto._handleKeydownFilter     = function (e) { this._handleKeydownPillStrip(e, FILTER_KEY_DESC); };
     proto._handleKeydownVisibility = function (e) { this._handleKeydownPillStrip(e, VISIBILITY_KEY_DESC); };
     proto._handleKeydownView       = function (e) { this._handleKeydownPillStrip(e, VIEW_KEY_DESC); };
     proto._handleKeydownPreset     = function (e) { this._handleKeydownPillStrip(e, PRESET_KEY_DESC); };
+    proto._handleKeydownLeader     = function (e) { this._handleKeydownPillStrip(e, LEADER_KEY_DESC); };
 
     proto._handleKeydownDetails = function (e, stage) {
         if (e.key === "Escape") {
@@ -588,7 +609,8 @@ module.exports = function (proto) {
     proto._isPillFocus = function (f) {
         f = f || this.focus;
         return f === "preset" || f === "visibility" ||
-               f === "filter" || f === "view" || f === "viewconfig";
+               f === "filter" || f === "view" || f === "viewconfig" ||
+               f === "leader";
     };
 
     // Step out of viewconfig vertically into an adjacent pill section
@@ -707,6 +729,11 @@ module.exports = function (proto) {
         // to-bottom in the same order the strips are rendered.
         if (this._hasViewConfigToShow && this._hasViewConfigToShow()) {
             order.push("viewconfig");
+        }
+        // Leader strip sits just above the input — included only when
+        // at least one leader is visible for the active view.
+        if (this._leaderPillCount && this._leaderPillCount() > 0) {
+            order.push("leader");
         }
         return order;
     };

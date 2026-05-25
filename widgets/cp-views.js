@@ -779,10 +779,24 @@ module.exports = function (proto) {
         if (this.viewConfigFocusIdx >= pillList.length) {
             this.viewConfigFocusIdx = Math.max(0, pillList.length - 1);
         }
+        var focusedPillEl = null;
         for (var i = 0; i < pillList.length; i++) {
             if (i === this.viewConfigFocusIdx) {
                 pillList[i].el.classList.add("rcp-view-config-pill-focused");
+                focusedPillEl = pillList[i].el;
             }
+        }
+        // Each per-layer row scrolls horizontally on overflow (long
+        // filter expressions can blow past the popup width). Scroll the
+        // focused pill into view in its own row — defer one frame so
+        // the just-appended DOM has layout.
+        if (focusedPillEl && this.focus === "viewconfig") {
+            var target = focusedPillEl;
+            setTimeout(function () {
+                try {
+                    target.scrollIntoView({ inline: "nearest", block: "nearest" });
+                } catch (err) { /* older browsers */ }
+            }, 0);
         }
         // Make pill clicks focus that pill (mirrors other strips).
         pillList.forEach(function (entry, idx) {
@@ -977,7 +991,7 @@ module.exports = function (proto) {
             if (view.sort === "by-field" && view.sortField) {
                 sortVal = "by-field: " + view.sortField;
             } else if (view.sort === "custom" && view.sortKey) {
-                sortVal = "custom: " + this._truncate(view.sortKey, 60);
+                sortVal = "custom: " + view.sortKey;
             }
             pills.push({ kind: "sort", label: "sort", value: sortVal });
         }
@@ -1015,48 +1029,16 @@ module.exports = function (proto) {
 
     proto._layerPills = function (layer) {
         var pills = [];
-        if (layer.roots) {
-            pills.push({ kind: "roots", label: "roots", value: this._truncate(layer.roots, 80) });
-        }
-        if (layer.children) {
-            pills.push({ kind: "children", label: "children", value: this._truncate(layer.children, 80) });
-        }
-        if (layer.leaf) {
-            pills.push({ kind: "leaf", label: "leaf", value: this._truncate(layer.leaf, 60) });
-        }
-        if (layer.label) {
-            pills.push({ kind: "label", label: "label", value: this._truncate(layer.label, 60) });
-        }
-        if (layer.rowActions) {
-            pills.push({
-                kind: "actions",
-                label: "Enter",
-                value: this._truncate(layer.rowActions, 70)
-            });
-        }
-        if (layer.rowEntityType) {
-            pills.push({
-                kind: "entity-type",
-                label: "→actions",
-                value: this._truncate(layer.rowEntityType, 50)
-            });
-        }
-        if (layer.rowName) {
-            pills.push({ kind: "row-name", label: "name", value: this._truncate(layer.rowName, 50) });
-        }
-        if (layer.rowGroup) {
-            pills.push({ kind: "row-group", label: "group", value: this._truncate(layer.rowGroup, 50) });
-        }
-        if (layer.rowKind) {
-            pills.push({ kind: "row-kind", label: "kind", value: this._truncate(layer.rowKind, 50) });
-        }
+        if (layer.roots)         pills.push({ kind: "roots",        label: "roots",    value: layer.roots });
+        if (layer.children)      pills.push({ kind: "children",     label: "children", value: layer.children });
+        if (layer.leaf)          pills.push({ kind: "leaf",         label: "leaf",     value: layer.leaf });
+        if (layer.label)         pills.push({ kind: "label",        label: "label",    value: layer.label });
+        if (layer.rowActions)    pills.push({ kind: "actions",      label: "Enter",    value: layer.rowActions });
+        if (layer.rowEntityType) pills.push({ kind: "entity-type",  label: "→actions", value: layer.rowEntityType });
+        if (layer.rowName)       pills.push({ kind: "row-name",     label: "name",     value: layer.rowName });
+        if (layer.rowGroup)      pills.push({ kind: "row-group",    label: "group",    value: layer.rowGroup });
+        if (layer.rowKind)       pills.push({ kind: "row-kind",     label: "kind",     value: layer.rowKind });
         return pills;
-    };
-
-    proto._truncate = function (s, max) {
-        if (!s) return "";
-        var str = String(s);
-        return str.length > max ? str.slice(0, max - 1) + "…" : str;
     };
 
     // ===================================================================
@@ -1123,6 +1105,10 @@ module.exports = function (proto) {
         this.stack = [this.buildRootStage()];
         this.recomputeStage(this.topStage());
         this._renderViewStrip();
+        // Leader visibility is per-view (ca-leader-views) — re-render
+        // the strip so leaders scoped to the previous view drop out and
+        // leaders scoped to the new view appear.
+        if (this._renderLeaderStrip) this._renderLeaderStrip();
         this._refreshPresetActiveCue();
         this.renderStage();
         if (this._leaderFiring) this._flashActiveViewPill();

@@ -118,6 +118,9 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this._leaderTimer = null;
         this._leaderPending = null;   // the leader meta currently mid-press
         this._leaderFiring = false;
+        // Focus index within the leader pill strip — meaningful while
+        // this.focus === "leader".
+        this.leaderFocusIdx = 0;
         // Mini-prompt mode for "Save preset". Shape similar to editMode.
         this.saveMode = null;
         // Pick-mode return-target — set when a pick-mode view is entered,
@@ -210,6 +213,15 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.viewConfigFocusIdx = 0;
         this.viewConfigExpanded = false;
 
+        // Leader strip — pills surfacing the keyed gestures (e.g. `x`,
+        // `>`, `s`, `r`). Hidden via `rcp-has-leaders` on the popup when
+        // no leader is visible for the active view (per-view scope via
+        // `ca-leader-views`). Focusable for click + keyboard activation,
+        // mirroring the typed-gesture path.
+        this.leaderStripEl = this.document.createElement("div");
+        this.leaderStripEl.className = "rcp-leader-strip";
+        this.leaderStripEl.setAttribute("tabindex", "-1");
+
         // Visibility strip — pills that hide root entries (predicate
         // filters). Sits ABOVE the filter strip in the visual hierarchy
         // because "removal" reads as a more drastic operation than
@@ -262,6 +274,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         popup.appendChild(this.filterStripEl);
         popup.appendChild(this.viewStripEl);
         popup.appendChild(this.viewConfigStripEl);
+        popup.appendChild(this.leaderStripEl);
         popup.appendChild(this.inputEl);
         popup.appendChild(this.resultsEl);
         popup.appendChild(this.previewEl);
@@ -418,6 +431,19 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             }
         });
 
+        // Leader strip — same shape as the other pill strips. Background
+        // click focuses; pill click fires that leader (handled per-pill
+        // in _renderLeaderStrip).
+        this.leaderStripEl.addEventListener("mousedown", function (e) {
+            if (e.target === self.leaderStripEl) self.setFocus("leader");
+        });
+        this.leaderStripEl.addEventListener("focus", function () {
+            if (self.focus !== "leader") {
+                self.focus = "leader";
+                self._applyFocusAttr();
+            }
+        });
+
         this.backdropEl.addEventListener("mousedown", function (e) {
             if (e.target === self.backdropEl) self.close();
         });
@@ -478,6 +504,32 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                         self.activePresetBaseline = null;
                     }
                     if (self.open) self._renderPresetStrip();
+                }
+                // Same hook for leader tiddlers — invalidate the leader
+                // cache and re-render the strip when a leader-tagged
+                // tiddler changes / is deleted.
+                var leaderTagName = C.LEADER_TAG;
+                var leadersChanged = false;
+                Object.keys(changes).forEach(function (title) {
+                    if (leadersChanged) return;
+                    var cached = self._leadersCache;
+                    if (cached) {
+                        for (var i = 0; i < cached.length; i++) {
+                            if (cached[i].title === title) {
+                                leadersChanged = true;
+                                return;
+                            }
+                        }
+                    }
+                    var t = self.wiki.getTiddler(title);
+                    var tags = (t && t.fields && t.fields.tags) || [];
+                    if (tags.indexOf(leaderTagName) >= 0) {
+                        leadersChanged = true;
+                    }
+                });
+                if (leadersChanged) {
+                    self._invalidateLeadersCache();
+                    if (self.open) self._renderLeaderStrip();
                 }
                 if (self.open) {
                     // Any tiddler change while open might affect a bound
@@ -683,6 +735,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this._renderViewStrip();
         this._renderVisibilityStrip();
         this._renderFilterStrip();
+        this._renderLeaderStrip();
         this.renderStage();
         this._applyFocusAttr();
         if (this.detailsOpen) this.renderDetails();
@@ -768,7 +821,8 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (section !== "input" && section !== "menu" &&
             section !== "details" && section !== "filter" &&
             section !== "visibility" && section !== "view" &&
-            section !== "preset" && section !== "viewconfig") return;
+            section !== "preset" && section !== "viewconfig" &&
+            section !== "leader") return;
         // Don't allow focusing a strip with no pills — it would be a dead
         // end visually and a confusing Tab destination.
         if (section === "filter" && (!this.filters || this.filters.length === 0)) {
@@ -791,6 +845,11 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // structure to show (no layers, or layers but no pills) — focus
         // would land on a strip the user can't interact with.
         if (section === "viewconfig" && !this._hasViewConfigToShow()) {
+            section = "input";
+        }
+        // Same for the leader strip when no leader is visible for the
+        // active view.
+        if (section === "leader" && this._leaderPillCount() === 0) {
             section = "input";
         }
         // Don't focus the details pane when the drawer isn't actually
@@ -841,6 +900,14 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             this.viewConfigStripEl.focus();
             this._renderViewConfigStrip();
             this._maybeRenderViewConfigHelp();
+        } else if (section === "leader") {
+            var leaderCount = this._leaderPillCount();
+            if (this.leaderFocusIdx >= leaderCount) {
+                this.leaderFocusIdx = Math.max(0, leaderCount - 1);
+            }
+            this.leaderStripEl.focus();
+            this._renderLeaderStrip();
+            this._maybeRenderLeaderHelp();
         } else if (section === "view") {
             // Initialise focus index to the currently-active view so arrow
             // motion starts from the user's current location, not always
@@ -873,10 +940,13 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (prevFocus === "viewconfig" || section === "viewconfig") {
             this._renderViewConfigStrip();
         }
+        if (prevFocus === "leader" || section === "leader") {
+            this._renderLeaderStrip();
+        }
         // Leaving a strip-focus while details is open: the pane was showing
         // strip help — refresh it to show the current menu selection so
         // the user gets per-row preview again.
-        var stripFoci = { filter: 1, visibility: 1, view: 1, preset: 1, viewconfig: 1 };
+        var stripFoci = { filter: 1, visibility: 1, view: 1, preset: 1, viewconfig: 1, leader: 1 };
         if (stripFoci[prevFocus] && !stripFoci[section] && this.detailsOpen) {
             this.renderDetails();
         }
@@ -903,6 +973,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 ? C.HINT_VIEWCONFIG_EXPANDED
                 : C.HINT_VIEWCONFIG_COMPACT;
         }
+        else if (this.focus === "leader")     this.hintEl.textContent = C.HINT_LEADER;
         else if (this.focus === "preset") {
             // Per-pill hint variants. The trailing "+" pill (idx ===
             // pills.length) gets a save-specific hint; on real presets,

@@ -3,19 +3,29 @@ title: $:/plugins/rimir/cascade-palette/widgets/cp-leaders
 type: application/javascript
 module-type: library
 
-Leader subsystem — key + idle-window gesture.
+Leader subsystem — key + idle-window gesture, plus pill-row surface.
 
 A leader is a tiddler tagged `$:/tags/rimir/cascade-palette/leader`
 declaring a key (`ca-leader-key`) and a wikitext action chain
-(`ca-leader-actions`). When the input matches the key exactly AND
-stays idle for `ca-leader-idle-ms` ms (default 200), the actions
-fire. Any keystroke during the idle window cancels.
+(`ca-leader-actions`). Two activation paths:
+
+  - Typed gesture: input text exactly matches the key AND the user
+    stays idle for `ca-leader-idle-ms` ms (default 200) — the leader
+    fires. Any keystroke during the idle window cancels.
+  - Pill activation: a dedicated leader pill row surfaces every
+    visible leader as a `[key] name` pill; ←/→ navigates, ↵ fires.
+
+Per-view scope. A leader may declare `ca-leader-views` — a filter
+producing a list of view titles. The leader is then visible (in the
+pill row AND matchable by the typed gesture) only when one of those
+views is active. Empty / missing `ca-leader-views` means the leader
+is global (always available).
 
 Leaders subsume the previous "Add scope" / "Reset scopes" entries:
-discoverable via the details pane (`ca-leader-help` rendered when
-a leader is pending), composable (one tiddler can declare any
-combination of set-view / set-filter / set-visibility / apply-preset
-actions).
+discoverable via the pill row + details pane (`ca-leader-help`
+rendered when a pill is focused or a leader is pending), composable
+(one tiddler can declare any combination of set-view / set-filter
+/ set-visibility / apply-preset actions).
 
 \*/
 "use strict";
@@ -46,22 +56,66 @@ module.exports = function (proto) {
                 help: f["ca-leader-help"] || "",
                 idleMs: idleMs,
                 actions: f["ca-leader-actions"] || "",
+                viewsFilter: f["ca-leader-views"] || "",
                 order: self._parseNumOrDefault(f["ca-order"], DEFAULT_ORDER)
             };
         }).filter(function (l) { return l.key; });
-        // Greedy by key length so multi-char leaders win over single-char
-        // ones (`>>` beats `>` when input is `>>`).
-        leaders.sort(function (a, b) { return b.key.length - a.key.length; });
+        // Stable visual order: ca-order, then name. The typed-gesture
+        // path needs greedy key-length matching, so the pill array is
+        // sorted by order while _detectLeader scans a length-sorted view.
+        leaders.sort(function (a, b) {
+            if (a.order !== b.order) return a.order - b.order;
+            return a.name.localeCompare(b.name);
+        });
         this._leadersCache = leaders;
         return leaders;
     };
 
+    proto._invalidateLeadersCache = function () {
+        this._leadersCache = null;
+    };
+
+    // Per-leader view-scope test. Empty filter = global (always visible).
+    // Non-empty filter resolves to a list of view titles; the leader is
+    // visible iff the active view's title appears in that list.
+    proto._isLeaderVisibleForActiveView = function (leader) {
+        if (!leader.viewsFilter) return true;
+        if (!this.activeView) return false;
+        var titles;
+        try {
+            titles = this.wiki.filterTiddlers(
+                leader.viewsFilter,
+                this.makeFakeWidget({ currentTiddler: this.activeView })
+            );
+        } catch (err) {
+            return false;
+        }
+        return titles.indexOf(this.activeView) >= 0;
+    };
+
+    // Leaders matching the active view — the set the user actually sees
+    // in the pill row, and the set the typed-gesture path matches against.
+    proto._visibleLeaders = function () {
+        var self = this;
+        return this._loadLeaders().filter(function (l) {
+            return self._isLeaderVisibleForActiveView(l);
+        });
+    };
+
+    proto._leaderPillCount = function () {
+        return this._visibleLeaders().length;
+    };
+
     // Find the leader whose key exactly matches the input. Returns null
     // when no leader is pending (input is empty, has extra chars, or no
-    // declared leader matches).
+    // visible leader matches). Scans by descending key length so multi-
+    // char leaders win over single-char ones (`>>` beats `>` when input
+    // is `>>`).
     proto._detectLeader = function (text) {
         if (!text) return null;
-        var leaders = this._loadLeaders();
+        var leaders = this._visibleLeaders().slice().sort(function (a, b) {
+            return b.key.length - a.key.length;
+        });
         for (var i = 0; i < leaders.length; i++) {
             if (text === leaders[i].key) return leaders[i];
         }
@@ -101,9 +155,9 @@ module.exports = function (proto) {
         return true;
     };
 
-    // Render the pending leader's help into the details pane. Mirrors
-    // the strip-help shape — title, help text, key+actions summary as a
-    // fields table.
+    // Render a leader's help into the details pane. Used by both the
+    // typed-gesture pending state and the pill-row focus state — same
+    // payload either way (the leader IS the thing being previewed).
     proto._renderLeaderHelp = function (leader) {
         if (!leader || !this.previewEl) return;
         while (this.previewEl.firstChild) {
@@ -121,6 +175,7 @@ module.exports = function (proto) {
             ["Key", leader.key],
             ["Idle", leader.idleMs + "ms"]
         ];
+        if (leader.viewsFilter) rows.push(["Views", leader.viewsFilter]);
         if (leader.actions) rows.push(["Actions", leader.actions]);
         rows.push(["Leader tiddler", leader.title]);
         var dl = this.document.createElement("dl");
@@ -135,6 +190,74 @@ module.exports = function (proto) {
         }, this);
         this.previewEl.appendChild(dl);
         this.popupEl.classList.add("rcp-previewing");
+    };
+
+    // Render the leader pill strip. One pill per visible leader, label
+    // is "[key] name". The strip is hidden via `rcp-has-leaders` when
+    // no leaders are visible for the active view. Keyboard-focused pill
+    // (only meaningful while focus === "leader") gets the focused class.
+    proto._renderLeaderStrip = function () {
+        if (!this.leaderStripEl) return;
+        while (this.leaderStripEl.firstChild) {
+            this.leaderStripEl.removeChild(this.leaderStripEl.firstChild);
+        }
+        var leaders = this._visibleLeaders();
+        if (this.popupEl) {
+            this.popupEl.classList.toggle("rcp-has-leaders", leaders.length > 0);
+        }
+        if (this.leaderFocusIdx >= leaders.length) {
+            this.leaderFocusIdx = Math.max(0, leaders.length - 1);
+        }
+        var self = this;
+        var focusedEl = null;
+        leaders.forEach(function (leader, i) {
+            var pillEl = self.document.createElement("span");
+            var cls = "rcp-leader-pill";
+            if (self.focus === "leader" && i === self.leaderFocusIdx) {
+                cls += " rcp-leader-pill-focused";
+                focusedEl = pillEl;
+            }
+            pillEl.className = cls;
+            // Two-part label: the key as a kbd-like prefix, then the
+            // human name. The CSS gives the key chip its own background
+            // so it reads as a press-this affordance.
+            var keyEl = self.document.createElement("span");
+            keyEl.className = "rcp-leader-pill-key";
+            keyEl.textContent = leader.key;
+            pillEl.appendChild(keyEl);
+            var nameEl = self.document.createElement("span");
+            nameEl.className = "rcp-leader-pill-name";
+            nameEl.textContent = leader.name;
+            pillEl.appendChild(nameEl);
+            if (leader.hint) pillEl.title = leader.hint;
+            pillEl.dataset.leaderIdx = String(i);
+            pillEl.addEventListener("mousedown", function (e) {
+                e.preventDefault();
+                self.leaderFocusIdx = i;
+                self._fireLeader(leader);
+            });
+            self.leaderStripEl.appendChild(pillEl);
+        });
+        if (focusedEl) {
+            var target = focusedEl;
+            setTimeout(function () {
+                try {
+                    target.scrollIntoView({ inline: "nearest", block: "nearest" });
+                } catch (err) { /* older browsers */ }
+            }, 0);
+        }
+    };
+
+    // Render the focused leader's help into the details pane. Mirrors
+    // _maybeRenderViewHelp / _maybeRenderPresetHelp — only acts when
+    // focus is on this strip, otherwise the menu's per-row preview owns
+    // the details pane.
+    proto._maybeRenderLeaderHelp = function () {
+        if (this.focus !== "leader") return;
+        var leaders = this._visibleLeaders();
+        var leader = leaders[this.leaderFocusIdx];
+        if (!leader) return;
+        this._renderLeaderHelp(leader);
     };
 
     // Fire a leader's action wikitext. Clears the input + cue state
