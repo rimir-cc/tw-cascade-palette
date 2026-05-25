@@ -177,15 +177,14 @@ module.exports = function (proto) {
     proto._handleKeydownMenu = function (e, stage) {
         if (e.key === "Escape") {
             e.preventDefault();
-            // In an action subtree (action menu or a confirm pushed from
-            // one), Esc pops one stage directly and keeps focus on the
-            // menu — so backing out of a wrong action drill is one
-            // keystroke that lands the user on the prior menu, ready to
-            // pick again. Other stage kinds (tree / filter / root) keep
-            // the legacy "Esc refocuses input" behaviour so typing to
-            // filter the current level is a single keystroke away.
-            if (stage && (stage.kind === "actions" || stage.kind === "confirm")
-                && this.stack.length > 1) {
+            // At any depth > 1, Esc-in-menu pops one stage and keeps
+            // focus on the menu — symmetric with ArrowLeft and with
+            // Esc-in-input. The user walks the breadcrumb right-to-left
+            // keystroke-by-keystroke from anywhere, instead of bouncing
+            // through input on the way. At root depth (no stage to pop),
+            // Esc refocuses input so the user can type to filter root
+            // results.
+            if (this.stack.length > 1) {
                 this.popStage();
                 return;
             }
