@@ -10,7 +10,7 @@ type: text/vnd.tiddlywiki
 
 The palette is one popup with up to seven focusable sections, partitioned into two groups:
 
-* ''pills group'' (top of the palette, visually stacked): ''preset'' (always present — trailing ''+'' pill is the save-as affordance even when no presets exist), ''visibility'' (only when ≥ 1 visibility rule active), ''filter'' (only when ≥ 1 filter active), ''view'' (only when ≥ 2 views declared). Below the view strip a read-only ''structure'' row depicts the active view's composition: a view-scoped header row (sort, pick-mode, entries-mode) followed by one mini-row per structure layer (roots/children/leaf/label + row decorations + entity-type). Built-in layers (the synthetic ''entries'' layer auto-appended to tree views) render muted to flag their automatic nature. Not focusable in this version — purely informational.
+* ''pills group'' (top of the palette, visually stacked): ''preset'' (always present — trailing ''+'' pill is the save-as affordance even when no presets exist), ''visibility'' (only when ≥ 1 visibility rule active), ''filter'' (only when ≥ 1 filter active), ''view'' (only when ≥ 2 views declared), ''structure'' (always present when the active view declares any layers). The structure strip has a ''two-stage'' interaction model: on focus it shows a ''compact'' summary row (view name, layer count + composition, view-scoped pills sort/entries/grouping); pressing ''Enter / Space / →'' expands it to the full stacked layout (view-scoped header row + one mini-row per layer with all primitive pills — roots/children/leaf/label + row decorations + entity-type). Built-in layers (the synthetic ''entries'' layer auto-appended to tree views) render muted to flag their automatic nature. ''Esc'' from expanded collapses back to compact; ''Esc'' from compact refocuses input.
 * ''main group'': ''input'' (search box), ''menu'' (result list), ''details'' (preview drawer, only when open)
 
 The active section gets the browser-level focus and a visual cue; keyboard gestures route accordingly. ''Tab'' cycles within the current group; ''Shift-Tab'' jumps between groups (lands on the bottom-most pill when entering pills, on input when returning). ''↑ / ↓'' inside the pill group walks vertically across rows — ↑ from input enters pills at the bottom-most row, ↓ from the bottom-most pill drops back into input. ''Esc'' walks the stack back one step keystroke-by-keystroke: in input or menu focus it pops the current stage at any depth > 1, and from a pill section it returns focus to input. At root depth, Esc-from-input closes the palette and Esc-from-menu refocuses input. ''Shift-Esc'' is the universal "I'm done" — closes from any focus and any depth in one keystroke.
@@ -19,7 +19,7 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 
 |!Key |!Section |!Action |
 |''Ctrl-Space'' |any |Open the palette |
-|''Tab'' |any |Cycle focus within the current group only: pills (preset → visibility → filter → view) or main (input → menu → details). Rows only join the cycle when active. |
+|''Tab'' |any |Cycle focus within the current group only: pills (preset → visibility → filter → view → structure) or main (input → menu → details). Rows only join the cycle when active. |
 |''Shift-Tab'' |any |Jump between the two groups. From main → bottom-most active pill; from pills → input. |
 |''Enter'' |input / menu / details |Fire the selected item and close the palette. ''Exception:'' in input focus, if the current text matches a known filter or visibility prefix with a non-empty argument, Enter commits that pill instead. |
 |''Ctrl-Enter'' |any |Fire the selected item but keep the palette open. Shift-Enter is a silent alias for back-compat (removed in v0.3). |
@@ -41,6 +41,12 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''Home / End'' |preset |Jump focus to the first preset / to the ''+'' save pill (last position) |
 |''DEL / Backspace'' |filter / visibility |Remove the focused pill |
 |''Enter'' |filter / visibility |Move focus into the details pane to scroll through the full help text |
+|''↵ / Space / →'' |structure (compact) |Expand the strip to the full per-layer layout (first pill focused) |
+|''↑ / ↓'' |structure (compact) |Walk to adjacent pill section (up = previous, down = next or input) |
+|''← / →'' |structure (expanded) |Move focus between pills within the current sub-row |
+|''↑ / ↓'' |structure (expanded) |Move focus across sub-rows. ↑ at topmost sub-row ''collapses'' and steps into the pill section above; ↓ at bottommost sub-row collapses and steps into the section below (or input). |
+|''Esc'' |structure (expanded) |Collapse back to compact view (focus stays on strip) |
+|''Esc'' |structure (compact) |Return focus to input |
 |''↑'' |menu |Move selection up; at top-of-list, returns focus to input |
 |''↓'' |menu |Move selection down |
 |''→'' |menu |Drill into the selected item (push a new stage). On a ''leaf'' row carrying a non-empty entity type, opens the action-menu stage of that type. |
