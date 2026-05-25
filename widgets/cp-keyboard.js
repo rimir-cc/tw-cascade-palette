@@ -132,6 +132,7 @@ module.exports = function (proto) {
             case "leader":      this._handleKeydownLeader(e, stage); return;
             case "preset":      this._handleKeydownPreset(e, stage); return;
             case "details":     this._handleKeydownDetails(e, stage); return;
+            case "preview":     this._handleKeydownPreview(e, stage); return;
         }
     };
 
@@ -257,9 +258,11 @@ module.exports = function (proto) {
                 // folder etc. without first having to navigate into it.
                 if (picked.entityType) {
                     e.preventDefault();
-                    this.pushStage(this.buildActionMenuStage(
+                    var spaceActStage = this.buildActionMenuStage(
                         picked.title, picked.entityType, picked.name
-                    ));
+                    );
+                    this._attachPreviewToStage(spaceActStage, picked, stage);
+                    this.pushStage(spaceActStage);
                     return;
                 }
             }
@@ -306,6 +309,27 @@ module.exports = function (proto) {
             if (e.shiftKey && stage.kind === "root" && pickedDel.title) {
                 e.preventDefault();
                 this._addHideEntryVisibility(pickedDel.title);
+                return;
+            }
+            // ca-on-delete: row-specific delete action. Used by synthetic
+            // JSON-item rows whose "deletion" is a parent-tiddler mutation
+            // rather than a tiddler delete. Takes priority over the
+            // built-in restore-default / delete-tiddler paths.
+            if (pickedDel.onDelete) {
+                e.preventDefault();
+                var delVars = this.buildStageVariables(stage, pickedDel.title);
+                if (pickedDel.onDeleteConsequence) {
+                    this.pushStage(this.buildConfirmStage({
+                        title: "Delete " + (pickedDel.name || pickedDel.title || "row"),
+                        consequence: this._substituteVars(
+                            pickedDel.onDeleteConsequence, delVars
+                        ),
+                        actions: pickedDel.onDelete,
+                        vars: delVars
+                    }));
+                } else {
+                    this.invokeViaNavigator(pickedDel.onDelete, delVars);
+                }
                 return;
             }
             if (this.isOverridden(pickedDel)) {
@@ -738,18 +762,25 @@ module.exports = function (proto) {
         return order;
     };
 
-    // True iff the preview drawer is currently visible. `detailsOpen` can
+    // True iff the detail drawer is currently visible. `detailsOpen` can
     // be stale (e.g. always-on with an empty menu — renderDetails calls
-    // hidePreview without resetting the flag); the rcp-previewing class
+    // hideDetail without resetting the flag); the rcp-showing-detail class
     // is the visual source of truth.
     proto._isDetailsVisible = function () {
         return !!(this.popupEl && this.popupEl.classList &&
-                  this.popupEl.classList.contains("rcp-previewing"));
+                  this.popupEl.classList.contains("rcp-showing-detail"));
     };
 
     proto._mainCycle = function () {
         var order = ["input", "menu"];
         if (this._isDetailsVisible()) order.push("details");
+        // The side preview pane joins the main cycle only when an entry/
+        // action on the stack registered a preview (visible). Sits AFTER
+        // details so the Tab order walks the cascade-internal slots
+        // first, then the right-side pane.
+        if (this._isSidePreviewVisible && this._isSidePreviewVisible()) {
+            order.push("preview");
+        }
         return order;
     };
 

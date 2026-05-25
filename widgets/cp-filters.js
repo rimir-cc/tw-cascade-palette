@@ -170,25 +170,25 @@ module.exports = function (proto) {
         if (!this.filters.length) return;
         var item = this.filters[this.filterFocusIdx];
         if (!item) return;
-        while (this.previewEl.firstChild) {
-            this.previewEl.removeChild(this.previewEl.firstChild);
+        while (this.detailEl.firstChild) {
+            this.detailEl.removeChild(this.detailEl.firstChild);
         }
         var titleEl = this.document.createElement("div");
-        titleEl.className = "rcp-preview-title";
+        titleEl.className = "rcp-detail-title";
         titleEl.textContent = item.name + (item.arg ? " — " + item.arg : "");
-        this.previewEl.appendChild(titleEl);
+        this.detailEl.appendChild(titleEl);
 
         var helpEl = this.document.createElement("div");
         helpEl.className = "rcp-details-help";
         helpEl.textContent = item.help || item.hint || item.name;
-        this.previewEl.appendChild(helpEl);
+        this.detailEl.appendChild(helpEl);
 
         var rows = [];
         if (item.arg) rows.push(["Argument", item.arg]);
         if (item.expr) rows.push(["Filter", item.expr]);
         rows.push(["Filter tiddler", item.constraintTiddler]);
         var dl = this.document.createElement("dl");
-        dl.className = "rcp-preview-fields";
+        dl.className = "rcp-detail-fields";
         rows.forEach(function (row) {
             var dt = this.document.createElement("dt");
             dt.textContent = row[0];
@@ -197,8 +197,8 @@ module.exports = function (proto) {
             dl.appendChild(dt);
             dl.appendChild(dd);
         }, this);
-        this.previewEl.appendChild(dl);
-        this.popupEl.classList.add("rcp-previewing");
+        this.detailEl.appendChild(dl);
+        this.popupEl.classList.add("rcp-showing-detail");
     };
 
     // Compose the suffix appended to every stage filter when filters are

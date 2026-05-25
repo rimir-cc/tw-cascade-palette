@@ -31,6 +31,10 @@ module.exports = function (proto) {
         this.renderBreadcrumb();
         this.renderInput();
         this.renderResults();
+        // Side preview pane — visible iff a stage on the stack registered
+        // a `ca-preview-template`. Render after results so the cascade
+        // column's selection state settles first.
+        this._renderSidePreview();
         this._lastPerf = this._lastPerf || {};
         this._lastPerf.renderMs = perfNow.now() - t0;
         this._lastPerf.actionPreviewMs = this._actionPreviewMs || 0;
@@ -389,12 +393,12 @@ module.exports = function (proto) {
     proto.renderDetails = function () {
         var stage = this.topStage();
         if (!stage || !stage.results.length) {
-            this.hidePreview();
+            this.hideDetail();
             return;
         }
         var picked = stage.results[stage.selectedIndex];
         if (!picked || !picked.title) {
-            this.hidePreview();
+            this.hideDetail();
             return;
         }
 
@@ -403,14 +407,14 @@ module.exports = function (proto) {
             this.detailsTemplateIdx = 0;
         }
 
-        while (this.previewEl.firstChild) {
-            this.previewEl.removeChild(this.previewEl.firstChild);
+        while (this.detailEl.firstChild) {
+            this.detailEl.removeChild(this.detailEl.firstChild);
         }
 
         var headerEl = this.document.createElement("div");
-        headerEl.className = "rcp-preview-title";
+        headerEl.className = "rcp-detail-title";
         headerEl.textContent = picked.title;
-        this.previewEl.appendChild(headerEl);
+        this.detailEl.appendChild(headerEl);
 
         // Confirm-stage consequence banner — surfaces what DEL or Enter
         // will do. Pre-empts both help text and templates so the user
@@ -419,7 +423,7 @@ module.exports = function (proto) {
             var consEl = this.document.createElement("div");
             consEl.className = "rcp-details-consequence";
             consEl.textContent = stage.consequenceText;
-            this.previewEl.appendChild(consEl);
+            this.detailEl.appendChild(consEl);
         }
 
         var helpText = this._resolveHelpText(picked);
@@ -427,7 +431,7 @@ module.exports = function (proto) {
             var helpEl = this.document.createElement("div");
             helpEl.className = "rcp-details-help";
             helpEl.textContent = helpText;
-            this.previewEl.appendChild(helpEl);
+            this.detailEl.appendChild(helpEl);
         }
 
         // Overridden-default banner — surfaces the shadow value so the user
@@ -438,7 +442,7 @@ module.exports = function (proto) {
             defEl.className = "rcp-details-default";
             defEl.textContent = "Default: " + (defaultValue === undefined || defaultValue === ""
                 ? "(empty)" : String(defaultValue));
-            this.previewEl.appendChild(defEl);
+            this.detailEl.appendChild(defEl);
         }
 
         var templates = this.findTemplatesFor(picked.title);
@@ -450,11 +454,11 @@ module.exports = function (proto) {
                 this.detailsTemplateIdx = 0;
             }
             if (templates.length > 1) {
-                this.previewEl.appendChild(this._buildTemplateTabStrip(templates));
+                this.detailEl.appendChild(this._buildTemplateTabStrip(templates));
             }
             var bodyEl = this._renderTemplateBody(picked.title, templates[this.detailsTemplateIdx]);
             if (bodyEl) {
-                this.previewEl.appendChild(bodyEl);
+                this.detailEl.appendChild(bodyEl);
                 renderedTemplate = true;
             }
         }
@@ -464,11 +468,11 @@ module.exports = function (proto) {
             this._appendFieldsTable(picked.title);
         }
 
-        this.popupEl.classList.add("rcp-previewing");
+        this.popupEl.classList.add("rcp-showing-detail");
     };
 
-    proto.hidePreview = function () {
-        this.popupEl.classList.remove("rcp-previewing");
+    proto.hideDetail = function () {
+        this.popupEl.classList.remove("rcp-showing-detail");
     };
 
     proto._resolveHelpText = function (item) {
@@ -598,9 +602,9 @@ module.exports = function (proto) {
         var t = this.wiki.getTiddler(title);
         if (!t) {
             var noEl = this.document.createElement("div");
-            noEl.className = "rcp-preview-empty";
+            noEl.className = "rcp-detail-empty";
             noEl.textContent = "(no tiddler — likely a transient filter result)";
-            this.previewEl.appendChild(noEl);
+            this.detailEl.appendChild(noEl);
             return;
         }
         var fields = t.fields || {};
@@ -613,13 +617,13 @@ module.exports = function (proto) {
             });
         if (keys.length === 0) {
             var nf = this.document.createElement("div");
-            nf.className = "rcp-preview-empty";
+            nf.className = "rcp-detail-empty";
             nf.textContent = "(no fields besides title)";
-            this.previewEl.appendChild(nf);
+            this.detailEl.appendChild(nf);
             return;
         }
         var dl = this.document.createElement("dl");
-        dl.className = "rcp-preview-fields";
+        dl.className = "rcp-detail-fields";
         for (var i = 0; i < keys.length; i++) {
             var k = keys[i];
             var v = fields[k];
@@ -628,11 +632,11 @@ module.exports = function (proto) {
             dt.textContent = k;
             var dd = this.document.createElement("dd");
             dd.textContent = str;
-            if (k === "text") dd.classList.add("rcp-preview-body");
+            if (k === "text") dd.classList.add("rcp-detail-body");
             dl.appendChild(dt);
             dl.appendChild(dd);
         }
-        this.previewEl.appendChild(dl);
+        this.detailEl.appendChild(dl);
     };
 
     // Add a small badge to typed leaf rows showing how many actions

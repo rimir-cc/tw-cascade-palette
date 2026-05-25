@@ -150,34 +150,34 @@ module.exports = function (proto) {
         // Plus pill — last navigable index. Show save-help instead of
         // per-preset metadata.
         if (this.presetFocusIdx === pills.length) {
-            while (this.previewEl.firstChild) {
-                this.previewEl.removeChild(this.previewEl.firstChild);
+            while (this.detailEl.firstChild) {
+                this.detailEl.removeChild(this.detailEl.firstChild);
             }
             var ptitleEl = this.document.createElement("div");
-            ptitleEl.className = "rcp-preview-title";
+            ptitleEl.className = "rcp-detail-title";
             ptitleEl.textContent = "Save preset as…";
-            this.previewEl.appendChild(ptitleEl);
+            this.detailEl.appendChild(ptitleEl);
             var phelpEl = this.document.createElement("div");
             phelpEl.className = "rcp-details-help";
             phelpEl.textContent = "Capture the current state (view + filters + visibility) as a new preset. Press Enter to open the name prompt; type a name, Enter to commit, Esc to cancel.";
-            this.previewEl.appendChild(phelpEl);
-            this.popupEl.classList.add("rcp-previewing");
+            this.detailEl.appendChild(phelpEl);
+            this.popupEl.classList.add("rcp-showing-detail");
             return;
         }
         var preset = pills[this.presetFocusIdx];
         if (!preset) return;
-        while (this.previewEl.firstChild) {
-            this.previewEl.removeChild(this.previewEl.firstChild);
+        while (this.detailEl.firstChild) {
+            this.detailEl.removeChild(this.detailEl.firstChild);
         }
         var titleEl = this.document.createElement("div");
-        titleEl.className = "rcp-preview-title";
+        titleEl.className = "rcp-detail-title";
         titleEl.textContent = preset.name;
-        this.previewEl.appendChild(titleEl);
+        this.detailEl.appendChild(titleEl);
         if (preset.hint) {
             var helpEl = this.document.createElement("div");
             helpEl.className = "rcp-details-help";
             helpEl.textContent = preset.hint;
-            this.previewEl.appendChild(helpEl);
+            this.detailEl.appendChild(helpEl);
         }
         var rows = [];
         // View name (resolved from the cached views table) — fall back
@@ -210,7 +210,7 @@ module.exports = function (proto) {
         rows.push(["Visibility", describe(visList, this._loadVisibilityTiddlers())]);
         rows.push(["Preset tiddler", preset.title]);
         var dl = this.document.createElement("dl");
-        dl.className = "rcp-preview-fields";
+        dl.className = "rcp-detail-fields";
         rows.forEach(function (row) {
             var dt = this.document.createElement("dt");
             dt.textContent = row[0];
@@ -219,8 +219,8 @@ module.exports = function (proto) {
             dl.appendChild(dt);
             dl.appendChild(dd);
         }, this);
-        this.previewEl.appendChild(dl);
-        this.popupEl.classList.add("rcp-previewing");
+        this.detailEl.appendChild(dl);
+        this.popupEl.classList.add("rcp-showing-detail");
     };
 
     // Number of NAVIGABLE pills in the preset strip = real presets + the

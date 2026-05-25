@@ -1,0 +1,169 @@
+/*\
+title: $:/plugins/rimir/cascade-palette/widgets/cp-side-preview
+type: application/javascript
+module-type: library
+
+Side preview pane — right-column wikitext rendering attached to a stage.
+
+An entry/action tiddler can declare three optional fields:
+
+    ca-preview-template   title of a wikitext tiddler whose body is
+                          rendered in the right pane when the user drills
+                          into the row. Required to enable the feature.
+    ca-preview-context    filter evaluated at drill-time in the parent
+                          stage's substitution scope (<<picked>>,
+                          <<parent-picked>>, <<query>>, ...). The first
+                          result becomes <<currentTiddler>> inside the
+                          template AND is exposed to deeper stages as
+                          <<stage-preview-context>>. Defaults to the
+                          drilled row's title.
+    ca-preview-title      optional caption shown above the preview body.
+
+The drill-site code (`drillSelected`, Space gesture in cp-keyboard) calls
+`_attachPreviewToStage` to stamp `_previewTemplate`, `_previewContext`,
+and `_previewTitle` onto the newly-built stage record. After every
+stage push/pop and after `renderStage`, `_renderSidePreview` walks the
+stack top-down via `_activePreview` to find the topmost stage carrying
+a preview and renders it into the right pane. Stages pushed deeper than
+the preview-bearing stage inherit it — the user "stays in" the original
+preview context.
+
+Cached by (depth, contextTitle, templateTitle) so keystroke-driven
+re-renders within the same preview reuse the rendered DOM. Invalidated
+by the wiki change hook when either the template tiddler or the
+context tiddler changes.
+
+\*/
+"use strict";
+
+module.exports = function (proto) {
+
+    // Return the topmost stage on the stack carrying a non-empty
+    // `_previewTemplate`, or null if none. Iterates from the top so
+    // that a deeper-pushed preview-bearing stage wins over a shallower
+    // one (rare, but well-defined).
+    proto._activePreview = function () {
+        if (!this.stack) return null;
+        for (var i = this.stack.length - 1; i >= 0; i--) {
+            var s = this.stack[i];
+            if (s && s._previewTemplate) {
+                return {
+                    depth: i,
+                    template: s._previewTemplate,
+                    context: s._previewContext || "",
+                    title: s._previewTitle || ""
+                };
+            }
+        }
+        return null;
+    };
+
+    // Render the active preview into `this.sidePreviewEl`. Called from
+    // `renderStage` after the cascade redraws. When no preview is
+    // active (no stage on the stack carries `_previewTemplate`), the
+    // pane is hidden and the cascade column fills the popup again.
+    proto._renderSidePreview = function () {
+        if (!this.popupEl || !this.sidePreviewEl) return;
+        var active = this._activePreview();
+        if (!active) {
+            this._hideSidePreview();
+            return;
+        }
+        // Title row — optional caption authored on the entry. Empty
+        // string keeps the row hidden via the `:empty` CSS selector.
+        if (this.sidePreviewTitleEl) {
+            this.sidePreviewTitleEl.textContent = active.title || "";
+        }
+        // Cache hit: reuse the rendered DOM verbatim. Cache key includes
+        // the stack depth so a re-attached preview at a different depth
+        // gets a fresh render (defensive — the same context+template at
+        // a different depth could legitimately render differently if the
+        // wikitext consults stack-level state).
+        var cache = this._sidePreviewCache;
+        if (cache && cache.depth === active.depth &&
+            cache.context === active.context &&
+            cache.template === active.template &&
+            cache.dom && cache.dom.parentNode === this.sidePreviewBodyEl) {
+            this.popupEl.classList.add("rcp-showing-preview");
+            return;
+        }
+        // Clear the body and render fresh.
+        while (this.sidePreviewBodyEl.firstChild) {
+            this.sidePreviewBodyEl.removeChild(this.sidePreviewBodyEl.firstChild);
+        }
+        var container = this.document.createElement("div");
+        container.className = "rcp-preview-pane-template";
+        try {
+            var parser = this.wiki.parseTiddler(active.template);
+            if (!parser) {
+                container.textContent = "(preview template not found: " +
+                    active.template + ")";
+            } else {
+                var widgetNode = this.wiki.makeWidget(parser, {
+                    parentWidget: this.findActionParent() || $tw.rootWidget,
+                    document: this.document,
+                    variables: { currentTiddler: active.context }
+                });
+                widgetNode.render(container, null);
+            }
+        } catch (err) {
+            if (console && console.warn) {
+                console.warn(
+                    "[cascade-palette] side preview render error",
+                    active.template, "—", err && err.message
+                );
+            }
+            container.textContent = "(preview render error: " +
+                (err && err.message) + ")";
+        }
+        this.sidePreviewBodyEl.appendChild(container);
+        this._sidePreviewCache = {
+            depth: active.depth,
+            context: active.context,
+            template: active.template,
+            dom: container
+        };
+        this.popupEl.classList.add("rcp-showing-preview");
+    };
+
+    proto._hideSidePreview = function () {
+        if (!this.popupEl) return;
+        this.popupEl.classList.remove("rcp-showing-preview");
+        if (this.sidePreviewTitleEl) {
+            this.sidePreviewTitleEl.textContent = "";
+        }
+        if (this.sidePreviewBodyEl) {
+            while (this.sidePreviewBodyEl.firstChild) {
+                this.sidePreviewBodyEl.removeChild(this.sidePreviewBodyEl.firstChild);
+            }
+        }
+        this._sidePreviewCache = null;
+        // If preview had focus when it hid, redirect to input so the
+        // user isn't stranded on a hidden section.
+        if (this.focus === "preview") this.setFocus("input");
+    };
+
+    proto._invalidateSidePreviewCache = function () {
+        this._sidePreviewCache = null;
+    };
+
+    // True iff the side preview pane is currently visible.
+    proto._isSidePreviewVisible = function () {
+        return !!(this.popupEl && this.popupEl.classList &&
+                  this.popupEl.classList.contains("rcp-showing-preview"));
+    };
+
+    // Keyboard handler when focus is on the preview pane. Esc returns
+    // to input; arrows let the browser scroll natively (no
+    // preventDefault). The pane is interactive — widgets inside the
+    // rendered template handle their own keys via event bubbling.
+    proto._handleKeydownPreview = function (e) {
+        if (e.key === "Escape") {
+            e.preventDefault();
+            this.setFocus("input");
+            return;
+        }
+        // ArrowUp / ArrowDown / PageUp / PageDown — native scroll.
+    };
+
+};

@@ -159,6 +159,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     require("$:/plugins/rimir/cascade-palette/widgets/cp-items")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-actions")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-rendering")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-side-preview")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-keyboard")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-firing")(CascadePaletteWidget.prototype);
 
@@ -253,9 +254,9 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // focus and keyboard events.
         this.resultsEl.setAttribute("tabindex", "-1");
 
-        this.previewEl = this.document.createElement("div");
-        this.previewEl.className = "rcp-preview";
-        this.previewEl.setAttribute("tabindex", "-1");
+        this.detailEl = this.document.createElement("div");
+        this.detailEl.className = "rcp-detail-drawer";
+        this.detailEl.setAttribute("tabindex", "-1");
 
         this.hintEl = this.document.createElement("div");
         this.hintEl.className = "rcp-hint";
@@ -268,18 +269,45 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.perfFooterEl.className = "rcp-perf-footer";
         this.perfFooterEl.style.display = "none";
 
-        popup.appendChild(this.breadcrumbEl);
-        popup.appendChild(this.presetStripEl);
-        popup.appendChild(this.visibilityStripEl);
-        popup.appendChild(this.filterStripEl);
-        popup.appendChild(this.viewStripEl);
-        popup.appendChild(this.viewConfigStripEl);
-        popup.appendChild(this.leaderStripEl);
-        popup.appendChild(this.inputEl);
-        popup.appendChild(this.resultsEl);
-        popup.appendChild(this.previewEl);
-        popup.appendChild(this.hintEl);
-        popup.appendChild(this.perfFooterEl);
+        // Cascade column — wraps every "cascade UI" element so the popup
+        // can split horizontally into [cascade | side-preview] when an
+        // entry/action drilled into the current stage registered a
+        // `ca-preview-template`. Without the side preview, the cascade
+        // column occupies 100% of the popup; with it, the popup-width
+        // stays fixed and the column shrinks to 50%. The popup itself is
+        // now flex-row at the outer layer (see styles.tid).
+        this.cascadeColEl = this.document.createElement("div");
+        this.cascadeColEl.className = "rcp-cascade-col";
+        this.cascadeColEl.appendChild(this.breadcrumbEl);
+        this.cascadeColEl.appendChild(this.presetStripEl);
+        this.cascadeColEl.appendChild(this.visibilityStripEl);
+        this.cascadeColEl.appendChild(this.filterStripEl);
+        this.cascadeColEl.appendChild(this.viewStripEl);
+        this.cascadeColEl.appendChild(this.viewConfigStripEl);
+        this.cascadeColEl.appendChild(this.leaderStripEl);
+        this.cascadeColEl.appendChild(this.inputEl);
+        this.cascadeColEl.appendChild(this.resultsEl);
+        this.cascadeColEl.appendChild(this.detailEl);
+        this.cascadeColEl.appendChild(this.hintEl);
+        this.cascadeColEl.appendChild(this.perfFooterEl);
+        popup.appendChild(this.cascadeColEl);
+
+        // Side preview pane — right column of the popup, hidden until an
+        // entry/action on the stack registers a preview via
+        // `ca-preview-template`. Title row above a scrollable body that
+        // hosts the rendered wikitext template. Toggle the
+        // `rcp-showing-preview` class on the popup to reveal.
+        this.sidePreviewEl = this.document.createElement("div");
+        this.sidePreviewEl.className = "rcp-preview-pane";
+        this.sidePreviewEl.setAttribute("tabindex", "-1");
+        this.sidePreviewTitleEl = this.document.createElement("div");
+        this.sidePreviewTitleEl.className = "rcp-preview-pane-title";
+        this.sidePreviewBodyEl = this.document.createElement("div");
+        this.sidePreviewBodyEl.className = "rcp-preview-pane-body";
+        this.sidePreviewEl.appendChild(this.sidePreviewTitleEl);
+        this.sidePreviewEl.appendChild(this.sidePreviewBodyEl);
+        popup.appendChild(this.sidePreviewEl);
+
         this.backdropEl.appendChild(popup);
 
         parent.insertBefore(this.backdropEl, nextSibling);
@@ -361,12 +389,39 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 self._applyFocusAttr();
             }
         });
-        this.previewEl.addEventListener("mousedown", function () {
+        this.detailEl.addEventListener("mousedown", function () {
             self.setFocus("details");
         });
-        this.previewEl.addEventListener("focus", function () {
+        this.detailEl.addEventListener("focus", function () {
             if (self.focus !== "details") {
                 self.focus = "details";
+                self._applyFocusAttr();
+            }
+        });
+
+        // Side preview pane — clicking inside the pane (background OR a
+        // descendant widget) gives it focus so keyboard scroll / Esc back
+        // work. mousedown captures before the inner widgets' own focus
+        // handling so we win the focus race.
+        this.sidePreviewEl.addEventListener("mousedown", function (e) {
+            // Don't steal focus from interactive descendants — if the user
+            // clicked on an input/button inside the rendered template, let
+            // it handle the focus itself.
+            var tgt = e.target;
+            if (tgt && tgt !== self.sidePreviewEl &&
+                tgt !== self.sidePreviewBodyEl &&
+                tgt !== self.sidePreviewTitleEl) {
+                var tag = (tgt.tagName || "").toLowerCase();
+                if (tag === "input" || tag === "textarea" ||
+                    tag === "select" || tag === "button" || tag === "a") {
+                    return;
+                }
+            }
+            self.setFocus("preview");
+        });
+        this.sidePreviewEl.addEventListener("focus", function () {
+            if (self.focus !== "preview") {
+                self.focus = "preview";
                 self._applyFocusAttr();
             }
         });
@@ -469,6 +524,17 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 // changes — its rendered template DOM is now stale.
                 if (self._detailsCache && changes[self._detailsCache.title]) {
                     self._detailsCache = null;
+                }
+                // Same for the side-preview cache: invalidate if either
+                // the rendered template tiddler OR the bound context
+                // tiddler changed. The render then re-runs on the
+                // forced recompute below.
+                if (self._sidePreviewCache) {
+                    var spc = self._sidePreviewCache;
+                    if ((spc.template && changes[spc.template]) ||
+                        (spc.context && changes[spc.context])) {
+                        self._invalidateSidePreviewCache();
+                    }
                 }
                 // Invalidate preset pills if any preset-tagged tiddler
                 // changed (created/edited/deleted). Cheap heuristic: scan
@@ -789,7 +855,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             this.renderDetails();
         } else if (!shouldShow && this.detailsOpen) {
             this.detailsOpen = false;
-            this.hidePreview();
+            this.hideDetail();
         }
     };
 
@@ -809,7 +875,8 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         }
         this._pickModeReturnTo = null;
         this.saveMode = null;
-        this.hidePreview();
+        this.hideDetail();
+        this._hideSidePreview();
         this.backdropEl.style.display = "none";
     };
 
@@ -819,7 +886,8 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     // visual cue.
     CascadePaletteWidget.prototype.setFocus = function (section) {
         if (section !== "input" && section !== "menu" &&
-            section !== "details" && section !== "filter" &&
+            section !== "details" && section !== "preview" &&
+            section !== "filter" &&
             section !== "visibility" && section !== "view" &&
             section !== "preset" && section !== "viewconfig" &&
             section !== "leader") return;
@@ -858,6 +926,12 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (section === "details" && !this._isDetailsVisible()) {
             section = "input";
         }
+        // Side preview pane only joins the cycle when an entry/action on
+        // the stack registered a preview (the `rcp-showing-preview` class
+        // toggles visibility).
+        if (section === "preview" && !this._isSidePreviewVisible()) {
+            section = "input";
+        }
         var prevFocus = this.focus;
         if (this.focus === section) {
             this._applyFocusAttr();
@@ -867,7 +941,8 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this._applyFocusAttr();
         if (section === "input") this.inputEl.focus();
         else if (section === "menu") this.resultsEl.focus();
-        else if (section === "details") this.previewEl.focus();
+        else if (section === "details") this.detailEl.focus();
+        else if (section === "preview") this.sidePreviewEl.focus();
         else if (section === "preset") {
             var presetCount = this._presetPillCount();
             if (this.presetFocusIdx >= presetCount) {
@@ -965,6 +1040,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         }
         if (this.focus === "menu")            this.hintEl.textContent = C.HINT_MENU;
         else if (this.focus === "details")    this.hintEl.textContent = C.HINT_DETAILS;
+        else if (this.focus === "preview")    this.hintEl.textContent = C.HINT_PREVIEW;
         else if (this.focus === "filter")     this.hintEl.textContent = C.HINT_FILTER;
         else if (this.focus === "visibility") this.hintEl.textContent = C.HINT_VISIBILITY;
         else if (this.focus === "view")       this.hintEl.textContent = C.HINT_VIEW;

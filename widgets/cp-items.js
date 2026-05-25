@@ -126,6 +126,28 @@ module.exports = function (proto) {
             // inside a multi-field edit flow): user picks a value, lands
             // back on the parent stage to continue editing other fields.
             afterFire: (f["ca-after-fire"] || "").toLowerCase(),
+            // DEL on this row fires this action wikitext (in place of the
+            // built-in restore-default / delete-tiddler paths). If
+            // `ca-on-delete-consequence` is set, DEL pushes a confirm-stage
+            // first; otherwise it fires immediately. Useful for synthetic
+            // JSON-item rows (e.g. one element of a JSON array field) where
+            // "delete this row" means mutating the parent tiddler, not
+            // deleting any tiddler.
+            onDelete: f["ca-on-delete"] || "",
+            onDeleteConsequence: f["ca-on-delete-consequence"] || "",
+            // Side preview registration. When set on an entry/action,
+            // drilling into the row pushes a new stage AND attaches a
+            // right-pane preview to it: the engine renders the named
+            // template tiddler's wikitext with `currentTiddler` bound to
+            // the value of `ca-preview-context` (a filter evaluated at
+            // drill-time in the standard stage substitution scope —
+            // defaults to <<picked>>, i.e. the row title itself). The
+            // pane stays visible while that stage (or any deeper one) is
+            // on the stack, and the context value is also exposed to
+            // deeper stages as <<stage-preview-context>>.
+            previewTemplate: f["ca-preview-template"] || "",
+            previewContext: f["ca-preview-context"] || "",
+            previewTitle: f["ca-preview-title"] || "",
             isItem: false,           // entries / actions vs dynamic items
             isSynthetic: false       // overridden by readCascadeFromObject
         };
@@ -261,7 +283,12 @@ module.exports = function (proto) {
         }
         node[parts[parts.length - 1]] = converted;
         var newFields = { title: item.bindTiddler };
-        newFields[item.bindField] = JSON.stringify(root, null, 4);
+        // Single-line JSON. Pretty-printing (indent > 0) injects newlines
+        // into the field value; TW's filesystem adaptor treats control
+        // chars in non-text fields as "unsafe" and silently switches the
+        // tiddler from .tid to .json file format, orphaning the .tid file
+        // on disk. Compact JSON keeps the .tid format stable across edits.
+        newFields[item.bindField] = JSON.stringify(root);
         this.wiki.addTiddler(new $tw.Tiddler(
             (t && t.fields) || {},
             newFields

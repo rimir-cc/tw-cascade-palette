@@ -106,7 +106,7 @@ module.exports = function (proto) {
         if (!stage) return;
         if (this.detailsOpen) {
             this.detailsOpen = false;
-            this.hidePreview();
+            this.hideDetail();
         }
         this.saveMode = {
             savedQuery: stage.query || "",

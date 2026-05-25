@@ -175,7 +175,7 @@ ca-default-value: 30
 
 ! Worked example 8 — A text setting
 
-`ca-kind: text` shows the current value on the right. ''Space'' pushes the value into the palette's input field for editing — the input becomes a value editor (highlighted background, result list dims), Enter commits the new value back, Esc discards. Use for short strings: hotkey bindings, label overrides, file paths.
+`ca-kind: text` shows the current value on the right. ''Space'' or ''Enter'' pushes the value into the palette's input field for editing — the input becomes a value editor (highlighted background, result list dims), Enter commits the new value back, Esc discards. Use for short strings: hotkey bindings, label overrides, file paths.
 
 ```
 title: $:/plugins/example/settings/hotkey
@@ -258,7 +258,14 @@ Triggered automatically by the engine in two scenarios:
 * ''Overridden setting:'' DEL on a row whose `ca-bind-tiddler` has both a shadow AND a real (override) tiddler. Confirm deletes the override; the shadow default is restored.
 * ''Non-shadow tiddler in a diagnostic list:'' DEL on a dynamic-item row whose title points to a user-authored tiddler. Confirm deletes the tiddler. Backlink count is shown pre-confirm.
 
-Shadow-only rows (no override to restore) and built-in entry/action/setting rows (no `ca-bind-tiddler`) are silent no-ops.
+Or, explicitly via row-level fields (synthetic JSON items — `ca-items-from`):
+
+;`ca-on-delete`
+:Wikitext fired when DEL/Backspace is pressed on this row. Receives `<<picked>>` and `<<parent-picked>>` in scope. Takes priority over the built-in restore-default / delete-tiddler paths above, so it's the right surface for "delete this synthetic row" semantics where the row represents a sub-entity (e.g. one element of a JSON array on a parent tiddler) rather than a tiddler.
+;`ca-on-delete-consequence`
+:Optional. If set, DEL pushes the confirm stage with this text as the consequence; if unset, the action fires immediately (no confirmation). Standard `<<picked>>` / `<<parent-picked>>` substitution.
+
+Shadow-only rows (no override to restore) and built-in entry/action/setting rows (no `ca-bind-tiddler`, no `ca-on-delete`) are silent no-ops.
 
 ! Pick-and-return leaves (`ca-after-fire: pop`)
 
@@ -659,8 +666,65 @@ Fields on a preset tiddler:
 
 If a preset references a deleted constraint tiddler, that constraint is skipped (warning to console). If it references a deleted view, the palette stays on its current view and rebuilds with the new constraint state. No data loss — presets are inspectable as regular tiddlers.
 
+! Side preview pane
+
+An entry/action can register a ''side preview'' that opens a right-column pane when the user drills into the row. The cascade column visually shrinks to 50% on the left; the pane renders an authored wikitext template against an entry-computed context. The pane stays visible while the drilled stage (or any deeper one) is on the stack, and disappears once the user pops back out — so the cascade fills 100% again.
+
+Distinct from the ''detail'' drawer (Ctrl-hold or `details-always-on`): the detail drawer is bound to the currently-selected row and renders templates tagged ''`$:/tags/rimir/cascade-palette/template`''. The side preview is bound to ''what the user is editing'' — pinned at drill-time and kept stable as the user navigates inside.
+
+! Side-preview fields (on the drilling entry/action)
+
+;`ca-preview-template`
+:Title of a wikitext tiddler whose body is rendered in the right pane. Required to enable the preview.
+;`ca-preview-context`
+:Filter evaluated at drill-time in the parent stage's substitution scope (`<<picked>>`, `<<parent-picked>>`, `<<query>>`, `<<context-tiddler>>`, etc.). The first result becomes `<<currentTiddler>>` inside the preview template AND is exposed to deeper stages' substitution scope as `<<stage-preview-context>>`. Defaults to `<<picked>>` (the row being drilled into) — typical for actions where `<<picked>>` is the entity being acted upon.
+;`ca-preview-title`
+:Optional caption shown in the colored title strip above the preview body. Empty value keeps the strip hidden.
+
+! Worked example — Edit kind's fields with a live form preview
+
+```
+title: $:/plugins/example/actions/kind/edit-fields
+tags: $:/tags/rimir/cascade-palette/action
+ca-entity-type: kind
+ca-name: Edit fields
+ca-kind: drill
+ca-items-from: [function[kind.cascade-fields-for-edit],<parent-picked>]
+ca-next-title: Fields of <<parent-picked>>
+ca-preview-template: $:/plugins/example/templates/kind-form-preview
+ca-preview-context: [<picked>]
+ca-preview-title: Form preview
+```
+
+```
+title: $:/plugins/example/templates/kind-form-preview
+type: text/vnd.tiddlywiki
+
+! Form for <<currentTiddler>>
+
+A form rendered from this kind's current field set. As you add / remove / edit fields in the cascade, this preview re-renders live.
+
+<$transclude tiddler="$:/plugins/rimir/kind/view"/>
+```
+
+Drilling into "Edit fields" pushes the field-edit stage AND attaches the preview. Each time the user edits the kind tiddler (the context — its `kind.fields` array changes), the wiki change-hook invalidates the cache and the pane re-renders.
+
+! Lifecycle
+
+* Preview attaches when the user drills via Right-arrow / Enter / Space into a row that carries `ca-preview-template`.
+* While the registering stage is anywhere on the stack, the pane stays visible.
+* Drilling DEEPER (pushing another stage) inherits the same preview — `<<stage-preview-context>>` is the resolved context.
+* Popping past the registering stage hides the pane and restores the cascade to 100%.
+* If a deeper stage ALSO declares `ca-preview-template`, that one takes over while it's on the stack (topmost wins).
+* Closing the palette clears the preview cache entirely.
+
+! Focus & interactivity
+
+The pane joins the Tab cycle as a new focus section ''`preview`'' (only when visible). Esc returns to input; arrow-up/down let the browser scroll natively. Mousedown on the pane background grabs focus, but clicks on form inputs / buttons / links inside the rendered template pass through — the template is fully interactive.
+
 ! Limitations & follow-ups
 
 * ''Editing presets'' — no in-palette UI for rename / delete. Use the wiki normally (preset tiddlers are real tiddlers).
 * ''Compose presets'' — applying a preset always ''replaces'' both constraint lists. There's no "apply on top of existing state".
 * ''Search-area widening (`>>`/`>>>`)'' — Phase 3 plan; not yet implemented.
+* ''Side-preview tabs'' — only a single preview template per entry/action right now. Tag-based discovery (à la detail templates) is a possible follow-up if multiple plugins want to register competing previews on the same drill.

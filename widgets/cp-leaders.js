@@ -159,18 +159,18 @@ module.exports = function (proto) {
     // typed-gesture pending state and the pill-row focus state — same
     // payload either way (the leader IS the thing being previewed).
     proto._renderLeaderHelp = function (leader) {
-        if (!leader || !this.previewEl) return;
-        while (this.previewEl.firstChild) {
-            this.previewEl.removeChild(this.previewEl.firstChild);
+        if (!leader || !this.detailEl) return;
+        while (this.detailEl.firstChild) {
+            this.detailEl.removeChild(this.detailEl.firstChild);
         }
         var titleEl = this.document.createElement("div");
-        titleEl.className = "rcp-preview-title";
+        titleEl.className = "rcp-detail-title";
         titleEl.textContent = leader.name + " (leader " + leader.key + ")";
-        this.previewEl.appendChild(titleEl);
+        this.detailEl.appendChild(titleEl);
         var helpEl = this.document.createElement("div");
         helpEl.className = "rcp-details-help";
         helpEl.textContent = leader.help || leader.hint || leader.name;
-        this.previewEl.appendChild(helpEl);
+        this.detailEl.appendChild(helpEl);
         var rows = [
             ["Key", leader.key],
             ["Idle", leader.idleMs + "ms"]
@@ -179,7 +179,7 @@ module.exports = function (proto) {
         if (leader.actions) rows.push(["Actions", leader.actions]);
         rows.push(["Leader tiddler", leader.title]);
         var dl = this.document.createElement("dl");
-        dl.className = "rcp-preview-fields";
+        dl.className = "rcp-detail-fields";
         rows.forEach(function (row) {
             var dt = this.document.createElement("dt");
             dt.textContent = row[0];
@@ -188,8 +188,8 @@ module.exports = function (proto) {
             dl.appendChild(dt);
             dl.appendChild(dd);
         }, this);
-        this.previewEl.appendChild(dl);
-        this.popupEl.classList.add("rcp-previewing");
+        this.detailEl.appendChild(dl);
+        this.popupEl.classList.add("rcp-showing-detail");
     };
 
     // Render the leader pill strip. One pill per visible leader, label

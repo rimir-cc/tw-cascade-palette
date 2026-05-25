@@ -99,6 +99,14 @@ module.exports = function (proto) {
             this.fireToggle(stage, picked, keepOpen);
             return;
         }
+        // 2c. Text/number/date row — Enter enters edit mode (symmetric with
+        //     Space). Without this, Enter on an editable row would fall
+        //     through to the close path below, surprising the user who
+        //     expects Enter to "engage" the row.
+        if (picked.kind === "text" || picked.kind === "number" || picked.kind === "date") {
+            this.enterEditMode(picked);
+            return;
+        }
         // 3. Dynamic filter-stage item (an entity result OR enum value).
         if (picked.isItem) {
             var vars = this.buildStageVariables(stage, picked.title);
@@ -321,7 +329,7 @@ module.exports = function (proto) {
         // preview if it was up so the editor can use the full popup.
         if (this.detailsOpen) {
             this.detailsOpen = false;
-            this.hidePreview();
+            this.hideDetail();
         }
         var raw = this.readBoundValue(item);
         var initial = "";
@@ -462,10 +470,12 @@ module.exports = function (proto) {
             var viewTitle = stage.viewTitle || this.activeView;
             var basePath = (stage.parentPath || []).slice();
             basePath.push(picked._treeParent);
-            this.pushStage(this.buildTreeStage(
+            var treeStage = this.buildTreeStage(
                 viewTitle, basePath, picked.name,
                 picked._layerIdx
-            ));
+            );
+            this._attachPreviewToStage(treeStage, picked, stage);
+            this.pushStage(treeStage);
             return;
         }
         // View-layer entity-type drill: a leaf row whose emitting layer
@@ -475,9 +485,11 @@ module.exports = function (proto) {
         // action menu is reserved for leaves so Right-arrow on a folder
         // still descends.
         if (picked.entityType && picked.kind === "leaf") {
-            this.pushStage(this.buildActionMenuStage(
+            var actStage = this.buildActionMenuStage(
                 picked.title, picked.entityType, picked.name
-            ));
+            );
+            this._attachPreviewToStage(actStage, picked, stage);
+            this.pushStage(actStage);
             return;
         }
 
@@ -486,9 +498,11 @@ module.exports = function (proto) {
         // both carry it; root has none). Either `ca-next-scope` or
         // `ca-items-from` qualifies the drill.
         if (picked.kind === "drill" && (picked.nextScope || picked.itemsFrom)) {
-            this.pushStage(this.buildFilterStage(
+            var filtStage = this.buildFilterStage(
                 picked, stage.parentPicked || null
-            ));
+            );
+            this._attachPreviewToStage(filtStage, picked, stage);
+            this.pushStage(filtStage);
             return;
         }
 
@@ -498,17 +512,53 @@ module.exports = function (proto) {
         // instead.
         if (picked.isItem) {
             if (!stage.entityType) return;
-            this.pushStage(this.buildActionMenuStage(
+            var dynActStage = this.buildActionMenuStage(
                 picked.title,
                 stage.entityType,
                 picked.title
-            ));
+            );
+            this._attachPreviewToStage(dynActStage, picked, stage);
+            this.pushStage(dynActStage);
             return;
         }
         // Right-arrow on a leaf without an entity-type or next-scope is a
         // no-op — Space on that leaf would also no-op since the kind-
         // specific Space handlers (toggle/text/etc.) don't claim it
         // either. Use Enter to fire the leaf's action.
+    };
+
+    // Read `ca-preview-*` fields from a row and attach the resolved
+    // template / context / title onto a freshly-built stage record. The
+    // context filter is evaluated in the PARENT stage's substitution
+    // scope (so `<<picked>>` resolves to the row being drilled into,
+    // `<<parent-picked>>` to the parent stage's pick, etc.). Default
+    // context is the row's title — common for actions where `<<picked>>`
+    // is the entity being acted upon. Called at every drill site so the
+    // preview pane stays in sync with stack pushes.
+    proto._attachPreviewToStage = function (newStage, item, parentStage) {
+        if (!item || !item.previewTemplate) return;
+        var ctx = item.title || "";
+        if (item.previewContext) {
+            try {
+                var vars = this.buildStageVariables(parentStage, item.title || "");
+                var titles = this.wiki.filterTiddlers(
+                    item.previewContext,
+                    this.makeFakeWidget(vars)
+                );
+                ctx = (titles && titles.length) ? titles[0] : "";
+            } catch (err) {
+                if (console && console.warn) {
+                    console.warn(
+                        "[cascade-palette] ca-preview-context filter error on",
+                        item.title, "—", err && err.message
+                    );
+                }
+                ctx = "";
+            }
+        }
+        newStage._previewTemplate = item.previewTemplate;
+        newStage._previewContext = ctx;
+        newStage._previewTitle = item.previewTitle || "";
     };
 
 };

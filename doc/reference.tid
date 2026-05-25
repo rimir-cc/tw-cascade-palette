@@ -11,7 +11,7 @@ type: text/vnd.tiddlywiki
 The palette is one popup with up to eight focusable sections, partitioned into two groups:
 
 * ''pills group'' (top of the palette, visually stacked): ''preset'' (always present — trailing ''+'' pill is the save-as affordance even when no presets exist), ''visibility'' (only when ≥ 1 visibility rule active), ''filter'' (only when ≥ 1 filter active), ''view'' (only when ≥ 2 views declared), ''structure'' (always present when the active view declares any layers), ''leader'' (only when ≥ 1 leader is visible for the active view — see leader scoping below). The structure strip has a ''two-stage'' interaction model: on focus it shows a ''compact'' summary row (view name, layer count + composition, view-scoped pills sort/entries/grouping); pressing ''Enter / Space / →'' expands it to the full stacked layout (view-scoped header row + one mini-row per layer with all primitive pills — roots/children/leaf/label + row decorations + entity-type). Built-in layers (the synthetic ''entries'' layer auto-appended to tree views) render muted to flag their automatic nature. ''Esc'' from expanded collapses back to compact; ''Esc'' from compact refocuses input. The leader strip surfaces every visible leader as a ''[key] name'' pill — same activation as the typed-gesture path (key + idle), but discoverable without prior knowledge. Leaders may opt into per-view scope via ''`ca-leader-views`'' (empty = global).
-* ''main group'': ''input'' (search box), ''menu'' (result list), ''details'' (preview drawer, only when open)
+* ''main group'': ''input'' (search box), ''menu'' (result list), ''detail'' (Ctrl-hold drawer below the menu, only when open), ''preview'' (right-column pane, only when an entry/action on the stack registered a ''`ca-preview-template`'').
 
 The active section gets the browser-level focus and a visual cue; keyboard gestures route accordingly. ''Tab'' cycles within the current group; ''Shift-Tab'' jumps between groups (lands on the bottom-most pill when entering pills, on input when returning). ''↑ / ↓'' inside the pill group walks vertically across rows — ↑ from input enters pills at the bottom-most row, ↓ from the bottom-most pill drops back into input. ''Esc'' walks the stack back one step keystroke-by-keystroke: in input or menu focus it pops the current stage at any depth > 1, and from a pill section it returns focus to input. At root depth, Esc-from-input closes the palette and Esc-from-menu refocuses input. ''Shift-Esc'' is the universal "I'm done" — closes from any focus and any depth in one keystroke.
 
@@ -40,7 +40,7 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''DEL / Backspace'' |preset |Push a confirm-drill to permanently delete the focused preset tiddler. Confirm with Enter, cancel with Esc. No-op on the ''+'' pill. |
 |''Home / End'' |preset |Jump focus to the first preset / to the ''+'' save pill (last position) |
 |''DEL / Backspace'' |filter / visibility |Remove the focused pill |
-|''Enter'' |filter / visibility |Move focus into the details pane to scroll through the full help text |
+|''Enter'' |filter / visibility |Move focus into the detail pane to scroll through the full help text |
 |''↵ / Space / →'' |structure (compact) |Expand the strip to the full per-layer layout (first pill focused) |
 |''↑ / ↓'' |structure (compact) |Walk to adjacent pill section (up = previous, down = next or input) |
 |''← / →'' |structure (expanded) |Move focus between pills within the current sub-row |
@@ -62,7 +62,9 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''Shift-DEL / Shift-Backspace'' |menu (root stage) |Add a ''hide-entry'' visibility pill for the selected row — the entry disappears from the root menu until the pill is removed. |
 |''← / →'' |details |Switch template tab when multiple templates apply |
 |''↑ / ↓'' |details |Scroll the drawer natively |
-|''Hold Ctrl'' |any |Open the details drawer; release to hide. Always-on mode keeps it visible. Suppressed in edit mode. |
+|''Hold Ctrl'' |any |Open the detail drawer; release to hide. Always-on mode keeps it visible. Suppressed in edit mode. |
+|''Esc'' |preview |Return focus to the input. The pane stays visible — it's stack-attached, not focus-attached. |
+|''↑ / ↓'' |preview |Native scroll inside the pane. |
 |''Click'' on a result row |menu |Sets focus → selects → fires (Shift-click = keep open) |
 |''Click'' on a filter / visibility pill |filter / visibility |Focus that pill (the × on the pill removes it) |
 |''Click'' on a view pill |view |Activate that view |
@@ -100,7 +102,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-kind` |`leaf`\|`drill`\|`toggle`\|`number`\|`text`\|`date` |entry, action, setting |Leaf fires actions, drill pushes next stage, toggle flips a bound boolean, number adjusts via `+/-` (Space to type-set), text edits a string via Space → type → Enter, date adjusts via `+/-` ±day (Shift ±month, Ctrl ±year), Space → typed-edit with smart parser |
 |`ca-actions` |wikitext |leaf items |Fired on Enter |
 |`ca-confirm` |`yes`\|empty |leaf items |When `yes`, the leaf's actions are wrapped in a confirm-drill stage rather than fired directly. The consequence text shows the cost of confirming (e.g. "Delete tiddler X"). |
-|`ca-confirm-consequence` |string |leaf with `ca-confirm:yes` |Text shown in the details drawer of the confirm stage. Supports `<<picked>>` / `<<parent-picked>>` / `<<stage-N-picked>>` substitution. |
+|`ca-confirm-consequence` |string |leaf with `ca-confirm:yes` |Text shown in the detail drawer of the confirm stage. Supports `<<picked>>` / `<<parent-picked>>` / `<<stage-N-picked>>` substitution. |
 |`ca-after-fire` |`close`\|`pop` |leaf |Post-fire behaviour. Default `close` (closes the palette). `pop` fires the action then pops one stage, keeping the palette open — for single-select sub-drills inside a field-edit flow, so the user lands back on the field stage with their pick already applied. |
 |`ca-entity-type` |string\|`*` |action |Entity type this action applies to, or `*` for global |
 |`ca-default` |`yes`\|empty |action |Marks the "Enter on entity result" default action |
@@ -127,7 +129,10 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-step-day` / `-month` / `-year` |number |date |Step for bare/Shift/Ctrl `+/-` respectively on a date row (each defaults to 1) |
 |`ca-date-format` |TW format-date string |date |Display format for the row value. Default `DD.MM.YYYY`. Examples: `YYYY-0MM-0DD` (ISO), `DDth MMM YYYY` (long). |
 |`ca-default-value` |number |number |Value used when the bound field is empty / unparseable |
-|`ca-help` |string (multiline) |entry, action, setting |Longer-form help text shown in the details drawer. Falls back to `ca-hint` when absent. |
+|`ca-help` |string (multiline) |entry, action, setting |Longer-form help text shown in the detail drawer. Falls back to `ca-hint` when absent. |
+|`ca-preview-template` |tiddler-title |entry, action |Title of a wikitext tiddler whose body renders in the right-pane ''preview'' when the user drills into this row. Pane stays visible while the registering stage (or any deeper one) is on the stack. |
+|`ca-preview-context` |filter |entry, action |Evaluated at drill-time in the parent stage's substitution scope (`<<picked>>`, `<<parent-picked>>`, etc.). First result becomes `<<currentTiddler>>` inside the preview template AND is exposed to deeper stages as `<<stage-preview-context>>`. Defaults to `<<picked>>` (the row being drilled into). |
+|`ca-preview-title` |string |entry, action |Optional caption shown in the colored title strip above the preview body. Empty value hides the strip. |
 |`ca-template-applies` |filter |template |Evaluated with `currentTiddler` bound to the picked item; template applies if filter returns the picked title. Omit for a universal template. |
 |`ca-template-name` |string |template |Display name on the template tab (when multiple templates apply). |
 |`ca-filter-name` |string |filter |Display name. Required. |
@@ -142,7 +147,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-visibility-expr` |filter snippet |visibility |Predicate evaluated per root entry with `<currentTiddler>` bound to its title — non-empty result hides the entry. Use `<arg>` for the operand placeholder. |
 |`ca-visibility-chip` / `-hint` / `-help` |string |visibility |Same shape as the filter equivalents. |
 |`ca-view-name` |string |view |Display name on the view-strip pill and as the root breadcrumb segment |
-|`ca-view-hint` |string |view |Tooltip on hover; appears in the details pane when the view pill is focused |
+|`ca-view-hint` |string |view |Tooltip on hover; appears in the detail pane when the view pill is focused |
 |`ca-view-default` |`yes`\|empty |view |One view declares `yes` to be the initial selection on page load |
 |`ca-view-layers` |space-separated titles |view |List of structure-layer tiddler titles composing this view. When set, the view is multi-layer and the view-level structure fields are ignored. When unset, the engine wraps the view's own `ca-view-roots` / `ca-view-children` / etc. into a single implicit layer (back-compat). |
 |`ca-view-include-entries` |`yes`\|`no`\|`auto` |view |Whether the built-in entries layer is appended. Default `auto` — appended iff at least one declared layer is tree-shaped. `yes` always appends, `no` never. |
@@ -178,7 +183,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-leader-key` |string |leader |Trigger string (single char or short multi-char). Required. |
 |`ca-leader-name` |string |leader |Display name (for catalogues / details rendering). |
 |`ca-leader-hint` |string |leader |One-line hint shown in the footer during the idle window. |
-|`ca-leader-help` |string (multiline) |leader |Help shown in the details pane during the idle window. Falls back to hint. |
+|`ca-leader-help` |string (multiline) |leader |Help shown in the detail pane during the idle window. Falls back to hint. |
 |`ca-leader-idle-ms` |number |leader |Override the default 200ms idle window. |
 |`ca-leader-views` |filter |leader |''Optional per-view scope.'' A filter producing view titles. Empty / missing = leader is global (always visible + always matchable via the typed-gesture path). Non-empty = leader is only available when the active view's title appears in the filter's result. Use this to ship view-specific leaders without polluting unrelated views. |
 |`ca-leader-actions` |wikitext |leader |Fired when the leader commits. Typically `<$action-sendmessage>` calls to one of the widget messages. Required. |
@@ -252,7 +257,7 @@ Use it to spot slow filters (large `recompute`), expensive views with many rows,
 |`$:/config/shortcuts/rimir-cascade-palette-open` |`ctrl+space` |Hotkey to open the palette |
 |`$:/config/rimir/cascade-palette/max-results` |`30` |Cap on items shown per stage |
 |`$:/config/rimir/cascade-palette/soft-depth-warning` |`10` |Stage-stack depth that triggers a console warning. Adjust live via Settings → Soft depth warning. |
-|`$:/config/rimir/cascade-palette/details-always-on` |`no` |Keep the details drawer visible without holding Ctrl. Toggle live via Settings → Details always on. |
+|`$:/config/rimir/cascade-palette/details-always-on` |`no` |Keep the detail drawer visible without holding Ctrl. Toggle live via Settings → Details always on. |
 |`$:/config/rimir/cascade-palette/popup-width` |`50` |Popup width in `vw` (clamped to [20, 95]). |
 
 ! JavaScript message
@@ -279,6 +284,7 @@ Use it to spot slow filters (large `recompute`), expensive views with many rows,
 |`<<parent-picked>>` |entries, actions, filters |Title picked in the parent stage |
 |`<<stage-N-picked>>` |entries, actions, filters |Title picked at stage index N (root = 0) |
 |`<<context-tiddler>>` |entries, actions, filters, visibility |Tiddler the user was looking at when the palette opened (focused `[data-tiddler-title]` ancestor, falling back to `$:/HistoryList`'s top entry). Empty when no context was captured. |
+|`<<stage-preview-context>>` |entries, actions, filters (inside a preview-bearing subtree) |Resolved value of `ca-preview-context` from the topmost stage that registered a side preview. Exposes "what the user is editing" to deeper stages' filters / actions, so drill logic inside the subtree can reach for the original entity without re-traversing the stack. Empty when no preview is active. |
 |`<arg>` |filter / visibility tiddler `expr` field |The sanitised user-supplied argument. Operand-form: `[<arg>]`. |
 |`<<arg>>` |filter / visibility tiddler `chip` / `hint` / `help` fields |Plain-text version of the same argument. |
 

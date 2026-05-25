@@ -872,14 +872,14 @@ module.exports = function (proto) {
 
     proto._maybeRenderViewConfigHelp = function () {
         if (this.focus !== "viewconfig") return;
-        if (!this.previewEl) return;
-        while (this.previewEl.firstChild) {
-            this.previewEl.removeChild(this.previewEl.firstChild);
+        if (!this.detailEl) return;
+        while (this.detailEl.firstChild) {
+            this.detailEl.removeChild(this.detailEl.firstChild);
         }
         var view = this._getViewByTitle(this.activeView);
         if (!view) return;
         var titleEl = this.document.createElement("div");
-        titleEl.className = "rcp-preview-title";
+        titleEl.className = "rcp-detail-title";
         var helpText, fields = [];
         if (!this.viewConfigExpanded) {
             titleEl.textContent = "Structure — " + view.name;
@@ -904,13 +904,13 @@ module.exports = function (proto) {
             if (pill.value) fields.push(["Value", pill.value]);
             if (pill._layerName) fields.push(["Layer", pill._layerName]);
         }
-        this.previewEl.appendChild(titleEl);
+        this.detailEl.appendChild(titleEl);
         var helpEl = this.document.createElement("div");
         helpEl.className = "rcp-details-help";
         helpEl.textContent = helpText;
-        this.previewEl.appendChild(helpEl);
+        this.detailEl.appendChild(helpEl);
         var dl = this.document.createElement("dl");
-        dl.className = "rcp-preview-fields";
+        dl.className = "rcp-detail-fields";
         var doc = this.document;
         fields.forEach(function (row) {
             var dt = doc.createElement("dt");
@@ -920,8 +920,8 @@ module.exports = function (proto) {
             dl.appendChild(dt);
             dl.appendChild(dd);
         });
-        this.previewEl.appendChild(dl);
-        if (this.popupEl) this.popupEl.classList.add("rcp-previewing");
+        this.detailEl.appendChild(dl);
+        if (this.popupEl) this.popupEl.classList.add("rcp-showing-detail");
     };
 
     // Per-pill-kind help text. Pills carrying a pre-baked `help` field
@@ -1051,18 +1051,18 @@ module.exports = function (proto) {
         var visible = this._visibleViews();
         var view = visible[this.viewFocusIdx];
         if (!view) return;
-        while (this.previewEl.firstChild) {
-            this.previewEl.removeChild(this.previewEl.firstChild);
+        while (this.detailEl.firstChild) {
+            this.detailEl.removeChild(this.detailEl.firstChild);
         }
         var titleEl = this.document.createElement("div");
-        titleEl.className = "rcp-preview-title";
+        titleEl.className = "rcp-detail-title";
         titleEl.textContent = view.name +
             (view.title === this.activeView ? " (active)" : "");
-        this.previewEl.appendChild(titleEl);
+        this.detailEl.appendChild(titleEl);
         var helpEl = this.document.createElement("div");
         helpEl.className = "rcp-details-help";
         helpEl.textContent = view.hint || view.name;
-        this.previewEl.appendChild(helpEl);
+        this.detailEl.appendChild(helpEl);
         var rows = [];
         rows.push(["Layers", view.layers.map(function (l) {
             return l.name || (l.isImplicit ? "(implicit)" : l.title);
@@ -1076,7 +1076,7 @@ module.exports = function (proto) {
         rows.push(["Include entries", view.includeEntries]);
         rows.push(["View tiddler", view.title]);
         var dl = this.document.createElement("dl");
-        dl.className = "rcp-preview-fields";
+        dl.className = "rcp-detail-fields";
         rows.forEach(function (row) {
             var dt = this.document.createElement("dt");
             dt.textContent = row[0];
@@ -1085,8 +1085,8 @@ module.exports = function (proto) {
             dl.appendChild(dt);
             dl.appendChild(dd);
         }, this);
-        this.previewEl.appendChild(dl);
-        this.popupEl.classList.add("rcp-previewing");
+        this.detailEl.appendChild(dl);
+        this.popupEl.classList.add("rcp-showing-detail");
     };
 
     proto._setActiveView = function (viewTitle) {

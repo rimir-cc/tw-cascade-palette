@@ -22,9 +22,77 @@ type: text/css
     border-radius: 8px;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
     display: flex;
-    flex-direction: column;
+    /* Outer layout is flex-row so the side preview pane (when active) sits
+       to the right of the cascade. The cascade column owns its own flex-
+       column layout internally. */
+    flex-direction: row;
     overflow: hidden;
     font: 14px / 1.4 system-ui, -apple-system, sans-serif;
+}
+
+/* Cascade column — owns the vertical stack of breadcrumb, pill strips,
+   input, results, detail drawer, hint, perf footer. When the side preview
+   is hidden, it fills the popup; when shown, it shrinks to 50%. */
+.rcp-cascade-col {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.rcp-popup.rcp-showing-preview .rcp-cascade-col {
+    flex: 1 1 50%;
+}
+
+/* Side preview pane — right column, hidden by default. Activated by an
+   entry/action on the stack carrying `ca-preview-template`. The pane is
+   focusable for scrolling / interacting with widgets inside the rendered
+   template body. */
+.rcp-preview-pane {
+    display: none;
+    flex: 1 1 50%;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+    border-left: 1px solid #d8d8d8;
+    background: #fbfaf7;
+    outline: none;
+}
+
+.rcp-popup.rcp-showing-preview .rcp-preview-pane {
+    display: flex;
+}
+
+.rcp-preview-pane-title {
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #92400e;
+    background: #fef3c7;
+    border-bottom: 1px solid #fde68a;
+    user-select: none;
+}
+
+.rcp-preview-pane-title:empty {
+    display: none;
+}
+
+.rcp-preview-pane-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #1a1a1a;
+}
+
+.rcp-popup[data-focus="preview"] .rcp-preview-pane {
+    box-shadow: inset 2px 0 0 0 #d97706;
 }
 
 .rcp-breadcrumb {
@@ -848,13 +916,13 @@ type: text/css
    and details get a subtle border-color shift instead so the popup
    doesn't accumulate strong outlines. */
 .rcp-results:focus,
-.rcp-preview:focus {
+.rcp-detail-drawer:focus {
     outline: none;
 }
 .rcp-popup[data-focus="menu"] .rcp-results {
     box-shadow: inset 2px 0 0 0 #2563eb;
 }
-.rcp-popup[data-focus="details"] .rcp-preview {
+.rcp-popup[data-focus="details"] .rcp-detail-drawer{
     box-shadow: inset 2px 0 0 0 #2563eb;
 }
 
@@ -1122,7 +1190,7 @@ type: text/css
     letter-spacing: 0.02em;
 }
 
-.rcp-preview {
+.rcp-detail-drawer{
     display: none;
     /* `flex: 0 0 auto` keeps the slot at content size (capped by max-height
        below) without growing or shrinking — preview never steals space from
@@ -1138,18 +1206,18 @@ type: text/css
     color: #1a1a1a;
 }
 
-.rcp-popup.rcp-previewing .rcp-preview {
+.rcp-popup.rcp-showing-detail .rcp-detail-drawer{
     display: block;
 }
 
 /* When preview is open, grow the popup's ceiling so the new slot appends
    *below* the result list instead of forcing the list to shrink. Result
    rows that were visible before opening preview stay visible. */
-.rcp-popup.rcp-previewing {
+.rcp-popup.rcp-showing-detail {
     max-height: 90vh;
 }
 
-.rcp-preview-title {
+.rcp-detail-title {
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     font-size: 11px;
     color: #6b7280;
@@ -1158,12 +1226,12 @@ type: text/css
     user-select: text;
 }
 
-.rcp-preview-empty {
+.rcp-detail-empty {
     color: #9ca3af;
     font-style: italic;
 }
 
-.rcp-preview-fields {
+.rcp-detail-fields {
     display: grid;
     grid-template-columns: max-content 1fr;
     column-gap: 12px;
@@ -1171,7 +1239,7 @@ type: text/css
     margin: 0;
 }
 
-.rcp-preview-fields dt {
+.rcp-detail-fields dt {
     font-weight: 600;
     color: #4b5563;
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -1180,7 +1248,7 @@ type: text/css
     align-self: start;
 }
 
-.rcp-preview-fields dd {
+.rcp-detail-fields dd {
     margin: 0;
     color: #1a1a1a;
     word-break: break-word;
@@ -1188,7 +1256,7 @@ type: text/css
     user-select: text;
 }
 
-.rcp-preview-fields dd.rcp-preview-body {
+.rcp-detail-fields dd.rcp-detail-body {
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     background: rgba(0, 0, 0, 0.04);
     padding: 4px 6px;
@@ -1302,20 +1370,32 @@ type: text/css
 }
 
 @media (prefers-color-scheme: dark) {
-    .rcp-preview {
+    .rcp-detail-drawer{
         background: #111827;
         color: #f3f4f6;
         border-top-color: #374151;
     }
-    .rcp-preview-title,
-    .rcp-preview-fields dt {
+    .rcp-detail-title,
+    .rcp-detail-fields dt {
         color: #9ca3af;
     }
-    .rcp-preview-fields dd {
+    .rcp-detail-fields dd {
         color: #f3f4f6;
     }
-    .rcp-preview-fields dd.rcp-preview-body {
+    .rcp-detail-fields dd.rcp-detail-body {
         background: rgba(255, 255, 255, 0.06);
+    }
+    .rcp-preview-pane {
+        background: #0f172a;
+        border-left-color: #374151;
+    }
+    .rcp-preview-pane-title {
+        background: #422006;
+        color: #fde68a;
+        border-bottom-color: #78350f;
+    }
+    .rcp-preview-pane-body {
+        color: #f3f4f6;
     }
 }
 

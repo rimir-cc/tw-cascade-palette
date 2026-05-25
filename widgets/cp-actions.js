@@ -176,6 +176,21 @@ module.exports = function (proto) {
             var s = this.stack[i];
             vars["stage-" + i + "-picked"] = s.parentPicked || "";
         }
+        // Expose `stage-preview-context` — the context value computed by
+        // `ca-preview-context` on whatever entry/action drilled the user
+        // into the current subtree. Topmost stage with a non-empty
+        // `_previewContext` wins, so deeper stages can still reference
+        // "what we're talking about" via this variable.
+        for (var k = this.stack.length - 1; k >= 0; k--) {
+            var sp = this.stack[k];
+            if (sp && sp._previewContext) {
+                vars["stage-preview-context"] = sp._previewContext;
+                break;
+            }
+        }
+        if (!("stage-preview-context" in vars)) {
+            vars["stage-preview-context"] = "";
+        }
         return vars;
     };
 

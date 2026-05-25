@@ -25,7 +25,7 @@ The palette is a stack of stages, growing on Right-arrow / Space / Enter-on-dril
 ;`kind: "actions"`
 :An action-menu stage. Pushed when the user Right-arrows on a typed leaf (via `ca-layer-row-entity-type`), Space's on any typed row (leaf or container), or drills on a dynamic entity item in a filter stage. Items are tiddlers tagged `$:/tags/rimir/cascade-palette/action` whose `ca-entity-type` matches the resolved type (plus globals tagged `ca-entity-type: *`), further narrowed by each action's optional `ca-action-when` applicability filter.
 ;`kind: "confirm"`
-:A two-row Confirm / Cancel stage pushed when a leaf action carries `ca-confirm: yes`, or on Delete-on-row for destructive list operations. The consequence text shows in the details drawer.
+:A two-row Confirm / Cancel stage pushed when a leaf action carries `ca-confirm: yes`, or on Delete-on-row for destructive list operations. The consequence text shows in the detail drawer.
 
 The keyboard router does one of:
 
