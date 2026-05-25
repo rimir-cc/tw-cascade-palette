@@ -177,6 +177,8 @@ ca-default-value: 30
 
 `ca-kind: text` shows the current value on the right. ''Space'' or ''Enter'' pushes the value into the palette's input field for editing — the input becomes a value editor (highlighted background, result list dims), Enter commits the new value back, Esc discards. Use for short strings: hotkey bindings, label overrides, file paths.
 
+''Chaining an action onto the commit:'' `ca-on-commit` fires action wikitext AFTER the value lands (with `<<picked>>` bound to the committed value). Useful for single-shot text rows that need to ''do'' something with the input — e.g. captured key → `$action-createtiddler` — rather than just persist it to a field. `ca-on-commit` works with or without `ca-bind-tiddler`: bind-less rows are pure captures (value lives only in `<<picked>>` for the action).
+
 ```
 title: $:/plugins/example/settings/hotkey
 tags: $:/tags/rimir/cascade-palette/setting

@@ -358,11 +358,13 @@ module.exports = function (proto) {
         if (!this.editMode) return;
         var em = this.editMode;
         var raw = this.inputEl.value;
+        var committedValue;
         if (commit) {
             if (em.item.kind === "number") {
                 var n = parseFloat(raw);
                 if (!isNaN(n)) {
-                    this.writeBoundValue(em.item, String(this.clampNumber(em.item, n)));
+                    committedValue = String(this.clampNumber(em.item, n));
+                    this.writeBoundValue(em.item, committedValue);
                 }
                 // If unparseable, silently discard — feels safer than writing
                 // garbage to a config tiddler.
@@ -373,6 +375,7 @@ module.exports = function (proto) {
                 // rather than losing their input.
                 try {
                     this.writeBoundValue(em.item, raw);
+                    committedValue = raw;
                 } catch (err) {
                     this.inputEl.classList.add("rcp-edit-error");
                     this.hintEl.textContent = "✗ " +
@@ -385,6 +388,19 @@ module.exports = function (proto) {
         }
         this.editMode = null;
         this.inputEl.classList.remove("rcp-edit-error");
+        // ca-on-commit: action wikitext fired AFTER the value lands (or
+        // would have landed — bind-less rows fire onCommit on commit, using
+        // the input as a transient capture). <<picked>> = the committed
+        // value, <<parent-picked>> = the stage's outer pick. Used by single-
+        // shot text rows like kind's "+ Create new kind…" where the user
+        // types a key once and a follow-up action creates the artifact.
+        if (commit && em.item.onCommit && committedValue !== undefined) {
+            var stageForCommit = this.topStage();
+            var commitVars = stageForCommit
+                ? this.buildStageVariables(stageForCommit, committedValue)
+                : { "picked": committedValue, "parent-picked": "" };
+            this.invokeViaNavigator(em.item.onCommit, commitVars);
+        }
         var stage = this.topStage();
         if (stage) {
             stage.query = em.savedQuery;

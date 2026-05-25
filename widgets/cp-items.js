@@ -135,6 +135,15 @@ module.exports = function (proto) {
             // deleting any tiddler.
             onDelete: f["ca-on-delete"] || "",
             onDeleteConsequence: f["ca-on-delete-consequence"] || "",
+            // ca-on-commit (text/number/date kinds): action wikitext fired
+            // after a successful edit-mode commit, with <<picked>> bound to
+            // the value the user just typed. Lets single-shot text rows
+            // chain a create action onto the user's input — e.g. "+ Create
+            // new kind…" types a key then immediately fires $action-
+            // createtiddler. Bind-less rows can use it as a pure value
+            // capture (no field is written; the value lives only in
+            // <<picked>> for the action's lifetime).
+            onCommit: f["ca-on-commit"] || "",
             // Side preview registration. When set on an entry/action,
             // drilling into the row pushes a new stage AND attaches a
             // right-pane preview to it: the engine renders the named
