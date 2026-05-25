@@ -65,6 +65,15 @@ module.exports = function (proto) {
             this._cancelPickMode();
             return;
         }
+        // Tier 2a'' — Shift-Esc closes the palette directly from any
+        // focus and any depth. Bare Esc walks the breadcrumb back one
+        // stage at a time; Shift-Esc is the "I'm done" shortcut that
+        // collapses the whole stack in one keystroke.
+        if (e.key === "Escape" && e.shiftKey) {
+            e.preventDefault();
+            this.close();
+            return;
+        }
         // Tier 2b — global Ctrl-DEL clears both constraint strips
         // (filters + visibility) regardless of focus. Cheap escape hatch
         // from a "now what?" pile-up of pills.
