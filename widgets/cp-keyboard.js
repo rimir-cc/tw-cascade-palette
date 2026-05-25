@@ -141,9 +141,17 @@ module.exports = function (proto) {
     proto._handleKeydownInput = function (e, stage) {
         if (e.key === "Escape") {
             e.preventDefault();
-            // Esc in input always closes — the user is at the "top" of the
-            // palette mental model and Esc means "I'm done".
-            this.close();
+            // Esc backs out one stage at any depth > 1 — symmetric with
+            // ArrowLeft-in-menu — and only closes at root. So a deep
+            // action-subtree (entity drill → action menu → confirm) backs
+            // out keystroke-by-keystroke instead of jumping all the way
+            // out, and the user can revisit a wrong drill without
+            // restarting the whole flow.
+            if (this.stack.length > 1) {
+                this.popStage();
+            } else {
+                this.close();
+            }
             return;
         }
         if (e.key === "ArrowDown") {
