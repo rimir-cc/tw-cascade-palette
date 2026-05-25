@@ -121,6 +121,31 @@ type: text/css
     padding: 5px 14px 6px;
     background: #fafaf9;
     border-bottom: 1px solid #ececec;
+    outline: none;
+}
+
+.rcp-view-config-strip-focused {
+    background: #f3f6ff;
+    border-bottom-color: #b6c5ff;
+    box-shadow: inset 0 0 0 1px #c5d2ff;
+}
+
+.rcp-view-config-row-compact {
+    align-items: center;
+}
+
+.rcp-view-config-pill-summary .rcp-view-config-pill-label,
+.rcp-view-config-pill-summary-layers .rcp-view-config-pill-label { color: #2563eb; }
+
+.rcp-view-config-pill-focused {
+    background: #dbeafe;
+    border-color: #6366f1;
+    color: #1e3a8a;
+    box-shadow: 0 0 0 1px #6366f1;
+}
+
+.rcp-view-config-pill-focused .rcp-view-config-pill-value {
+    color: #1e3a8a;
 }
 
 .rcp-popup.rcp-has-view-config .rcp-view-config-strip {
@@ -226,6 +251,22 @@ type: text/css
         background: #181d24;
         border-bottom-color: #2a2f38;
     }
+    .rcp-view-config-strip-focused {
+        background: #1e2438;
+        border-bottom-color: #4338ca;
+        box-shadow: inset 0 0 0 1px #4338ca;
+    }
+    .rcp-view-config-pill-focused {
+        background: #312e81;
+        border-color: #818cf8;
+        color: #e0e7ff;
+        box-shadow: 0 0 0 1px #818cf8;
+    }
+    .rcp-view-config-pill-focused .rcp-view-config-pill-value {
+        color: #e0e7ff;
+    }
+    .rcp-view-config-pill-summary .rcp-view-config-pill-label,
+    .rcp-view-config-pill-summary-layers .rcp-view-config-pill-label { color: #93c5fd; }
     .rcp-view-config-strip::before {
         color: #6b7280;
     }

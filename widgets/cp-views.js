@@ -657,11 +657,21 @@ module.exports = function (proto) {
     // View-config strip — stacked, one mini-row per layer
     // ===================================================================
 
+    proto._hasViewConfigToShow = function () {
+        var view = this._getViewByTitle(this.activeView);
+        if (!view || !view.layers || !view.layers.length) return false;
+        // At minimum the strip shows the view header (with layer count
+        // and any view-scoped pills) so anything with layers qualifies.
+        return true;
+    };
+
     proto._renderViewConfigStrip = function () {
         if (!this.viewConfigStripEl) return;
         while (this.viewConfigStripEl.firstChild) {
             this.viewConfigStripEl.removeChild(this.viewConfigStripEl.firstChild);
         }
+        // Reset the flat pill list — rebuilt by whichever branch renders.
+        this._viewConfigPillList = [];
         var view = this._getViewByTitle(this.activeView);
         if (!view || !view.layers || !view.layers.length) {
             if (this.popupEl) {
@@ -669,22 +679,84 @@ module.exports = function (proto) {
             }
             return;
         }
+        var focused = this.focus === "viewconfig";
+        var expanded = focused && this.viewConfigExpanded;
+        this.viewConfigStripEl.classList.toggle(
+            "rcp-view-config-strip-focused", focused
+        );
+        this.viewConfigStripEl.classList.toggle(
+            "rcp-view-config-strip-compact", !expanded
+        );
+        if (expanded) {
+            this._renderViewConfigExpanded(view);
+        } else {
+            this._renderViewConfigCompact(view);
+        }
+        if (this.popupEl) {
+            this.popupEl.classList.toggle(
+                "rcp-has-view-config",
+                this.viewConfigStripEl.firstChild !== null
+            );
+        }
+    };
+
+    // Compact mode: single summary row with view name, layer count, and
+    // any view-scoped pills (sort, entries, grouping). Pills here are
+    // informational only — not individually focusable.
+    proto._renderViewConfigCompact = function (view) {
+        var rowEl = this.document.createElement("div");
+        rowEl.className = "rcp-view-config-row rcp-view-config-row-compact";
+        // No row label: the CSS ::before "Structure" header on the strip
+        // already names the section, and a second "structure" tag would
+        // be redundant noise.
+        var pills = [];
+        pills.push({
+            kind: "summary",
+            label: "view",
+            value: view.name,
+            help: "Active view: " + view.name +
+                (view.hint ? "\n\n" + view.hint : "")
+        });
+        var layerNames = view.layers.map(function (l, i) {
+            return l.name || (l.isImplicit ? "(implicit)" : ("layer " + (i + 1)));
+        }).join(" + ");
+        pills.push({
+            kind: "summary-layers",
+            label: view.layers.length + " layer" +
+                (view.layers.length === 1 ? "" : "s"),
+            value: layerNames,
+            help: "View composition: " + layerNames +
+                "\n\nPress ↵ / Space / → to expand and inspect each layer."
+        });
+        this._viewScopedPills(view).forEach(function (p) {
+            pills.push(p);
+        });
         var self = this;
-        // View-scoped header row: aggregated view-wide pills + entries
-        // inclusion indicator. Always present so the user can see what's
-        // "above" the per-layer mini-rows. Hidden when the view declares
-        // nothing meaningful at this level.
+        pills.forEach(function (p) {
+            rowEl.appendChild(self._buildConfigPill(p));
+        });
+        this.viewConfigStripEl.appendChild(rowEl);
+        // Compact mode has no individually-focused pill — the whole strip
+        // is the focus target. Pill list is left empty.
+    };
+
+    // Expanded mode: view-scoped header row + one mini-row per layer,
+    // each pill individually focusable for help rendering.
+    proto._renderViewConfigExpanded = function (view) {
+        var self = this;
+        var pillList = [];
         var headerPills = this._viewScopedPills(view);
         if (headerPills.length) {
             var headerRow = this.document.createElement("div");
             headerRow.className = "rcp-view-config-row rcp-view-config-row-view";
             this._appendConfigRowLabel(headerRow, "view");
             headerPills.forEach(function (p) {
-                headerRow.appendChild(self._buildConfigPill(p));
+                var el = self._buildConfigPill(p);
+                pillList.push({ pill: p, el: el });
+                headerRow.appendChild(el);
             });
             this.viewConfigStripEl.appendChild(headerRow);
         }
-        // Per-layer mini-rows.
         view.layers.forEach(function (layer, i) {
             var pills = self._layerPills(layer);
             if (!pills.length) return;
@@ -695,17 +767,172 @@ module.exports = function (proto) {
             rowEl.className = cls;
             self._appendConfigRowLabel(rowEl, layer.name || ("layer " + (i + 1)));
             pills.forEach(function (p) {
-                rowEl.appendChild(self._buildConfigPill(p));
+                // Annotate with the owning layer so help can name it.
+                p._layerName = layer.name || ("layer " + (i + 1));
+                var el = self._buildConfigPill(p);
+                pillList.push({ pill: p, el: el });
+                rowEl.appendChild(el);
             });
             self.viewConfigStripEl.appendChild(rowEl);
         });
-        if (this.popupEl) {
-            this.popupEl.classList.toggle(
-                "rcp-has-view-config",
-                this.viewConfigStripEl.firstChild !== null
-            );
+        // Clamp focus index into the rebuilt list and highlight.
+        if (this.viewConfigFocusIdx >= pillList.length) {
+            this.viewConfigFocusIdx = Math.max(0, pillList.length - 1);
         }
+        for (var i = 0; i < pillList.length; i++) {
+            if (i === this.viewConfigFocusIdx) {
+                pillList[i].el.classList.add("rcp-view-config-pill-focused");
+            }
+        }
+        // Make pill clicks focus that pill (mirrors other strips).
+        pillList.forEach(function (entry, idx) {
+            entry.el.addEventListener("mousedown", function (e) {
+                if (self.focus !== "viewconfig") return;
+                e.preventDefault();
+                self.viewConfigFocusIdx = idx;
+                self._renderViewConfigStrip();
+                self._maybeRenderViewConfigHelp();
+            });
+        });
+        this._viewConfigPillList = pillList;
     };
+
+    // 2D pill navigation: build a row-by-row index of the flat pill list
+    // so left/right walks within a row and up/down walks across rows.
+    proto._viewConfigGrid = function () {
+        var list = this._viewConfigPillList || [];
+        var rows = [];
+        var current = [];
+        var lastParent = null;
+        list.forEach(function (entry, idx) {
+            var parent = entry.el && entry.el.parentNode;
+            if (parent !== lastParent && current.length) {
+                rows.push(current);
+                current = [];
+            }
+            current.push(idx);
+            lastParent = parent;
+        });
+        if (current.length) rows.push(current);
+        return rows;
+    };
+
+    proto._viewConfigMove = function (direction) {
+        var list = this._viewConfigPillList || [];
+        if (!list.length) return;
+        var rows = this._viewConfigGrid();
+        if (!rows.length) return;
+        var idx = this.viewConfigFocusIdx;
+        var rowIdx = 0, colIdx = 0;
+        for (var r = 0; r < rows.length; r++) {
+            var c = rows[r].indexOf(idx);
+            if (c >= 0) { rowIdx = r; colIdx = c; break; }
+        }
+        if (direction === "left") {
+            colIdx = Math.max(0, colIdx - 1);
+        } else if (direction === "right") {
+            colIdx = Math.min(rows[rowIdx].length - 1, colIdx + 1);
+        } else if (direction === "up") {
+            rowIdx = Math.max(0, rowIdx - 1);
+            colIdx = Math.min(colIdx, rows[rowIdx].length - 1);
+        } else if (direction === "down") {
+            rowIdx = Math.min(rows.length - 1, rowIdx + 1);
+            colIdx = Math.min(colIdx, rows[rowIdx].length - 1);
+        }
+        this.viewConfigFocusIdx = rows[rowIdx][colIdx];
+        this._renderViewConfigStrip();
+        this._maybeRenderViewConfigHelp();
+    };
+
+    proto._maybeRenderViewConfigHelp = function () {
+        if (this.focus !== "viewconfig") return;
+        if (!this.previewEl) return;
+        while (this.previewEl.firstChild) {
+            this.previewEl.removeChild(this.previewEl.firstChild);
+        }
+        var view = this._getViewByTitle(this.activeView);
+        if (!view) return;
+        var titleEl = this.document.createElement("div");
+        titleEl.className = "rcp-preview-title";
+        var helpText, fields = [];
+        if (!this.viewConfigExpanded) {
+            titleEl.textContent = "Structure — " + view.name;
+            helpText = "Structure of the active view. Press ↵, Space, or → " +
+                "to expand and inspect each layer's filters individually. " +
+                "Each layer contributes rows to the menu via its own " +
+                "roots/children filters; the built-in entries layer (when " +
+                "active) places `ca-position`-tagged entries into the tree.";
+            fields.push(["View", view.name]);
+            fields.push(["Layers", String(view.layers.length)]);
+            fields.push(["Sort", view.sort || "alphabetical"]);
+            fields.push(["Grouping", view.grouping ? "on" : "off"]);
+            fields.push(["Entries", view.includeEntries || "auto"]);
+        } else {
+            var entry = (this._viewConfigPillList || [])[this.viewConfigFocusIdx];
+            if (!entry) return;
+            var pill = entry.pill;
+            titleEl.textContent = (pill._layerName ? pill._layerName + " · " : "") +
+                pill.label;
+            helpText = this._viewConfigPillHelp(pill);
+            fields.push(["Kind", pill.kind]);
+            if (pill.value) fields.push(["Value", pill.value]);
+            if (pill._layerName) fields.push(["Layer", pill._layerName]);
+        }
+        this.previewEl.appendChild(titleEl);
+        var helpEl = this.document.createElement("div");
+        helpEl.className = "rcp-details-help";
+        helpEl.textContent = helpText;
+        this.previewEl.appendChild(helpEl);
+        var dl = this.document.createElement("dl");
+        dl.className = "rcp-preview-fields";
+        var doc = this.document;
+        fields.forEach(function (row) {
+            var dt = doc.createElement("dt");
+            dt.textContent = row[0];
+            var dd = doc.createElement("dd");
+            dd.textContent = row[1];
+            dl.appendChild(dt);
+            dl.appendChild(dd);
+        });
+        this.previewEl.appendChild(dl);
+        if (this.popupEl) this.popupEl.classList.add("rcp-previewing");
+    };
+
+    // Per-pill-kind help text. Pills carrying a pre-baked `help` field
+    // (compact-mode summary pills) use that directly; structural pills
+    // describe the field they represent.
+    proto._viewConfigPillHelp = function (pill) {
+        if (pill && pill.help) return pill.help;
+        var k = pill.kind;
+        var H = {
+            "roots": "Filter producing the root rows for this layer. " +
+                "Evaluated with no <currentTiddler> binding.",
+            "children": "Filter producing child rows under a parent. " +
+                "<currentTiddler> is the parent's title.",
+            "leaf": "Leaf-test filter. Returning a non-empty result on a " +
+                "candidate marks it as a leaf (no further drill).",
+            "label": "Display-name override. Evaluated per row; " +
+                "<currentTiddler> is the row title.",
+            "actions": "Wikitext fired on Enter for leaf rows. Receives " +
+                "<<picked>> / <<parent-picked>> / <<currentTiddler>>.",
+            "entity-type": "Per-row entity-type filter. A non-empty result " +
+                "on a leaf row makes Right-arrow open the action-menu stage " +
+                "of that type. Space opens the same menu on any typed row.",
+            "row-name": "Per-row name override filter.",
+            "row-group": "Per-row group override filter.",
+            "row-kind": "Per-row kind override filter.",
+            "sort": "Row sort policy for this view.",
+            "pick": "Pick-mode emits the picked row's path/title into the " +
+                "named filter pill and returns to the prior view.",
+            "entries-mode": "Whether the built-in entries layer is appended " +
+                "(yes / no / auto). Auto = append when any declared layer " +
+                "is tree-shaped.",
+            "grouping": "Section-header grouping policy. `off` means rows " +
+                "render without group separators."
+        };
+        return H[k] || "(no description)";
+    };
+
 
     proto._appendConfigRowLabel = function (rowEl, text) {
         var labelEl = this.document.createElement("span");

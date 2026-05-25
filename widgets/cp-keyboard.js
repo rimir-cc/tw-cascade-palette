@@ -128,6 +128,7 @@ module.exports = function (proto) {
             case "filter":      this._handleKeydownFilter(e, stage); return;
             case "visibility":  this._handleKeydownVisibility(e, stage); return;
             case "view":        this._handleKeydownView(e, stage); return;
+            case "viewconfig":  this._handleKeydownViewConfig(e, stage); return;
             case "preset":      this._handleKeydownPreset(e, stage); return;
             case "details":     this._handleKeydownDetails(e, stage); return;
         }
@@ -587,7 +588,65 @@ module.exports = function (proto) {
     proto._isPillFocus = function (f) {
         f = f || this.focus;
         return f === "preset" || f === "visibility" ||
-               f === "filter" || f === "view";
+               f === "filter" || f === "view" || f === "viewconfig";
+    };
+
+    proto._handleKeydownViewConfig = function (e, stage) {
+        if (e.key === "Escape") {
+            e.preventDefault();
+            if (this.viewConfigExpanded) {
+                // Collapse to compact; stay focused on the strip.
+                this.viewConfigExpanded = false;
+                this.viewConfigFocusIdx = 0;
+                this._renderViewConfigStrip();
+                this._maybeRenderViewConfigHelp();
+                this._renderHint();
+            } else {
+                // Already compact — leave the strip back to input.
+                this.setFocus("input");
+            }
+            return;
+        }
+        if (!this.viewConfigExpanded) {
+            // Compact mode: Enter, Space, or Right expands to the full
+            // per-layer layout. Arrow nav has no effect here (the strip
+            // is a single non-navigable summary).
+            if (e.key === "Enter" || e.key === " " || e.code === "Space" ||
+                e.key === "ArrowRight") {
+                e.preventDefault();
+                this.viewConfigExpanded = true;
+                this.viewConfigFocusIdx = 0;
+                this._renderViewConfigStrip();
+                this._maybeRenderViewConfigHelp();
+                this._renderHint();
+                return;
+            }
+            return;
+        }
+        // Expanded mode: 4-arrow navigation across the pill grid. Up at
+        // the top-most row drops into input (matches the pill-section
+        // ↑-from-top → up-and-out convention); Down at the bottom row
+        // drops back into input (same convention).
+        if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            this._viewConfigMove("left");
+            return;
+        }
+        if (e.key === "ArrowRight") {
+            e.preventDefault();
+            this._viewConfigMove("right");
+            return;
+        }
+        if (e.key === "ArrowUp") {
+            e.preventDefault();
+            this._viewConfigMove("up");
+            return;
+        }
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            this._viewConfigMove("down");
+            return;
+        }
     };
 
     proto._pillsCycle = function () {
@@ -596,6 +655,13 @@ module.exports = function (proto) {
         if (this.visibilities && this.visibilities.length) order.push("visibility");
         if (this.filters && this.filters.length) order.push("filter");
         if (this._visibleViews().length >= 2) order.push("view");
+        // Structure (viewconfig) sits below view in the visual stack and
+        // is conceptually "more detail about the active view" — place it
+        // last in the pill cycle so Tab walks through configuration top-
+        // to-bottom in the same order the strips are rendered.
+        if (this._hasViewConfigToShow && this._hasViewConfigToShow()) {
+            order.push("viewconfig");
+        }
         return order;
     };
 

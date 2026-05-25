@@ -197,14 +197,18 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.viewStripEl.className = "rcp-view-strip";
         this.viewStripEl.setAttribute("tabindex", "-1");
 
-        // View-config strip — read-only pills depicting the active view's
+        // View-config strip — pills depicting the active view's
         // primitives (roots / children / leaf / label filters). Hidden
         // via `rcp-has-view-config` on the popup when the active view
-        // declares no primitives. Not focusable in this pass — the strip
-        // is informational so the implicit structure of the active view
-        // is externally visible.
+        // declares no primitives. Focusable: in the Tab cycle for pill
+        // sections. Initial state on focus is "compact" (one summary row);
+        // Enter/Space/→ expands to the full stacked per-layer layout, Esc
+        // collapses back.
         this.viewConfigStripEl = this.document.createElement("div");
         this.viewConfigStripEl.className = "rcp-view-config-strip";
+        this.viewConfigStripEl.setAttribute("tabindex", "-1");
+        this.viewConfigFocusIdx = 0;
+        this.viewConfigExpanded = false;
 
         // Visibility strip — pills that hide root entries (predicate
         // filters). Sits ABOVE the filter strip in the visual hierarchy
@@ -398,6 +402,18 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.presetStripEl.addEventListener("focus", function () {
             if (self.focus !== "preset") {
                 self.focus = "preset";
+                self._applyFocusAttr();
+            }
+        });
+
+        // View-config strip — background click focuses (entering compact
+        // mode); pill click in expanded mode focuses that pill.
+        this.viewConfigStripEl.addEventListener("mousedown", function (e) {
+            if (e.target === self.viewConfigStripEl) self.setFocus("viewconfig");
+        });
+        this.viewConfigStripEl.addEventListener("focus", function () {
+            if (self.focus !== "viewconfig") {
+                self.focus = "viewconfig";
                 self._applyFocusAttr();
             }
         });
@@ -752,7 +768,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (section !== "input" && section !== "menu" &&
             section !== "details" && section !== "filter" &&
             section !== "visibility" && section !== "view" &&
-            section !== "preset") return;
+            section !== "preset" && section !== "viewconfig") return;
         // Don't allow focusing a strip with no pills — it would be a dead
         // end visually and a confusing Tab destination.
         if (section === "filter" && (!this.filters || this.filters.length === 0)) {
@@ -769,6 +785,12 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         }
         // Same for the preset strip when no presets exist.
         if (section === "preset" && this._presetPillCount() === 0) {
+            section = "input";
+        }
+        // Don't focus the structure strip when the active view has no
+        // structure to show (no layers, or layers but no pills) — focus
+        // would land on a strip the user can't interact with.
+        if (section === "viewconfig" && !this._hasViewConfigToShow()) {
             section = "input";
         }
         // Don't focus the details pane when the drawer isn't actually
@@ -809,6 +831,16 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             this.visibilityStripEl.focus();
             this._renderVisibilityStrip();
             this._maybeRenderVisibilityHelp();
+        } else if (section === "viewconfig") {
+            // Always enter compact mode on (re-)focus, per the documented
+            // behaviour. Expansion is explicit via Enter / Space / Right
+            // and survives only until Esc collapses it (or until focus
+            // leaves the strip).
+            this.viewConfigExpanded = false;
+            this.viewConfigFocusIdx = 0;
+            this.viewConfigStripEl.focus();
+            this._renderViewConfigStrip();
+            this._maybeRenderViewConfigHelp();
         } else if (section === "view") {
             // Initialise focus index to the currently-active view so arrow
             // motion starts from the user's current location, not always
@@ -838,10 +870,13 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (prevFocus === "preset" || section === "preset") {
             this._renderPresetStrip();
         }
+        if (prevFocus === "viewconfig" || section === "viewconfig") {
+            this._renderViewConfigStrip();
+        }
         // Leaving a strip-focus while details is open: the pane was showing
         // strip help — refresh it to show the current menu selection so
         // the user gets per-row preview again.
-        var stripFoci = { filter: 1, visibility: 1, view: 1, preset: 1 };
+        var stripFoci = { filter: 1, visibility: 1, view: 1, preset: 1, viewconfig: 1 };
         if (stripFoci[prevFocus] && !stripFoci[section] && this.detailsOpen) {
             this.renderDetails();
         }
@@ -863,6 +898,11 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         else if (this.focus === "filter")     this.hintEl.textContent = C.HINT_FILTER;
         else if (this.focus === "visibility") this.hintEl.textContent = C.HINT_VISIBILITY;
         else if (this.focus === "view")       this.hintEl.textContent = C.HINT_VIEW;
+        else if (this.focus === "viewconfig") {
+            this.hintEl.textContent = this.viewConfigExpanded
+                ? C.HINT_VIEWCONFIG_EXPANDED
+                : C.HINT_VIEWCONFIG_COMPACT;
+        }
         else if (this.focus === "preset") {
             // Per-pill hint variants. The trailing "+" pill (idx ===
             // pills.length) gets a save-specific hint; on real presets,
