@@ -817,6 +817,18 @@ module.exports = function (proto) {
         return rows;
     };
 
+    proto._viewConfigAtTopRow = function () {
+        var rows = this._viewConfigGrid();
+        if (!rows.length) return true;
+        return rows[0].indexOf(this.viewConfigFocusIdx) >= 0;
+    };
+
+    proto._viewConfigAtBottomRow = function () {
+        var rows = this._viewConfigGrid();
+        if (!rows.length) return true;
+        return rows[rows.length - 1].indexOf(this.viewConfigFocusIdx) >= 0;
+    };
+
     proto._viewConfigMove = function (direction) {
         var list = this._viewConfigPillList || [];
         if (!list.length) return;

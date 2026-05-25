@@ -591,6 +591,33 @@ module.exports = function (proto) {
                f === "filter" || f === "view" || f === "viewconfig";
     };
 
+    // Step out of viewconfig vertically into an adjacent pill section
+    // (or input below). Always collapses the strip first — leaving with
+    // the strip still expanded would surprise the user when they Tab
+    // back later. Returns true if focus moved.
+    proto._viewConfigStepOut = function (direction) {
+        this.viewConfigExpanded = false;
+        var cycle = this._pillsCycle();
+        var pos = cycle.indexOf("viewconfig");
+        if (direction === "up") {
+            if (pos > 0) {
+                this.setFocus(cycle[pos - 1]);
+                return true;
+            }
+            // No pill above — refocus input.
+            this.setFocus("input");
+            return true;
+        }
+        // direction === "down"
+        if (pos >= 0 && pos < cycle.length - 1) {
+            this.setFocus(cycle[pos + 1]);
+            return true;
+        }
+        // No pill below — drop into input.
+        this.setFocus("input");
+        return true;
+    };
+
     proto._handleKeydownViewConfig = function (e, stage) {
         if (e.key === "Escape") {
             e.preventDefault();
@@ -609,8 +636,7 @@ module.exports = function (proto) {
         }
         if (!this.viewConfigExpanded) {
             // Compact mode: Enter, Space, or Right expands to the full
-            // per-layer layout. Arrow nav has no effect here (the strip
-            // is a single non-navigable summary).
+            // per-layer layout.
             if (e.key === "Enter" || e.key === " " || e.code === "Space" ||
                 e.key === "ArrowRight") {
                 e.preventDefault();
@@ -621,12 +647,24 @@ module.exports = function (proto) {
                 this._renderHint();
                 return;
             }
+            // Up/Down navigate to the adjacent pill section (same vertical
+            // walk as other pill strips). preventDefault prevents the
+            // wiki-stream behind the popup from scrolling.
+            if (e.key === "ArrowUp") {
+                e.preventDefault();
+                this._viewConfigStepOut("up");
+                return;
+            }
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                this._viewConfigStepOut("down");
+                return;
+            }
             return;
         }
-        // Expanded mode: 4-arrow navigation across the pill grid. Up at
-        // the top-most row drops into input (matches the pill-section
-        // ↑-from-top → up-and-out convention); Down at the bottom row
-        // drops back into input (same convention).
+        // Expanded mode: 4-arrow grid navigation. Up at the top-most row
+        // and Down at the bottom-most row cross the strip boundary —
+        // collapse and step into the adjacent pill section (or input).
         if (e.key === "ArrowLeft") {
             e.preventDefault();
             this._viewConfigMove("left");
@@ -639,12 +677,20 @@ module.exports = function (proto) {
         }
         if (e.key === "ArrowUp") {
             e.preventDefault();
-            this._viewConfigMove("up");
+            if (this._viewConfigAtTopRow()) {
+                this._viewConfigStepOut("up");
+            } else {
+                this._viewConfigMove("up");
+            }
             return;
         }
         if (e.key === "ArrowDown") {
             e.preventDefault();
-            this._viewConfigMove("down");
+            if (this._viewConfigAtBottomRow()) {
+                this._viewConfigStepOut("down");
+            } else {
+                this._viewConfigMove("down");
+            }
             return;
         }
     };
