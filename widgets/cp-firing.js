@@ -66,7 +66,14 @@ module.exports = function (proto) {
             // consequence text via the wiki filter substitution, NOT here —
             // the consequence is a plain string passed to buildConfirmStage.
             if (picked.confirm) {
-                var vars = this.buildStageVariables(stage, picked.title);
+                // In an action-menu stage, `<<picked>>` must resolve to the
+                // entity being acted upon (= stage.parentPicked), not the
+                // action's own title. Matches fireLeafAction's logic so
+                // direct-fire and confirm-wrapped paths are symmetric.
+                var entityTitle = stage.kind === "actions"
+                    ? (stage.parentPicked || "")
+                    : picked.title;
+                var vars = this.buildStageVariables(stage, entityTitle);
                 this.pushStage(this.buildConfirmStage({
                     title: picked.name || "Confirm",
                     consequence: this._substituteVars(

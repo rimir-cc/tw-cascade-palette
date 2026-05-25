@@ -641,7 +641,7 @@ module.exports = function (proto) {
     // keystroke that just narrows the visible list doesn't reevaluate
     // already-computed rows.
     proto._maybeAppendActionPreview = function (rowEl, item, stage) {
-        if (!item || !item.entityType || item.kind !== "leaf") return;
+        if (!item || !item.entityType) return;
         var view = this._getViewByTitle(stage.viewTitle || this.activeView);
         if (view && view.showActionPreview === false) return;
         var key = item.entityType + " " + (item.title || "");
@@ -667,8 +667,10 @@ module.exports = function (proto) {
         var badge = this.document.createElement("span");
         badge.className = "rcp-row-action-preview";
         badge.textContent = "→" + count;
+        var triggerHint = item.kind === "drill"
+            ? "Space" : "Space or Right-arrow";
         badge.title = count + " action" + (count === 1 ? "" : "s") +
-            " available on drill (Right-arrow)";
+            " available (" + triggerHint + ")";
         rowEl.appendChild(badge);
     };
 

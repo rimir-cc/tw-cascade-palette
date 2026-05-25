@@ -1,0 +1,13 @@
+title: $:/plugins/rimir/cascade-palette/actions/tag-tree-node-delete
+tags: $:/tags/rimir/cascade-palette/action
+ca-name: Delete
+ca-hint: Delete this tiddler. Confirms before destroying.
+ca-icon: 🗑
+ca-kind: leaf
+ca-order: 90
+ca-entity-type: tag-tree-node
+ca-action-when: [<currentTiddler>!is[system]!is[shadow]]
+ca-confirm: yes
+ca-confirm-consequence: Delete tiddler <<picked>> permanently. This cannot be undone from the palette.
+ca-actions: <$action-deletetiddler $tiddler=<<picked>>/>
+type: text/vnd.tiddlywiki

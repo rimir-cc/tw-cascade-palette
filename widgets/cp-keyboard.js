@@ -219,6 +219,18 @@ module.exports = function (proto) {
                     this.enterEditMode(picked);
                     return;
                 }
+                // Entity-type action menu — Space mirrors Right-arrow's
+                // entity-type drill on leaves AND additionally enables it
+                // on containers (where Right descends instead). Lets the
+                // user reach the action menu on a tag-tree / namespace
+                // folder etc. without first having to navigate into it.
+                if (picked.entityType) {
+                    e.preventDefault();
+                    this.pushStage(this.buildActionMenuStage(
+                        picked.title, picked.entityType, picked.name
+                    ));
+                    return;
+                }
             }
         }
         // +/- on a number row — adjust by step (Shift = mid, Ctrl = large).

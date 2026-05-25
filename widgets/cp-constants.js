@@ -67,7 +67,7 @@ exports.STRING_ARRAY_TYPE = "application/x-string-array";
 // gestures (Tab cycle, ↵ fire, Ctrl-↵ fire+stay, hold Ctrl preview)
 // appear in every variant so the user always sees the escape hatches.
 exports.HINT_INPUT   = "Tab section · ↓ menu · ↵ fire · Ctrl-↵ fire+stay · Esc close · hold Ctrl preview";
-exports.HINT_MENU    = "Tab section · ↑↓ select · → drill · ← back · Space toggle/edit · +/- adjust · ↵ fire · Esc input · hold Ctrl preview";
+exports.HINT_MENU    = "Tab section · ↑↓ select · → drill · ← back · Space actions/toggle/edit · +/- adjust · ↵ fire · Esc input · hold Ctrl preview";
 exports.HINT_DETAILS = "Tab section · ↑↓ scroll · Esc input · ↵ fire";
 exports.HINT_FILTER     = "Tab section · ←→ select · DEL remove · Ctrl-DEL clear all · Esc input";
 exports.HINT_VISIBILITY = "Tab section · ←→ select · DEL remove · Ctrl-DEL clear all · Esc input";

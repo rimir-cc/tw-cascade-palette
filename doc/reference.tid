@@ -190,14 +190,19 @@ A behavioural note for `by-namespace`: tree nodes are tiddlers, not derived path
 
 ! Entity-type drill on tree-view rows
 
-Right-arrow on a leaf row that carries a non-empty entity type opens the action-menu stage for that type — same machinery as the existing drill-into-instance flow inside `ca-next-scope` stages. The entity type is computed per row by the row's emitting layer:
+The action menu for a typed row is reachable via two keys:
+
+* ''Right-arrow'' on a ''leaf'' with a non-empty entity type — same gesture as the drill-into-instance flow inside `ca-next-scope` stages.
+* ''Space'' on ''any'' typed row (leaf ''or'' container) — generalised action trigger. On containers, Right-arrow keeps its "descend into children" semantic, so Space is the only key that opens actions for a folder-style node.
+
+Space also keeps its existing per-kind bindings (toggle / text / number / date edit) — those win when the row matches one of those kinds. Entity-type firing only applies when no kind-specific Space handler claims the keystroke.
+
+The entity type is computed per row by the row's emitting layer:
 
 * `ca-layer-row-entity-type` filter on a structure-layer tiddler, OR
 * `ca-view-row-entity-type` filter on an implicit-layer view
 
 Both are evaluated with `<currentTiddler>` bound to the row's title. A non-empty first result is the entity type. Actions tagged `$:/tags/rimir/cascade-palette/action` with `ca-entity-type` matching that type (or `*` for global) populate the action menu.
-
-Containers don't expose the action menu in this version — Right-arrow on a container always descends into children. Container action menus are a planned follow-up via a synthetic `[Actions]` first-child row.
 
 !! Filter-based action applicability
 
