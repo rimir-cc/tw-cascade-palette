@@ -269,6 +269,19 @@ Or, explicitly via row-level fields (synthetic JSON items — `ca-items-from`):
 
 Shadow-only rows (no override to restore) and built-in entry/action/setting rows (no `ca-bind-tiddler`, no `ca-on-delete`) are silent no-ops.
 
+! Reorder gestures (`ca-on-move-up` / `ca-on-move-down`)
+
+Symmetric with `ca-on-delete`, for synthetic JSON-array rows whose "move" means mutating the parent tiddler's array order. Two optional fields fire on Ctrl-↑ / Ctrl-↓ when the row has menu focus:
+
+;`ca-on-move-up`
+:Wikitext fired on Ctrl-↑. Receives `<<picked>>` (row title) and the usual `<<parent-picked>>` / `<<stage-N-picked>>` walk in scope.
+;`ca-on-move-down`
+:Wikitext fired on Ctrl-↓. Same scope.
+
+cp pre-bumps `stage.selectedIndex` by ±1 before firing, so the user's selection follows the row through the change-hook's stage recompute (which preserves selectedIndex when the result count is unchanged). Bare ↑/↓ keep their selection-nudge semantics; rows that don't declare the action fall through to that. The action itself is responsible for being a no-op at array boundaries (cp doesn't gate the keystroke — at the top row `Ctrl-↑` still fires, and the action's own bounds check decides whether to mutate).
+
+Used by ''rimir/kind'' to reorder fields in a kind's `kind.fields` JSON array — the field-list rendering order IS the form field order, so a reorder propagates to instances and to the side-preview form.
+
 ! Pick-and-return leaves (`ca-after-fire: pop`)
 
 By default a leaf's Enter fires its `ca-actions` and ''closes'' the palette. For single-select sub-drills inside a multi-field edit flow — e.g. a ref/enum picker that sits next to other field rows on the parent stage — closing the palette breaks the flow: the user wants to land back on the field-edit stage with their pick applied, ready to edit the next field.

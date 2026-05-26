@@ -93,13 +93,14 @@ module.exports = function (proto) {
         }
         var container = this.document.createElement("div");
         container.className = "rcp-preview-pane-template";
+        var widgetNode = null;
         try {
             var parser = this.wiki.parseTiddler(active.template);
             if (!parser) {
                 container.textContent = "(preview template not found: " +
                     active.template + ")";
             } else {
-                var widgetNode = this.wiki.makeWidget(parser, {
+                widgetNode = this.wiki.makeWidget(parser, {
                     parentWidget: this.findActionParent() || $tw.rootWidget,
                     document: this.document,
                     variables: { currentTiddler: active.context }
@@ -117,13 +118,64 @@ module.exports = function (proto) {
                 (err && err.message) + ")";
         }
         this.sidePreviewBodyEl.appendChild(container);
+        // Stash the widget tree on the cache so the wiki change hook can
+        // dispatch refresh into it. The tree is built via wiki.makeWidget
+        // — that does NOT auto-subscribe to the rootWidget's refresh
+        // cycle (the new widget is a standalone tree, not a real child of
+        // the rootWidget). Without an explicit refresh, the inputs inside
+        // keep typing (they own their own DOM) but any reactive nodes
+        // around them — conditionals, computed expressions, validation
+        // hints — never re-evaluate. We refresh from the change hook
+        // for non-template/non-context changes (template/context changes
+        // force a full rebuild instead).
         this._sidePreviewCache = {
             depth: active.depth,
             context: active.context,
             template: active.template,
-            dom: container
+            dom: container,
+            widgetNode: widgetNode
         };
         this.popupEl.classList.add("rcp-showing-preview");
+    };
+
+    // Dispatch wiki changes into the cached preview widget tree so
+    // reactive nodes (conditionals, computed text, validation rows)
+    // update in place. Called from the wiki change hook when the
+    // change did NOT touch the template/context tiddler (those
+    // invalidate the cache and force a full rebuild instead).
+    proto._refreshSidePreviewOnChange = function (changes) {
+        var cache = this._sidePreviewCache;
+        if (!cache || !cache.widgetNode) return;
+        try {
+            cache.widgetNode.refresh(changes);
+        } catch (err) {
+            if (console && console.warn) {
+                console.warn(
+                    "[cascade-palette] side preview refresh error",
+                    cache.template, "—", err && err.message
+                );
+            }
+        }
+    };
+
+    // True when a keystroke originates from an interactive widget
+    // inside the side-preview pane (form input, button, link, …) —
+    // the cascade's global keydown handler should let it through so
+    // Enter / Space / arrows reach the widget natively. Escape is
+    // excluded so the user can always pop focus back to the cascade
+    // input from inside the preview.
+    proto._keydownTargetIsInsidePreviewWidget = function (e) {
+        if (e.key === "Escape") return false;
+        if (!this.sidePreviewEl) return false;
+        var tgt = e.target;
+        if (!tgt || !this.sidePreviewEl.contains(tgt)) return false;
+        if (tgt === this.sidePreviewEl ||
+            tgt === this.sidePreviewBodyEl ||
+            tgt === this.sidePreviewTitleEl) return false;
+        var tag = (tgt.tagName || "").toLowerCase();
+        return tag === "input" || tag === "textarea" || tag === "select" ||
+               tag === "button" || tag === "a" ||
+               tgt.isContentEditable === true;
     };
 
     proto._hideSidePreview = function () {

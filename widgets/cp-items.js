@@ -135,6 +135,15 @@ module.exports = function (proto) {
             // deleting any tiddler.
             onDelete: f["ca-on-delete"] || "",
             onDeleteConsequence: f["ca-on-delete-consequence"] || "",
+            // Ctrl-↑ / Ctrl-↓ on this row fires this action wikitext. Used
+            // by synthetic JSON-array rows (e.g. one element of a parent
+            // tiddler's JSON-array field) to reorder themselves — the
+            // action mutates the parent tiddler; cp's change hook then
+            // re-renders the stage with the new order. selectedIndex is
+            // pre-bumped by the keyboard handler so the user's selection
+            // follows the moved row to its new position.
+            onMoveUp:   f["ca-on-move-up"]   || "",
+            onMoveDown: f["ca-on-move-down"] || "",
             // ca-on-commit (text/number/date kinds): action wikitext fired
             // after a successful edit-mode commit, with <<picked>> bound to
             // the value the user just typed. Lets single-shot text rows

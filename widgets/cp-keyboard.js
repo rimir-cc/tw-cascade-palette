@@ -204,6 +204,28 @@ module.exports = function (proto) {
             this.setFocus("input");
             return;
         }
+        // Ctrl-↑ / Ctrl-↓ on a row declaring `ca-on-move-up` / `ca-on-
+        // move-down` fires the move action. Selection is pre-bumped so it
+        // follows the row through the cp change-hook's stage recompute.
+        // No action declared on the focused row → fall through to the
+        // bare ArrowUp/ArrowDown selection-nudge below.
+        if (e.ctrlKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+            var pickedMv = stage.results[stage.selectedIndex];
+            var goingUp = e.key === "ArrowUp";
+            var mvAction = pickedMv && (goingUp ? pickedMv.onMoveUp : pickedMv.onMoveDown);
+            if (mvAction) {
+                e.preventDefault();
+                var canMove = goingUp
+                    ? stage.selectedIndex > 0
+                    : stage.selectedIndex < stage.results.length - 1;
+                if (canMove) {
+                    stage.selectedIndex += goingUp ? -1 : 1;
+                }
+                var mvVars = this.buildStageVariables(stage, pickedMv.title);
+                this.invokeViaNavigator(mvAction, mvVars);
+                return;
+            }
+        }
         if (e.key === "ArrowUp") {
             e.preventDefault();
             if (stage.selectedIndex > 0) {

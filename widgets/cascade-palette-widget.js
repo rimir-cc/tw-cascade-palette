@@ -346,6 +346,13 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 self.ctrlHeld = true;
                 self._updateDetailsVisibility();
             }
+            // Side preview is fully interactive — a keystroke inside a
+            // form input / button / link there must reach the widget
+            // natively (otherwise Enter fires the cascade row instead
+            // of committing the form input, Space triggers toggles
+            // instead of inserting a space, etc.). Escape still routes
+            // to the cascade so the user can return focus to input.
+            if (self._keydownTargetIsInsidePreviewWidget(e)) return;
             self.handleKeydown(e);
         });
 
@@ -528,12 +535,20 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 // Same for the side-preview cache: invalidate if either
                 // the rendered template tiddler OR the bound context
                 // tiddler changed. The render then re-runs on the
-                // forced recompute below.
+                // forced recompute below. For ALL OTHER changes (e.g.
+                // the user typed into a form input inside the preview
+                // that writes to a state tiddler), keep the cache but
+                // refresh the widget tree so reactive nodes update —
+                // makeWidget'd trees aren't part of the rootWidget's
+                // auto-refresh cycle, so we dispatch the change set
+                // into the tree by hand.
                 if (self._sidePreviewCache) {
                     var spc = self._sidePreviewCache;
                     if ((spc.template && changes[spc.template]) ||
                         (spc.context && changes[spc.context])) {
                         self._invalidateSidePreviewCache();
+                    } else {
+                        self._refreshSidePreviewOnChange(changes);
                     }
                 }
                 // Invalidate preset pills if any preset-tagged tiddler

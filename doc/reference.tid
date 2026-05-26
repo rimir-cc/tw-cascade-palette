@@ -58,8 +58,9 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''Space'' on text/number/date |menu |Enter edit mode — bound value pushed into input, Enter commits, Esc cancels |
 |''Space'' on typed row (any kind) |menu |If no kind-specific Space handler applies and the row carries a non-empty `entityType`, opens the action-menu stage of that type. Generalised action trigger — works for ''containers'' too (where Right-arrow keeps descending into children). |
 |''+ / -'' on number |menu |Adjust by `ca-step` (default 1). Shift = `ca-step-medium` (5). Ctrl = `ca-step-large` (20). Matched on physical key (Equal/NumpadAdd/Minus/NumpadSubtract) so layout is irrelevant. |
-|''DEL / Backspace'' |menu |On an overridden setting → confirm drill to restore default. On a non-shadow tiddler in a diagnostic list → confirm drill to delete. Otherwise no-op. |
+|''DEL / Backspace'' |menu |On an overridden setting → confirm drill to restore default. On a non-shadow tiddler in a diagnostic list → confirm drill to delete. On a synthetic row declaring `ca-on-delete` → fires that action (confirm-wrapped iff `ca-on-delete-consequence` is set). Otherwise no-op. |
 |''Shift-DEL / Shift-Backspace'' |menu (root stage) |Add a ''hide-entry'' visibility pill for the selected row — the entry disappears from the root menu until the pill is removed. |
+|''Ctrl-↑ / Ctrl-↓'' |menu |On a synthetic row declaring `ca-on-move-up` / `ca-on-move-down` → fires that action (typically swaps the row with its neighbour in the parent tiddler's JSON array). `stage.selectedIndex` is pre-bumped so selection follows the row. No action declared → falls through to bare ↑/↓ (selection nudge). |
 |''← / →'' |details |Switch template tab when multiple templates apply |
 |''↑ / ↓'' |details |Scroll the drawer natively |
 |''Hold Ctrl'' |any |Open the detail drawer; release to hide. Always-on mode keeps it visible. Suppressed in edit mode. |
@@ -130,6 +131,10 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-date-format` |TW format-date string |date |Display format for the row value. Default `DD.MM.YYYY`. Examples: `YYYY-0MM-0DD` (ISO), `DDth MMM YYYY` (long). |
 |`ca-default-value` |number |number |Value used when the bound field is empty / unparseable |
 |`ca-help` |string (multiline) |entry, action, setting |Longer-form help text shown in the detail drawer. Falls back to `ca-hint` when absent. |
+|`ca-on-delete` |wikitext |any row |Fired on DEL / Backspace. Receives `<<picked>>` + standard stage substitution. Takes priority over the built-in restore-default / delete-tiddler paths. Used by synthetic JSON-array rows whose "delete" means mutating the parent tiddler. |
+|`ca-on-delete-consequence` |string |row with `ca-on-delete` |Optional. If set, DEL pushes a confirm-stage with this consequence text instead of firing immediately. |
+|`ca-on-move-up` / `ca-on-move-down` |wikitext |any row |Fired on Ctrl-↑ / Ctrl-↓. Symmetric with `ca-on-delete` for reorder semantics on synthetic JSON-array rows. cp pre-bumps `stage.selectedIndex` by ±1 so the selection follows the row through the change-hook's stage recompute. The action is responsible for boundary no-ops. |
+|`ca-on-commit` |wikitext |text, number, date |Fired after a successful edit-mode commit with `<<picked>>` bound to the committed value. Works with or without `ca-bind-tiddler` (bind-less rows are pure value captures). |
 |`ca-preview-template` |tiddler-title |entry, action |Title of a wikitext tiddler whose body renders in the right-pane ''preview'' when the user drills into this row. Pane stays visible while the registering stage (or any deeper one) is on the stack. |
 |`ca-preview-context` |filter |entry, action |Evaluated at drill-time in the parent stage's substitution scope (`<<picked>>`, `<<parent-picked>>`, etc.). First result becomes `<<currentTiddler>>` inside the preview template AND is exposed to deeper stages as `<<stage-preview-context>>`. Defaults to `<<picked>>` (the row being drilled into). |
 |`ca-preview-title` |string |entry, action |Optional caption shown in the colored title strip above the preview body. Empty value hides the strip. |
