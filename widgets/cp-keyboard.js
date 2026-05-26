@@ -106,7 +106,8 @@ module.exports = function (proto) {
         // of firing the menu selection.
         if (e.key === "Enter" && this.focus !== "filter" &&
             this.focus !== "visibility" && this.focus !== "view" &&
-            this.focus !== "preset") {
+            this.focus !== "preset" &&
+            this.focus !== "reach" && this.focus !== "field") {
             if (this.focus === "input" && !e.ctrlKey && !e.shiftKey) {
                 if (this._commitConstraintFromInput()) {
                     e.preventDefault();
@@ -127,6 +128,8 @@ module.exports = function (proto) {
             case "menu":        this._handleKeydownMenu(e, stage); return;
             case "filter":      this._handleKeydownFilter(e, stage); return;
             case "visibility":  this._handleKeydownVisibility(e, stage); return;
+            case "reach":       this._handleKeydownReach(e, stage); return;
+            case "field":       this._handleKeydownField(e, stage); return;
             case "view":        this._handleKeydownView(e, stage); return;
             case "viewconfig":  this._handleKeydownViewConfig(e, stage); return;
             case "leader":      this._handleKeydownLeader(e, stage); return;
@@ -262,6 +265,23 @@ module.exports = function (proto) {
         if (e.key === " " || e.code === "Space") {
             var picked = stage.results[stage.selectedIndex];
             if (picked) {
+                // Deep-search result — Space pins the row: replay the
+                // drill chain to the row's natural parent stage,
+                // select the row there, but do NOT fire its action /
+                // enter edit mode / open the action menu. The user can
+                // then use any normal cascade gesture from the natural
+                // stage (Enter to fire, Space to edit, Right to drill).
+                // This is the safe "go look at it in context" gesture
+                // that avoids accidentally executing destructive
+                // actions that happened to surface in the search list.
+                if (picked._path !== undefined) {
+                    e.preventDefault();
+                    var pinMode = this._activeReachMode
+                        ? this._activeReachMode()
+                        : "local";
+                    this.replayDeepPath(picked, pinMode, "select");
+                    return;
+                }
                 if (picked.kind === "toggle") {
                     e.preventDefault();
                     this.fireToggle(stage, picked, true);  // keepOpen
@@ -460,6 +480,38 @@ module.exports = function (proto) {
         }
     };
 
+    var REACH_KEY_DESC = {
+        getCount:    function () { return this.reachPills.length; },
+        getFocusIdx: function () { return this.reachFocusIdx; },
+        setFocusIdx: function (i) { this.reachFocusIdx = i; },
+        render:      function () { this._renderReachStrip(); },
+        maybeHelp:   function () { this._maybeRenderReachHelp(); },
+        onDelete:    function (i) { this._removeReachAt(i); },
+        onEnter:     function () {
+            if (!this.detailsOpen) {
+                this.detailsOpen = true;
+                this._maybeRenderReachHelp();
+            }
+            this.setFocus("details");
+        }
+    };
+
+    var FIELD_KEY_DESC = {
+        getCount:    function () { return this.fieldPills.length; },
+        getFocusIdx: function () { return this.fieldFocusIdx; },
+        setFocusIdx: function (i) { this.fieldFocusIdx = i; },
+        render:      function () { this._renderFieldStrip(); },
+        maybeHelp:   function () { this._maybeRenderFieldHelp(); },
+        onDelete:    function (i) { this._removeFieldAt(i); },
+        onEnter:     function () {
+            if (!this.detailsOpen) {
+                this.detailsOpen = true;
+                this._maybeRenderFieldHelp();
+            }
+            this.setFocus("details");
+        }
+    };
+
     var VIEW_KEY_DESC = {
         getCount:    function () { return this._visibleViews().length; },
         getFocusIdx: function () { return this.viewFocusIdx; },
@@ -617,6 +669,8 @@ module.exports = function (proto) {
     proto._handleKeydownView       = function (e) { this._handleKeydownPillStrip(e, VIEW_KEY_DESC); };
     proto._handleKeydownPreset     = function (e) { this._handleKeydownPillStrip(e, PRESET_KEY_DESC); };
     proto._handleKeydownLeader     = function (e) { this._handleKeydownPillStrip(e, LEADER_KEY_DESC); };
+    proto._handleKeydownReach      = function (e) { this._handleKeydownPillStrip(e, REACH_KEY_DESC); };
+    proto._handleKeydownField      = function (e) { this._handleKeydownPillStrip(e, FIELD_KEY_DESC); };
 
     proto._handleKeydownDetails = function (e, stage) {
         if (e.key === "Escape") {
@@ -655,6 +709,7 @@ module.exports = function (proto) {
     proto._isPillFocus = function (f) {
         f = f || this.focus;
         return f === "preset" || f === "visibility" ||
+               f === "reach" || f === "field" ||
                f === "filter" || f === "view" || f === "viewconfig" ||
                f === "leader";
     };
@@ -767,6 +822,11 @@ module.exports = function (proto) {
         var order = [];
         if (this._presetPillCount() >= 1) order.push("preset");
         if (this.visibilities && this.visibilities.length) order.push("visibility");
+        // Reach + Field strips sit just above the filter strip in the
+        // visual stack; same order in the Tab cycle so navigation walks
+        // top-to-bottom.
+        if (this.reachPills && this.reachPills.length) order.push("reach");
+        if (this.fieldPills && this.fieldPills.length) order.push("field");
         if (this.filters && this.filters.length) order.push("filter");
         if (this._visibleViews().length >= 2) order.push("view");
         // Structure (viewconfig) sits below view in the visual stack and

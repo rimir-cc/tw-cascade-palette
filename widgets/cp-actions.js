@@ -273,13 +273,96 @@ module.exports = function (proto) {
         }
     };
 
+    // Per-item search field walker. Field set comes from (in priority
+    // order): the active Field pills via `_activeFieldNames()` →
+    // per-item `ca-search-fields` (stored as `searchFields` on the
+    // item) → the global default at `$:/config/rimir/cascade-palette/
+    // search-fields-default` (ships "name hint"). Matches lowercased
+    // substring; collects ALL matches across the field list (not just
+    // the first) into `item._matches` — consumed by cp-rendering to
+    // surface a snippet line per matched field so the user sees WHY
+    // every result is in the list. `_match` is kept as a back-compat
+    // pointer to the first match for the inline name/hint highlight.
+    // Plumbed identically for the local-stage and deep-search paths.
     proto.filterByQuery = function (items, query) {
-        if (!query) return items.slice();
-        var q = query.toLowerCase();
-        return items.filter(function (item) {
-            return item.name.toLowerCase().indexOf(q) !== -1
-                || (item.hint && item.hint.toLowerCase().indexOf(q) !== -1);
-        });
+        if (!query) {
+            // Clear stale annotations from a previous keystroke. Empty
+            // query = no match info on any row.
+            for (var i = 0; i < items.length; i++) {
+                items[i]._match = null;
+                items[i]._matches = null;
+            }
+            return items.slice();
+        }
+        var q = String(query).toLowerCase();
+        var fieldOverride = this._activeFieldNames
+            ? this._activeFieldNames()
+            : null;
+        var globalDefault = this._defaultSearchFields();
+        var kept = [];
+        for (var j = 0; j < items.length; j++) {
+            var item = items[j];
+            item._match = null;
+            item._matches = null;
+            var fields = fieldOverride
+                || (item.searchFields && item.searchFields.length
+                    ? item.searchFields
+                    : globalDefault);
+            var matches = [];
+            for (var k = 0; k < fields.length; k++) {
+                var fname = fields[k];
+                var sv = this._resolveMatchableField(item, fname);
+                if (!sv) continue;
+                var idx = sv.toLowerCase().indexOf(q);
+                if (idx !== -1) {
+                    matches.push({
+                        field: fname,
+                        value: sv,
+                        start: idx,
+                        len: q.length
+                    });
+                }
+            }
+            if (matches.length) {
+                item._matches = matches;
+                item._match = matches[0];
+                kept.push(item);
+            }
+        }
+        return kept;
+    };
+
+    proto._defaultSearchFields = function () {
+        var raw = this.wiki.getTiddlerText(
+            "$:/config/rimir/cascade-palette/search-fields-default",
+            "name hint"
+        );
+        return (raw && raw.match(/\S+/g)) || ["name", "hint"];
+    };
+
+    // Resolve the matchable text for one named field on one item.
+    // Look-up chain:
+    //   1. cascade-item property (name, hint, description, …) — fast
+    //      synthesised at item-build time in cp-items.js
+    //   2. tiddler-field fallback when the item has a backing tiddler
+    //      and step 1 missed — lets users author Search-in pills for
+    //      ANY tiddler field (text, tags, caption, modifier, …) just
+    //      by shipping a `ca-field-name: <field>` pill tiddler; no
+    //      JS / protocol change required.
+    // Returns a string or "" / undefined when no value found.
+    proto._resolveMatchableField = function (item, fname) {
+        var v = item[fname];
+        if (v) return String(v);
+        if (!item.title) return "";
+        var t = this.wiki.getTiddler(item.title);
+        if (!t) return "";
+        var fv = t.fields && t.fields[fname];
+        if (fv === undefined || fv === null) return "";
+        // TW stores list-typed fields (e.g. tags) as arrays — flatten
+        // for substring matching so a Search-in: tags pill behaves
+        // intuitively against e.g. `tags: work urgent`.
+        if (Array.isArray(fv)) return fv.join(" ");
+        return String(fv);
     };
 
     proto.sortEntries = function (items) {

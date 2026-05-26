@@ -94,6 +94,18 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // (via _visibilityHidesEntry in isEntryVisible).
         this.visibilities = [];
         this.visibilityFocusIdx = 0;
+        // Active reach pills (search scope — where in the tree the
+        // matcher walks). Same lifecycle / push-remove grammar as
+        // filters; consumed by _activeReachMode() (cp-reach-pills.js)
+        // and routed to cp-deep-search.js's BFS walker.
+        this.reachPills = [];
+        this.reachFocusIdx = 0;
+        // Active field pills (search input fields — which item-keys the
+        // matcher reads). Same lifecycle / push-remove grammar; consumed
+        // by _activeFieldNames() (cp-field-pills.js). None active = each
+        // row's ca-search-fields / global default kicks in.
+        this.fieldPills = [];
+        this.fieldFocusIdx = 0;
         // Context tiddler captured at openPalette time (the tiddler that
         // owned focus or sat at the top of $:/HistoryList). Exposed to
         // filter evaluation as the variable <<context-tiddler>>.
@@ -162,6 +174,9 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     require("$:/plugins/rimir/cascade-palette/widgets/cp-side-preview")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-keyboard")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-firing")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-reach-pills")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-field-pills")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-deep-search")(CascadePaletteWidget.prototype);
 
     /* ---------- lifecycle ---------- */
 
@@ -232,6 +247,25 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.visibilityStripEl.className = "rcp-visibility-strip";
         this.visibilityStripEl.setAttribute("tabindex", "-1");
 
+        // Reach strip — pills that widen WHERE the search input walks
+        // (subtree under the current stage vs. the whole active view).
+        // Revealed via `rcp-has-reach` on the popup. Sits between the
+        // visibility and filter strips in the visual stack — semantic
+        // grouping: visibility narrows what's seen, reach + fields
+        // configure the search axis, filter narrows the data set.
+        this.reachStripEl = this.document.createElement("div");
+        this.reachStripEl.className = "rcp-reach-strip";
+        this.reachStripEl.setAttribute("tabindex", "-1");
+
+        // Fields strip — pills that decide WHICH item fields the
+        // matcher reads (name / hint / description / aliases /
+        // searchText / author-defined). Revealed via `rcp-has-fields`.
+        // Sits next to the reach strip — both configure the search
+        // axis, just on different dimensions.
+        this.fieldStripEl = this.document.createElement("div");
+        this.fieldStripEl.className = "rcp-fields-strip";
+        this.fieldStripEl.setAttribute("tabindex", "-1");
+
         // Filter strip — pills that intersect every stage's data filter.
         // Sits between visibility and input. Revealed via
         // `rcp-has-filters` on the popup. tabindex=-1 keeps it out of
@@ -281,6 +315,8 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.cascadeColEl.appendChild(this.breadcrumbEl);
         this.cascadeColEl.appendChild(this.presetStripEl);
         this.cascadeColEl.appendChild(this.visibilityStripEl);
+        this.cascadeColEl.appendChild(this.reachStripEl);
+        this.cascadeColEl.appendChild(this.fieldStripEl);
         this.cascadeColEl.appendChild(this.filterStripEl);
         this.cascadeColEl.appendChild(this.viewStripEl);
         this.cascadeColEl.appendChild(this.viewConfigStripEl);
@@ -452,6 +488,28 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.visibilityStripEl.addEventListener("focus", function () {
             if (self.focus !== "visibility") {
                 self.focus = "visibility";
+                self._applyFocusAttr();
+            }
+        });
+
+        // Reach strip — same shape as the constraint strips.
+        this.reachStripEl.addEventListener("mousedown", function (e) {
+            if (e.target === self.reachStripEl) self.setFocus("reach");
+        });
+        this.reachStripEl.addEventListener("focus", function () {
+            if (self.focus !== "reach") {
+                self.focus = "reach";
+                self._applyFocusAttr();
+            }
+        });
+
+        // Field strip — same shape as the constraint strips.
+        this.fieldStripEl.addEventListener("mousedown", function (e) {
+            if (e.target === self.fieldStripEl) self.setFocus("field");
+        });
+        this.fieldStripEl.addEventListener("focus", function () {
+            if (self.focus !== "field") {
+                self.focus = "field";
                 self._applyFocusAttr();
             }
         });
@@ -701,6 +759,46 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 return false;
             };
             $tw.rootWidget.addEventListener(C.ADD_VISIBILITY_MESSAGE, self._addVisibilityHandler);
+            // Add-reach / add-field — same shape as add-filter / add-
+            // visibility but for the two new strips. Triggered by the
+            // leader actions (d / g / a), and could also be triggered
+            // from external wikitext (e.g. a toolbar shortcut).
+            if (self._addReachHandler) {
+                $tw.rootWidget.removeEventListener(C.ADD_REACH_MESSAGE, self._addReachHandler);
+            }
+            self._addReachHandler = function (event) {
+                var title = (event && event.param) ||
+                    (event && event.paramObject && event.paramObject.reach) || "";
+                if (title) self._addReachByTitle(title);
+                return false;
+            };
+            $tw.rootWidget.addEventListener(C.ADD_REACH_MESSAGE, self._addReachHandler);
+            if (self._addFieldHandler) {
+                $tw.rootWidget.removeEventListener(C.ADD_FIELD_MESSAGE, self._addFieldHandler);
+            }
+            self._addFieldHandler = function (event) {
+                var title = (event && event.param) ||
+                    (event && event.paramObject && event.paramObject.field) || "";
+                if (title) self._addFieldByTitle(title);
+                return false;
+            };
+            $tw.rootWidget.addEventListener(C.ADD_FIELD_MESSAGE, self._addFieldHandler);
+            if (self._resetReachHandler) {
+                $tw.rootWidget.removeEventListener(C.RESET_REACH_MESSAGE, self._resetReachHandler);
+            }
+            self._resetReachHandler = function () {
+                self._clearAllReach();
+                return false;
+            };
+            $tw.rootWidget.addEventListener(C.RESET_REACH_MESSAGE, self._resetReachHandler);
+            if (self._resetFieldsHandler) {
+                $tw.rootWidget.removeEventListener(C.RESET_FIELDS_MESSAGE, self._resetFieldsHandler);
+            }
+            self._resetFieldsHandler = function () {
+                self._clearAllFields();
+                return false;
+            };
+            $tw.rootWidget.addEventListener(C.RESET_FIELDS_MESSAGE, self._resetFieldsHandler);
             // set-filter / set-visibility: leader-driven explicit-arg push.
             // Skips the interactive prefill — the leader supplies the arg.
             if (self._setFilterHandler) {
@@ -829,6 +927,8 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this._renderPresetStrip();
         this._renderViewStrip();
         this._renderVisibilityStrip();
+        this._renderReachStrip();
+        this._renderFieldStrip();
         this._renderFilterStrip();
         this._renderLeaderStrip();
         this.renderStage();
@@ -938,13 +1038,20 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             section !== "filter" &&
             section !== "visibility" && section !== "view" &&
             section !== "preset" && section !== "viewconfig" &&
-            section !== "leader") return;
+            section !== "leader" &&
+            section !== "reach" && section !== "field") return;
         // Don't allow focusing a strip with no pills — it would be a dead
         // end visually and a confusing Tab destination.
         if (section === "filter" && (!this.filters || this.filters.length === 0)) {
             section = "input";
         }
         if (section === "visibility" && (!this.visibilities || this.visibilities.length === 0)) {
+            section = "input";
+        }
+        if (section === "reach" && (!this.reachPills || this.reachPills.length === 0)) {
+            section = "input";
+        }
+        if (section === "field" && (!this.fieldPills || this.fieldPills.length === 0)) {
             section = "input";
         }
         // Same for the view strip when fewer than two VISIBLE views —
@@ -1013,6 +1120,20 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             this.visibilityStripEl.focus();
             this._renderVisibilityStrip();
             this._maybeRenderVisibilityHelp();
+        } else if (section === "reach") {
+            if (this.reachFocusIdx >= this.reachPills.length) {
+                this.reachFocusIdx = Math.max(0, this.reachPills.length - 1);
+            }
+            this.reachStripEl.focus();
+            this._renderReachStrip();
+            this._maybeRenderReachHelp();
+        } else if (section === "field") {
+            if (this.fieldFocusIdx >= this.fieldPills.length) {
+                this.fieldFocusIdx = Math.max(0, this.fieldPills.length - 1);
+            }
+            this.fieldStripEl.focus();
+            this._renderFieldStrip();
+            this._maybeRenderFieldHelp();
         } else if (section === "viewconfig") {
             // Always enter compact mode on (re-)focus, per the documented
             // behaviour. Expansion is explicit via Enter / Space / Right
@@ -1054,6 +1175,12 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (prevFocus === "visibility" || section === "visibility") {
             this._renderVisibilityStrip();
         }
+        if (prevFocus === "reach" || section === "reach") {
+            this._renderReachStrip();
+        }
+        if (prevFocus === "field" || section === "field") {
+            this._renderFieldStrip();
+        }
         if (prevFocus === "view" || section === "view") {
             this._renderViewStrip();
         }
@@ -1091,6 +1218,8 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         else if (this.focus === "preview")    this.hintEl.textContent = C.HINT_PREVIEW;
         else if (this.focus === "filter")     this.hintEl.textContent = C.HINT_FILTER;
         else if (this.focus === "visibility") this.hintEl.textContent = C.HINT_VISIBILITY;
+        else if (this.focus === "reach")      this.hintEl.textContent = C.HINT_REACH;
+        else if (this.focus === "field")      this.hintEl.textContent = C.HINT_FIELD;
         else if (this.focus === "view")       this.hintEl.textContent = C.HINT_VIEW;
         else if (this.focus === "viewconfig") {
             this.hintEl.textContent = this.viewConfigExpanded

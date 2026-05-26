@@ -741,5 +741,66 @@ The pane joins the Tab cycle as a new focus section ''`preview`'' (only when vis
 
 * ''Editing presets'' — no in-palette UI for rename / delete. Use the wiki normally (preset tiddlers are real tiddlers).
 * ''Compose presets'' — applying a preset always ''replaces'' both constraint lists. There's no "apply on top of existing state".
-* ''Search-area widening (`>>`/`>>>`)'' — Phase 3 plan; not yet implemented.
 * ''Side-preview tabs'' — only a single preview template per entry/action right now. Tag-based discovery (à la detail templates) is a possible follow-up if multiple plugins want to register competing previews on the same drill.
+
+! Reach pills (`$:/tags/rimir/cascade-palette/reach`)
+
+Reach pills configure WHERE the search input walks. Same push / remove / DEL grammar as filter and visibility pills, just a separate strip with its own tag family and a teal accent. A reach-tagged tiddler declares:
+
+;`ca-reach-name`
+:Display name in the help pane.
+;`ca-reach-mode`
+:`here` (walk the subtree under the current stage) or `everywhere` (walk from the active view's root). Reach pills are ''mutually exclusive'' — pushing any reach pill evicts every other reach pill, so only one scope is ever active.
+;`ca-reach-chip`
+:Plain-text pill label. Defaults to the reach-name.
+;`ca-reach-hint` / `ca-reach-help`
+:Hover tooltip / details-pane help.
+
+''Push via:'' the ''`rimir-cascade-palette-add-reach`'' message with param ''`reach: <tiddler-title>`''. Leaders d / g are the shipped shortcuts.
+
+! Search-in pills (`$:/tags/rimir/cascade-palette/field`)
+
+Search-in pills configure WHICH fields the matcher reads. Same grammar as reach pills, separate strip, violet accent. (The internal tag still uses `/field` — the user-facing label "Search-in" is the rendered name; both protocol fields and the tag retain their original `field` spelling.) A pill-tagged tiddler declares:
+
+;`ca-field-name`
+:The field key the pill represents. The matcher's resolver walks two layers:
+:# ''Cascade-item property'' — `item.<key>` (e.g. `name`, `hint`, `description`, `aliases`, `searchText`).
+:# ''Tiddler-field fallback'' — when step 1 produces nothing AND the row has a backing tiddler, `wiki.getTiddler(item.title).fields[<key>]` is consulted. Lets a pill expose ANY tiddler field (`text`, `tags`, `caption`, …) without protocol changes.
+:Array-typed tiddler fields (like `tags`) are flattened to a space-separated string before substring matching.
+;`ca-field-chip` / `-hint` / `-help`
+:Display / tooltip / help (same shape as Reach).
+
+When at least one Search-in pill is active, the matcher walks the UNION of those field keys, ignoring per-row `ca-search-fields` and global default. No pills active → matcher uses each row's `ca-search-fields` declaration, falling back to global default at `$:/config/rimir/cascade-palette/search-fields-default`.
+
+''Push via:'' ''`rimir-cascade-palette-add-field`'' with param ''`field: <tiddler-title>`''.
+
+! Item-level search authoring (`ca-search-*` on cascade items)
+
+;`ca-search-fields`
+:Space-separated list of item field names the matcher walks for THIS row. Default per global config.
+;`ca-description` / `ca-aliases` / `ca-search-text`
+:Optional string fields read into the cascade item as `description`, `aliases`, `searchText`. Not rendered inline. Matches surface as a snippet line below the row showing context + highlight, prefixed by the field name.
+;`ca-search-skip`
+:When `yes`, the deep walker excludes this row from results AND does not descend its subtree. Default auto-skip applies to `text`, `number`, `date`, `toggle`, and `confirm` row kinds.
+
+Authoring example:
+
+```
+title: $:/plugins/example/entries/find-things
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Find things
+ca-hint: Search across projects, tasks, notes.
+ca-description: Cross-namespace finder. Synonyms: locate, search, lookup.
+ca-aliases: locate search lookup
+ca-search-fields: name hint description aliases
+ca-kind: drill
+ca-next-scope: [tag[work]]
+```
+
+! Limitations & follow-ups
+
+* ''Editing presets'' — no in-palette UI for rename / delete. Use the wiki normally (preset tiddlers are real tiddlers).
+* ''Compose presets'' — only one preset at a time.
+* ''Action-menu walking'' — deep search doesn't currently descend into action menus, only entity and drill rows. Authors who want actions reachable from search can wire them via `ca-items-from` synthetic rows.
+* ''Per-keystroke memo cache'' — each keystroke recomputes the deep walk; caps keep this fast. A memo invalidated by the wiki change hook is on the roadmap.
+* ''Result ranking'' — deep results are in BFS-natural order (shallower matches first; same-depth keeps the cascade's sort). Exact-match boost and other ranking are Phase 2.

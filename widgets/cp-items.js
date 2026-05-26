@@ -166,6 +166,25 @@ module.exports = function (proto) {
             previewTemplate: f["ca-preview-template"] || "",
             previewContext: f["ca-preview-context"] || "",
             previewTitle: f["ca-preview-title"] || "",
+            // Configurable searched fields (filterByQuery walks these).
+            // Space-separated item-key names — `name`, `hint`, `description`,
+            // `aliases`, `searchText`, or any future string-valued field on
+            // the item. Empty / missing → defaults to the value of
+            // `$:/config/rimir/cascade-palette/search-fields-default`
+            // (ships as "name hint").
+            searchFields: (function () {
+                var raw = f["ca-search-fields"];
+                if (!raw) return null;
+                var parts = String(raw).match(/\S+/g);
+                return (parts && parts.length) ? parts : null;
+            })(),
+            description: f["ca-description"] || "",
+            aliases:     f["ca-aliases"]     || "",
+            searchText:  f["ca-search-text"] || "",
+            // Deep-search opt-out. When `yes`, the deep walk treats the row
+            // as inert: it is not returned as a result AND its subtree is
+            // not descended. Local-stage substring search is unaffected.
+            searchSkip: (f["ca-search-skip"] || "").toLowerCase() === "yes",
             isItem: false,           // entries / actions vs dynamic items
             isSynthetic: false       // overridden by readCascadeFromObject
         };

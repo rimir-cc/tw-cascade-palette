@@ -171,6 +171,9 @@ module.exports = function (proto) {
             "rcp-row" + (i === stage.selectedIndex ? " rcp-row-selected" : "");
         if (item.kind === "drill") rowEl.classList.add("rcp-row-drill");
         if (item.kind === "toggle") rowEl.classList.add("rcp-row-toggle");
+        // Deep-search hint: truncation sentinel uses its own styled row so
+        // the user reads it as informational, not actionable.
+        if (item._deepTruncated) rowEl.classList.add("rcp-row-deep-truncated");
         // Hover help — ca-hint is shown as a subtitle in some rows but is
         // ALSO surfaced as the native HTML tooltip on every row, so even
         // settings rows (which use the right slot for the bound value) get
@@ -179,9 +182,32 @@ module.exports = function (proto) {
 
         this._renderRowIcon(rowEl, item);
 
+        // Deep-search breadcrumb prefix — stamped on results by
+        // cp-deep-search.js's deepWalk. Renders as a muted "Kinds → Task
+        // → fields" pre-label so the user can place each match without
+        // drilling. Empty path = match lives at the search anchor itself;
+        // no breadcrumb needed.
+        if (item._path && item._path.length) {
+            var crumbEl = this.document.createElement("span");
+            crumbEl.className = "rcp-row-breadcrumb";
+            for (var bi = 0; bi < item._path.length; bi++) {
+                if (bi > 0) {
+                    var sepEl = this.document.createElement("span");
+                    sepEl.className = "rcp-row-breadcrumb-sep";
+                    sepEl.textContent = " › ";
+                    crumbEl.appendChild(sepEl);
+                }
+                var segEl = this.document.createElement("span");
+                segEl.className = "rcp-row-breadcrumb-seg";
+                segEl.textContent = item._path[bi].name || "";
+                crumbEl.appendChild(segEl);
+            }
+            rowEl.appendChild(crumbEl);
+        }
+
         var nameEl = this.document.createElement("span");
         nameEl.className = "rcp-row-name";
-        nameEl.textContent = item.name;
+        this._renderRowNameContent(nameEl, item);
         rowEl.appendChild(nameEl);
 
         // Tree container count badge — opt-in via `ca-view-show-count`.
@@ -223,6 +249,28 @@ module.exports = function (proto) {
             rowEl.appendChild(chevronEl);
         }
 
+        // Match snippets — one line per matched field that isn't
+        // rendered inline. Name / hint matches show inline (handled
+        // above) so we skip them in the snippet pass; description,
+        // aliases, searchText (and any author-declared fields) get a
+        // muted snippet beneath the row. Multiple matches across
+        // multiple fields each render their own line so the user
+        // can see WHY this row is in the result list.
+        if (item._matches && item._matches.length) {
+            var hiddenMatches = [];
+            for (var mi = 0; mi < item._matches.length; mi++) {
+                if (this._isHiddenMatchField(item._matches[mi].field)) {
+                    hiddenMatches.push(item._matches[mi]);
+                }
+            }
+            if (hiddenMatches.length) {
+                for (var hi = 0; hi < hiddenMatches.length; hi++) {
+                    this._appendMatchSnippet(rowEl, hiddenMatches[hi]);
+                }
+                rowEl.classList.add("rcp-row-has-snippet");
+            }
+        }
+
         rowEl.addEventListener("mousedown", function (e) {
             e.preventDefault();
             stage.selectedIndex = i;
@@ -234,6 +282,81 @@ module.exports = function (proto) {
             this._selectedRowEl = rowEl;
         }
         this.resultsEl.appendChild(rowEl);
+    };
+
+    // Match-highlight helpers. `_match` is stamped by filterByQuery /
+    // deepWalk: `{field, value, start, len}`. The renderer picks the
+    // right slot for the matched field and wraps the matched substring
+    // in `<span class="rcp-match">`. Fields not rendered inline get a
+    // snippet line below the row instead.
+
+    proto._isHiddenMatchField = function (field) {
+        return field !== "name" && field !== "hint";
+    };
+
+    // Render text into `el` with an optional highlight on substring
+    // [start, start+len). When no highlight applies, falls back to plain
+    // textContent. Splits with textNodes + a wrapping span so the
+    // highlight applies natively to existing CSS (no innerHTML, no
+    // XSS surface).
+    proto._renderHighlighted = function (el, text, highlightStart, highlightLen) {
+        if (highlightStart === undefined || highlightStart < 0 ||
+            highlightLen === undefined || highlightLen <= 0 ||
+            highlightStart + highlightLen > text.length) {
+            el.textContent = text;
+            return;
+        }
+        el.appendChild(this.document.createTextNode(text.slice(0, highlightStart)));
+        var hl = this.document.createElement("span");
+        hl.className = "rcp-match";
+        hl.textContent = text.slice(highlightStart, highlightStart + highlightLen);
+        el.appendChild(hl);
+        el.appendChild(this.document.createTextNode(text.slice(highlightStart + highlightLen)));
+    };
+
+    proto._renderRowNameContent = function (nameEl, item) {
+        if (item._match && item._match.field === "name") {
+            this._renderHighlighted(nameEl, item.name || "",
+                item._match.start, item._match.len);
+        } else {
+            nameEl.textContent = item.name || "";
+        }
+    };
+
+    // Snippet line under the row when the match lives in a non-displayed
+    // field (description / aliases / searchText / etc.). Windows the
+    // match: 24 chars before, 40 after, plus ellipses if truncated.
+    // Match itself is wrapped in `.rcp-match` so the highlight style
+    // applies. Field name is shown as a small prefix so the user knows
+    // which field surfaced the row.
+    proto._appendMatchSnippet = function (rowEl, match) {
+        var WINDOW_BEFORE = 24;
+        var WINDOW_AFTER = 40;
+        var value = String(match.value || "");
+        var start = match.start;
+        var end = start + match.len;
+        var windowStart = Math.max(0, start - WINDOW_BEFORE);
+        var windowEnd = Math.min(value.length, end + WINDOW_AFTER);
+        var before = (windowStart > 0 ? "… " : "") + value.slice(windowStart, start);
+        var matched = value.slice(start, end);
+        var after = value.slice(end, windowEnd) + (windowEnd < value.length ? " …" : "");
+
+        var snippetEl = this.document.createElement("div");
+        snippetEl.className = "rcp-row-snippet";
+
+        var fieldEl = this.document.createElement("span");
+        fieldEl.className = "rcp-row-snippet-field";
+        fieldEl.textContent = match.field + ":";
+        snippetEl.appendChild(fieldEl);
+
+        snippetEl.appendChild(this.document.createTextNode(" " + before));
+        var hl = this.document.createElement("span");
+        hl.className = "rcp-match";
+        hl.textContent = matched;
+        snippetEl.appendChild(hl);
+        snippetEl.appendChild(this.document.createTextNode(after));
+
+        rowEl.appendChild(snippetEl);
     };
 
     // For toggles, a checkbox glyph occupies the icon slot. For other kinds,
@@ -284,7 +407,12 @@ module.exports = function (proto) {
         if (item.hint) {
             var hintEl = this.document.createElement("span");
             hintEl.className = "rcp-row-hint";
-            hintEl.textContent = item.hint;
+            if (item._match && item._match.field === "hint") {
+                this._renderHighlighted(hintEl, item.hint,
+                    item._match.start, item._match.len);
+            } else {
+                hintEl.textContent = item.hint;
+            }
             rowEl.appendChild(hintEl);
         }
     };

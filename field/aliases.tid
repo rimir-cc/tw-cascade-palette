@@ -1,0 +1,7 @@
+title: $:/plugins/rimir/cascade-palette/field/aliases
+tags: $:/tags/rimir/cascade-palette/field
+ca-field-name: aliases
+ca-field-chip: ↪ Aliases
+ca-field-hint: Match against alternate names declared by the row author.
+ca-field-help: When pushed, the matcher reads each row's `ca-aliases` (space-separated alternate names). Useful for finding rows by abbreviation, synonym, or legacy name. Matches surface a snippet line below the row.
+ca-order: 130

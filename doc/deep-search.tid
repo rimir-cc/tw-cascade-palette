@@ -1,0 +1,126 @@
+title: $:/plugins/rimir/cascade-palette/doc/deep-search
+tags: $:/tags/rimir/doc-template
+rdt.plugin-name: cascade palette
+rdt.section: deep-search
+rdt.section-order: 55
+rdt.title: Deep-tree search
+type: text/vnd.tiddlywiki
+
+! What it does
+
+By default the search input filters the ''current stage's'' visible rows only and matches against each row's ''name'' and ''hint''. Two new pill strips widen this on two independent axes:
+
+* ''Reach'' (teal) — WHERE in the cascade tree to search. Default: local (current stage only).
+* ''Search-in'' (violet) — WHICH fields the matcher reads. Default: per-row `ca-search-fields`, falling back to global default `name hint`.
+
+Both strips use the same push / remove / DEL / navigate grammar as the existing Filter and Visibility strips. Strips appear only when at least one pill is pushed; hidden otherwise.
+
+! Reach strip — WHERE to search
+
+|!Pill |!Leader |!Effect |
+|🔍 Here |`d` |Walk every reachable drill under the currently-visible stage. |
+|🌐 Everywhere |`g` |Walk every reachable drill under the active view's root. The drill stack stays put — the pill widens the search frontier, it doesn't move you. |
+
+The two Reach pills are ''mutually exclusive'' — pushing one evicts the other. Only one scope is ever active. DEL on the focused pill removes it (returning to local search).
+
+When a Reach pill is active, results carry a breadcrumb prefix (`Kinds → Task → fields  priority: enum`) naming the drill chain from the search anchor to the matched row.
+
+! Search-in strip — WHICH fields to read
+
+|!Pill |!Field key |!Source |!Visible inline? |
+|🏷 Name |`name` |cascade item |Yes — the row's title. Inline match highlight. |
+|💡 Hint |`hint` |cascade item |Yes — the row's subtitle / tooltip. Inline match highlight. |
+|📝 Description |`description` |cascade item |No — `ca-description`. Match surfaces as a snippet line below the row. |
+|↪ Aliases |`aliases` |cascade item |No — `ca-aliases` (alternate names / synonyms). Snippet. |
+|🔎 Search-text |`searchText` |cascade item |No — `ca-search-text` (catch-all bag). Snippet. |
+|📄 Text |`text` |''tiddler field'' |No — the backing tiddler's body. Snippet. |
+
+Multiple Search-in pills can coexist. When any are active, the matcher reads the UNION of those fields, ignoring per-row config and global default. No Search-in pills active = matcher uses each row's `ca-search-fields` declaration, falling back to the global config at ''`$:/config/rimir/cascade-palette/search-fields-default`'' (ships `name hint`).
+
+''Leader `a`'' pushes all six shipped Search-in pills at once — equivalent to "match anywhere".
+
+! Adding your own Search-in pills
+
+The matcher's field-resolver walks ''two layers'' per field key:
+
+# ''Cascade-item property'' — `item.<key>` (read at item-build time from `ca-<key>` on entries / actions / synthetic items).
+# ''Tiddler-field fallback'' — when step 1 produces nothing AND the row has a backing tiddler, `wiki.getTiddler(item.title).fields[<key>]` is consulted.
+
+That second layer is what makes the shipped ''📄 Text'' pill work without protocol changes — `text` is a tiddler field, not a cascade-item property. The same fallback applies to ANY tiddler field. To expose `tags` (or `caption`, `modifier`, `modified`, an author-defined field, …) as a Search-in pill, ship a tiddler:
+
+```
+title: $:/plugins/example/field/tags
+tags: $:/tags/rimir/cascade-palette/field
+ca-field-name: tags
+ca-field-chip: 🏷 Tags
+ca-field-hint: Match against the tiddler's tags field.
+```
+
+Array-typed fields (`tags`, list-fields) are flattened to space-separated strings before substring matching, so `tags: work urgent` matches a query of `urgen`.
+
+! Multi-match visualization
+
+When a row matches in multiple fields (e.g. `name` AND `description`), each match contributes:
+
+* Inline highlight on the visible name / hint slot (whichever matched).
+* One snippet line per non-displayed match (description / aliases / searchText / author-declared), shown beneath the row with the matched field name + 24 chars of context before + the matched substring (highlighted) + 40 chars after.
+
+So a single row can carry inline highlight AND multiple snippets — the user sees every reason the row is in the result list.
+
+! Picking a deep result — three gestures
+
+When a Reach pill is active, results carry a `_path` array (the drill chain from the anchor). Picking a result replays the path so the cascade lands at the row's natural parent. Three gestures distinguish what happens next:
+
+|!Gesture |!Effect |
+|''Enter'' |Replay path + execute (fire leaves, drill into drills). |
+|''Right-arrow'' |Replay path + drill (no-op on plain leaves). |
+|''Space'' |''Pin only'' — replay path, select the row at its natural stage, but do NOT fire / edit / open the action menu. Safe inspection gesture for destructive matches. |
+
+Any `<<parent-picked>>` / `<<stage-N-picked>>` context the row's actions depend on resolves the same way as a manual drill.
+
+! Authoring searchable text on cascade items
+
+Beyond exposing tiddler fields via pills (above), each cascade item can also declare its OWN searchable strings — useful for synthetic items (no backing tiddler) and for adding searchable content without polluting tiddler fields:
+
+```
+ca-description: Longer-form explanation, not normally rendered.
+ca-aliases: locate search lookup synonym
+ca-search-text: catch-all bag for body / keywords / hidden text
+ca-search-fields: name hint description aliases    (per-row override)
+ca-search-skip: yes                                 (exclude from deep walk)
+```
+
+''`ca-search-skip: yes`'' opts a row out of deep search results AND prevents its subtree from being descended. Useful for `+ Add new` input prompts whose name only makes sense in their immediate context. Default auto-skip applies to `text`, `number`, `date`, `toggle`, and `confirm` row kinds.
+
+! Caps
+
+The walk is bounded — no walk is ever unbounded — by three hard caps (config tiddler defaults):
+
+|!Config |!Default |!What it does |
+|`$:/config/rimir/cascade-palette/deep-search-max-depth` |4 |Maximum drill depth from the search anchor |
+|`$:/config/rimir/cascade-palette/deep-search-max-nodes` |800 |Total items visited before the walk aborts |
+|`$:/config/rimir/cascade-palette/deep-search-max-ms` |80 |Wall-clock time per keystroke before the walk aborts |
+
+When any cap fires, the result list ends with a ''truncation hint row'' so you know to refine the query.
+
+! Sending the messages programmatically
+
+A toolbar button, sidebar item, or any external wikitext can push pills via the same widget messages the leaders use:
+
+```
+<$action-sendmessage $message="rimir-cascade-palette-add-reach"
+  reach="$:/plugins/rimir/cascade-palette/reach/here"/>
+
+<$action-sendmessage $message="rimir-cascade-palette-add-field"
+  field="$:/plugins/rimir/cascade-palette/field/text"/>
+```
+
+`rimir-cascade-palette-reset-reach` / `-reset-fields` clear the strips.
+
+! Limitations (MVP)
+
+* Action menus are not walked. Search lists the entity rows themselves; drilling into an action menu is a separate gesture.
+* No per-keystroke memo cache yet — each keystroke recomputes the walk. Caps keep this fast on real-world trees.
+* Result ranking is BFS-natural (shallower matches first; same-depth keeps cascade's sort). Exact-match boost and other ranking are on the roadmap.
+* Pills don't persist across sessions or get saved into Presets yet — they're session-local. Preset integration is on the roadmap.
+* No ''+ Add Reach / + Add Field'' picker pill yet (à la Presets' `+` save pill) — pills are pushed only via leaders or external messages for now.

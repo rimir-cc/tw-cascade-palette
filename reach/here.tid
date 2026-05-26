@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/reach/here
+tags: $:/tags/rimir/cascade-palette/reach
+ca-reach-name: Here
+ca-reach-mode: here
+ca-reach-chip: 🔍 Here
+ca-reach-hint: Search the subtree under the current stage.
+ca-reach-help: When pushed, the search input walks every reachable drill below the currently-visible stage and surfaces matches with a breadcrumb prefix. Picking a result replays the path so the cascade lands at the row's natural location. Mutually exclusive with "Everywhere" — pushing this evicts that pill. DEL removes this pill.
+ca-order: 100

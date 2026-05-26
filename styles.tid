@@ -637,7 +637,9 @@ type: text/css
 .rcp-preset-strip::before,
 .rcp-visibility-strip::before,
 .rcp-filter-strip::before,
-.rcp-view-strip::before {
+.rcp-view-strip::before,
+.rcp-reach-strip::before,
+.rcp-fields-strip::before {
     flex-shrink: 0;
     align-self: center;
     min-width: 56px;
@@ -666,12 +668,16 @@ type: text/css
 .rcp-visibility-strip::before { content: "Visibility"; }
 .rcp-filter-strip::before     { content: "Filters"; }
 .rcp-view-strip::before       { content: "Views"; }
+.rcp-reach-strip::before      { content: "Reach"; }
+.rcp-fields-strip::before     { content: "Search-in"; }
 
 @media (prefers-color-scheme: dark) {
     .rcp-preset-strip::before,
     .rcp-visibility-strip::before,
     .rcp-filter-strip::before,
-    .rcp-view-strip::before {
+    .rcp-view-strip::before,
+    .rcp-reach-strip::before,
+    .rcp-fields-strip::before {
         color: #6b7280;
     }
     .rcp-preset-strip::before {
@@ -679,6 +685,30 @@ type: text/css
     }
     .rcp-popup[data-focus="preset"] .rcp-preset-strip::before {
         background: #500724;
+    }
+    .rcp-reach-strip {
+        background: #042f2e;
+        border-bottom-color: #374151;
+    }
+    .rcp-popup[data-focus="reach"] .rcp-reach-strip {
+        background: #0e7490;
+    }
+    .rcp-reach-strip .rcp-pill-focused {
+        background: #155e75;
+        border-color: #67e8f9;
+        color: #cffafe;
+    }
+    .rcp-fields-strip {
+        background: #1e1b3a;
+        border-bottom-color: #374151;
+    }
+    .rcp-popup[data-focus="field"] .rcp-fields-strip {
+        background: #4c1d95;
+    }
+    .rcp-fields-strip .rcp-pill-focused {
+        background: #5b21b6;
+        border-color: #c4b5fd;
+        color: #ede9fe;
     }
 }
 
@@ -688,13 +718,57 @@ type: text/css
    one pill is present). The strip stays in the DOM so focus mechanics
    work cleanly during transitions. */
 .rcp-filter-strip,
-.rcp-visibility-strip {
+.rcp-visibility-strip,
+.rcp-reach-strip,
+.rcp-fields-strip {
     display: none;
     flex-wrap: wrap;
     gap: 4px;
     padding: 6px 14px;
     border-bottom: 1px solid #e5e7eb;
     outline: none;
+}
+
+/* Reach strip — pills that decide WHERE in the cascade tree the search
+   walks. Sits above the filter strip in the visual stack. Teal accent
+   distinguishes it from filters (blue) / visibility (orange/red).
+   Hidden when no reach pills are pushed. */
+.rcp-reach-strip {
+    background: #ecfeff;
+}
+.rcp-popup.rcp-has-reach .rcp-reach-strip {
+    display: flex;
+}
+.rcp-popup[data-focus="reach"] .rcp-reach-strip {
+    background: #cffafe;
+    box-shadow: inset 2px 0 0 0 #0e7490;
+}
+
+/* Fields strip — pills that decide WHICH item fields the matcher
+   reads. Sits next to the reach strip. Violet accent. Hidden when no
+   field pills are pushed. */
+.rcp-fields-strip {
+    background: #f5f3ff;
+}
+.rcp-popup.rcp-has-fields .rcp-fields-strip {
+    display: flex;
+}
+.rcp-popup[data-focus="field"] .rcp-fields-strip {
+    background: #ede9fe;
+    box-shadow: inset 2px 0 0 0 #6d28d9;
+}
+
+/* Pill-focused colours per strip — overrides the default blue ring
+   so each strip's accent reads through to its focused pill. */
+.rcp-reach-strip .rcp-pill-focused {
+    background: #a5f3fc;
+    border-color: #0e7490;
+    color: #134e4a;
+}
+.rcp-fields-strip .rcp-pill-focused {
+    background: #ddd6fe;
+    border-color: #6d28d9;
+    color: #2e1065;
 }
 
 .rcp-filter-strip {
@@ -931,6 +1005,130 @@ type: text/css
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Deep-search breadcrumb prefix — sits between icon and name, naming
+   the drill chain from search anchor to the matched row. Muted so the
+   row's own name remains the visual lead. Same colour family as the
+   top breadcrumb (.rcp-breadcrumb) for consistency. */
+.rcp-row-breadcrumb {
+    flex: 0 0 auto;
+    font-size: 11px;
+    color: #6b7280;
+    user-select: none;
+    white-space: nowrap;
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rcp-row-breadcrumb-seg {
+    color: #4b5563;
+}
+
+.rcp-row-breadcrumb-sep {
+    margin: 0 2px;
+    color: #9ca3af;
+}
+
+.rcp-row-selected .rcp-row-breadcrumb,
+.rcp-row-selected .rcp-row-breadcrumb-seg {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.rcp-row-selected .rcp-row-breadcrumb-sep {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+/* Match highlight wrap — applied to the matched substring inside the
+   row name / hint / snippet. Uses the cascade-palette accent (blue) so
+   it harmonises with the existing focus rings and pill colours. */
+.rcp-match {
+    background: #fef3c7;
+    color: #78350f;
+    border-radius: 2px;
+    padding: 0 2px;
+    font-weight: 600;
+}
+
+.rcp-row-selected .rcp-match {
+    background: rgba(254, 243, 199, 0.45);
+    color: #fef9c3;
+}
+
+/* Snippet line shown beneath the row when the match lives in a field
+   that isn't rendered inline (description / aliases / searchText / a
+   custom search field). The row container wraps via the sibling
+   .rcp-row-has-snippet class so the snippet drops to its own line. */
+.rcp-row-has-snippet {
+    flex-wrap: wrap;
+}
+
+.rcp-row-snippet {
+    flex: 0 0 100%;
+    margin-top: 2px;
+    margin-left: calc(1.4em + 10px);  /* align with row name (icon + gap) */
+    font-size: 11px;
+    font-style: italic;
+    color: #6b7280;
+    line-height: 1.35;
+    word-break: break-word;
+    white-space: normal;
+}
+
+.rcp-row-snippet-field {
+    font-style: normal;
+    font-weight: 600;
+    color: #4b5563;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 10px;
+    margin-right: 2px;
+}
+
+.rcp-row-selected .rcp-row-snippet,
+.rcp-row-selected .rcp-row-snippet-field {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+/* Truncation sentinel — appears at the end of a deep-search result
+   list when caps fired. Italic + muted + non-interactive cue. */
+.rcp-row-deep-truncated {
+    color: #9ca3af;
+    font-style: italic;
+    cursor: not-allowed;
+}
+
+.rcp-row-deep-truncated .rcp-row-name {
+    color: #9ca3af;
+}
+
+@media (prefers-color-scheme: dark) {
+    .rcp-row-breadcrumb,
+    .rcp-row-breadcrumb-seg {
+        color: #9ca3af;
+    }
+    .rcp-row-breadcrumb-sep {
+        color: #6b7280;
+    }
+    .rcp-match {
+        background: #78350f;
+        color: #fef3c7;
+    }
+    .rcp-row-selected .rcp-match {
+        background: rgba(120, 53, 15, 0.65);
+        color: #fef9c3;
+    }
+    .rcp-row-snippet,
+    .rcp-row-snippet-field {
+        color: #9ca3af;
+    }
+    .rcp-row-snippet-field {
+        color: #d1d5db;
+    }
+    .rcp-row-deep-truncated,
+    .rcp-row-deep-truncated .rcp-row-name {
+        color: #6b7280;
+    }
 }
 
 .rcp-row-hint {

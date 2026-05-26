@@ -34,6 +34,20 @@ module.exports = function (proto) {
         if (!stage || stage.results.length === 0) return;
         var picked = stage.results[stage.selectedIndex];
 
+        // Deep-search result — replay the drill chain to the picked
+        // row's natural parent, then act. `_path` is stamped by
+        // cp-deep-search.js's deepWalk; its presence (even when empty,
+        // meaning the row is at the search anchor itself) is the deep-
+        // result signature. Action mode "fire" = navigate + execute
+        // (matches Enter's normal semantic).
+        if (picked && picked._path !== undefined) {
+            var deepMode = this._activeReachMode
+                ? this._activeReachMode()
+                : "local";
+            this.replayDeepPath(picked, deepMode, "fire");
+            return;
+        }
+
         // Pick-mode override — Enter on any row (container or leaf) in a
         // pick-mode stage commits the row's effective path as a filter arg
         // and returns to the prior view. Drilling via Right-arrow still
@@ -472,10 +486,181 @@ module.exports = function (proto) {
         }, 0);
     };
 
+    /* ---------- deep-search path replay ----------
+
+    When the user picks a row from a deep-search result list, the row
+    carries a `_path` array of `{name, item}` records naming the drill
+    chain from the search anchor (current stage for deep-here, root view
+    for deep-root) to the picked item's natural parent. Replay walks
+    that chain — pushing each intermediate stage exactly as
+    `drillSelected` would — so the cascade lands at the picked row's
+    real location BEFORE the row's own action fires. This preserves any
+    `<<parent-picked>>` / `<<stage-N-picked>>` dependencies the picked
+    row's action wikitext might have, and leaves the user inside the
+    drill's subtree (rather than at root) so they can keep navigating
+    from where the search dropped them.
+
+    `mode` is the active deep-search mode at pick time — "deep-here"
+    means the current top stage is the replay anchor; "deep-root" means
+    pop to the root stage first. Both end with the picked row engaged
+    (drilled or fired) at its real position.
+
+    \------------------------------------------------ */
+
+    proto.replayDeepPath = function (picked, mode, action) {
+        if (!picked) return;
+        // Informational truncation sentinel — has no real target.
+        if (picked._deepTruncated) return;
+        var path = picked._path || [];
+        // action: "fire" (default, Enter) | "drill" (Right-arrow)
+        //       | "select" (Space — pin only, no execute)
+        action = action || "fire";
+
+        // 1. Position the stack for replay.
+        if (mode === "deep-root" && this.stack.length > 1) {
+            this.stack.length = 1;
+            this.recomputeStage(this.stack[0]);
+        }
+        // deep-here: leave the stack alone — current top IS the anchor.
+
+        // 2. Push each path step's drill stage. Each step's item is a
+        // drillable item (filter-stage drill or tree-container) — we
+        // descend the same way the user would by hand.
+        for (var i = 0; i < path.length; i++) {
+            if (!this._drillOnItemForReplay(path[i].item)) {
+                // Couldn't push (item no longer drillable — schema may
+                // have changed between walk and replay). Surface what
+                // we have so the user isn't left in a confused state.
+                this.renderStage();
+                return;
+            }
+        }
+
+        // 3. Locate the picked row in the now-top stage and select it.
+        var top = this.topStage();
+        if (!top) { this.renderStage(); return; }
+        var idx = this._locateItemInStage(top, picked);
+        if (idx === -1) {
+            // Result moved or was deleted between walk and replay.
+            // Render the closest-reachable stage and bail — the user
+            // can re-search from here.
+            this.renderStage();
+            return;
+        }
+        top.selectedIndex = idx;
+        this.setFocus("menu");
+        this.renderStage();
+
+        // 4. Engage the picked row per action mode.
+        //   - "select": pin only — position + select, no execute. The
+        //     user can now use any normal cascade gesture (Enter to fire,
+        //     Space to edit, Right to drill) from the natural stage. The
+        //     safe "go look at it in context" gesture.
+        //   - "drill": replay-then-drillSelected. Drills if drillable;
+        //     no-op on plain leaves. Matches Right-arrow's normal sem.
+        //   - "fire" (default): replay-then-fireSelected. Drill rows
+        //     descend; leaf rows fire their action. Matches Enter sem.
+        if (action === "select") {
+            return;
+        }
+        if (action === "drill") {
+            this.drillSelected();
+            return;
+        }
+        if (this._isReplayDrillable(picked)) {
+            this.drillSelected();
+        } else {
+            // fireSelected with keepOpen=false matches default close-on-
+            // pick behaviour for normal cascade picks. The user can chain
+            // a follow-up search by reopening the palette; the pill
+            // state is preserved across opens.
+            this.fireSelected(false);
+        }
+    };
+
+    proto._isReplayDrillable = function (item) {
+        if (!item) return false;
+        if (item._treeContainer && item._treeParent) return true;
+        if (item.kind === "drill" && (item.nextScope || item.itemsFrom)) return true;
+        if (item.entityType && item.kind === "leaf") return true;
+        return false;
+    };
+
+    // Same dispatcher logic as drillSelected, but operates on a
+    // supplied item rather than the focused row. Returns true when a
+    // stage was pushed (so the replay loop can detect failure). Reuses
+    // _attachPreviewToStage so any preview-template the row registered
+    // still surfaces during replay — search hits inside a preview-
+    // anchored subtree retain their preview context.
+    proto._drillOnItemForReplay = function (item) {
+        var top = this.topStage();
+        if (!top) return false;
+
+        if (item._treeContainer && item._treeParent) {
+            var viewTitle = top.viewTitle || this.activeView;
+            var basePath = (top.parentPath || []).slice();
+            basePath.push(item._treeParent);
+            var treeStage = this.buildTreeStage(
+                viewTitle, basePath, item.name, item._layerIdx
+            );
+            this._attachPreviewToStage(treeStage, item, top);
+            this.pushStage(treeStage);
+            return true;
+        }
+        if (item.kind === "drill" && (item.nextScope || item.itemsFrom)) {
+            var filtStage = this.buildFilterStage(item, top.parentPicked || null);
+            this._attachPreviewToStage(filtStage, item, top);
+            this.pushStage(filtStage);
+            return true;
+        }
+        // Entity-type leaves don't appear inside the BFS frontier (the
+        // deep walker doesn't descend into action menus), so we don't
+        // need to handle them as intermediate path nodes here. If one
+        // ever shows up, treat it as non-drillable for replay.
+        return false;
+    };
+
+    // Find the freshly-computed counterpart of `target` in `stage.items`.
+    // Matching priority: title (real items) → name (synthetic items, no
+    // backing tiddler). Returns -1 when the picked row's identity can't
+    // be re-established (typical when the underlying data changed
+    // between the walk and the replay).
+    proto._locateItemInStage = function (stage, target) {
+        if (!stage || !stage.items || !target) return -1;
+        var targetTitle = target.title || "";
+        var targetName = target.name || "";
+        for (var i = 0; i < stage.items.length; i++) {
+            var it = stage.items[i];
+            if (targetTitle && it.title === targetTitle) return i;
+            if (!targetTitle && it.name === targetName) return i;
+        }
+        // Name-fallback when title-match failed (e.g. tiddler renamed
+        // between walk and replay): pick first name-match.
+        if (targetTitle) {
+            for (var j = 0; j < stage.items.length; j++) {
+                if (stage.items[j].name === targetName) return j;
+            }
+        }
+        return -1;
+    };
+
     proto.drillSelected = function () {
         var stage = this.topStage();
         if (!stage || stage.results.length === 0) return;
         var picked = stage.results[stage.selectedIndex];
+
+        // Deep-search result — same intercept as fireSelected, so
+        // Right-arrow on a deep result also replays the path before
+        // drilling. Action mode "drill" = navigate + drillSelected
+        // (drills if drillable, no-op for plain leaves — matches the
+        // existing Right-arrow semantic).
+        if (picked && picked._path !== undefined) {
+            var deepMode = this._activeReachMode
+                ? this._activeReachMode()
+                : "local";
+            this.replayDeepPath(picked, deepMode, "drill");
+            return;
+        }
 
         // Tree-view container row → push a tree-stage pinned to the layer
         // the container came from. parentPath extends with the picked

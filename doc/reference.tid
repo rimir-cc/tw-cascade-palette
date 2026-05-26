@@ -146,6 +146,18 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-filter-expr` |filter snippet |filter |Appended (intersected) with every result-list filter. Use `<arg>` as the argument operand placeholder; engine substitutes `[<arg>]` at pill-push time. |
 |`ca-filter-chip` |string template |filter |Plain-text pill label. Use `<<arg>>` for substitution. Defaults to `ca-filter-name`. |
 |`ca-filter-hint` / `-help` |string |filter |Hover / details-pane help. |
+|`ca-reach-name` |string |reach |Display name. Required. |
+|`ca-reach-mode` |`here`\|`everywhere` |reach |Search scope when this pill is active. `here` walks the subtree under the current stage; `everywhere` walks from the active view's root. Reach pills are mutually exclusive — pushing one evicts the other. |
+|`ca-reach-chip` |string |reach |Plain-text pill label. Defaults to `ca-reach-name`. |
+|`ca-reach-hint` / `-help` |string |reach |Hover tooltip / details-pane help. |
+|`ca-field-name` |field key |field |The field this Search-in pill exposes. Matcher resolves in two layers: (1) cascade-item property (e.g. `name`, `hint`, `description`, `aliases`, `searchText`), (2) tiddler-field fallback (`text`, `tags`, `caption`, or any tiddler field of the row's backing tiddler). Authors can ship pills for any field name. |
+|`ca-field-chip` |string |field |Plain-text pill label. Defaults to `ca-field-name`. |
+|`ca-field-hint` / `-help` |string |field |Hover tooltip / details-pane help. |
+|`ca-search-fields` |space-separated field names |entry, action, item |Which fields the matcher walks for THIS row when no Field pill is pushed. Default per global config `$:/config/rimir/cascade-palette/search-fields-default` (ships `name hint`). |
+|`ca-description` |string |entry, action, item |Longer-form description. Not rendered inline; surfaced as a snippet line below the row when the query matches it. |
+|`ca-aliases` |space-separated strings |entry, action, item |Alternative names. Same rendering / matching semantics as `ca-description`. |
+|`ca-search-text` |string |entry, action, item |Catch-all searchable text. Same rendering / matching semantics as `ca-description`. |
+|`ca-search-skip` |`yes` |entry, action, item |When `yes`, the deep walker excludes this row from results AND does not descend its subtree. Default auto-skip for `text` / `number` / `date` / `toggle` / `confirm` row kinds. |
 |`ca-visibility-name` |string |visibility |Display name. Required. |
 |`ca-visibility-prefix` |string |visibility |Input-prefix (e.g. `hide:`). Optional. |
 |`ca-visibility-arg` |`text`\|`tag`\|`tiddler`\|`none` |visibility |How the trailing input is interpreted. Default `text`. |
@@ -264,6 +276,10 @@ Use it to spot slow filters (large `recompute`), expensive views with many rows,
 |`$:/config/rimir/cascade-palette/soft-depth-warning` |`10` |Stage-stack depth that triggers a console warning. Adjust live via Settings → Soft depth warning. |
 |`$:/config/rimir/cascade-palette/details-always-on` |`no` |Keep the detail drawer visible without holding Ctrl. Toggle live via Settings → Details always on. |
 |`$:/config/rimir/cascade-palette/popup-width` |`50` |Popup width in `vw` (clamped to [20, 95]). |
+|`$:/config/rimir/cascade-palette/search-fields-default` |`name hint` |Per-item `ca-search-fields` fallback. Space-separated field names. |
+|`$:/config/rimir/cascade-palette/deep-search-max-depth` |`4` |Maximum drill depth a deep-search walk follows from the search anchor. |
+|`$:/config/rimir/cascade-palette/deep-search-max-nodes` |`800` |Total items visited before a deep walk aborts and surfaces the truncation hint row. |
+|`$:/config/rimir/cascade-palette/deep-search-max-ms` |`80` |Wall-clock cap per keystroke for the deep walk. |
 
 ! JavaScript message
 

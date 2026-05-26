@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/reach/everywhere
+tags: $:/tags/rimir/cascade-palette/reach
+ca-reach-name: Everywhere
+ca-reach-mode: everywhere
+ca-reach-chip: 🌐 Everywhere
+ca-reach-hint: Search the whole active view from root.
+ca-reach-help: When pushed, the search input walks every reachable drill below the active view's root, regardless of which stage you've drilled to. Current drill stack is preserved — the pill widens the search frontier, it doesn't move you. Picking a result replays the full path from root. Mutually exclusive with "Here" — pushing this evicts that pill. DEL removes this pill.
+ca-order: 110

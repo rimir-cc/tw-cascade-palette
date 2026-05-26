@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/leaders/reach-everywhere
+tags: $:/tags/rimir/cascade-palette/leader
+ca-leader-key: g
+ca-leader-name: Reach: Everywhere
+ca-leader-hint: Search the whole active view from root.
+ca-leader-help: Pushes the ''🌐 Everywhere'' Reach pill. Walks from the active view's root regardless of where you've drilled. Current drill stack is preserved — only the search frontier widens. Picking a result replays the path from root. Wider than ''Here'': when both are pushed, ''Everywhere'' wins. DEL on the focused pill removes it.
+ca-leader-actions: <$action-sendmessage $message="rimir-cascade-palette-add-reach" reach="$:/plugins/rimir/cascade-palette/reach/everywhere"/>
+ca-order: 301

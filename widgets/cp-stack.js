@@ -349,17 +349,34 @@ module.exports = function (proto) {
     };
 
     proto.applyQueryToStage = function (stage) {
-        var filtered = this.filterByQuery(stage.items, stage.query);
+        // Search mode is driven by the reach pills (cp-reach-pills.js).
+        // No reach pills → local mode (legacy single-stage substring).
+        // Reach pills active → deep walk via cp-deep-search.js. Field
+        // pills (cp-field-pills.js) widen the matcher's field set but
+        // don't affect mode.
+        var mode = this._activeReachMode
+            ? this._activeReachMode()
+            : "local";
         var maxResults = this.getMaxResults();
-        // Reorder into visual (grouped) sequence when grouping is enabled,
-        // so keyboard nav's linear `selectedIndex` matches the rendered row
-        // order. With grouping off, keep the items' natural sort. Tree
-        // views always disable grouping — the tree IS the structure;
-        // overlaying plugin-source group headers is visual noise.
-        var ordered = this._isGroupingEnabledForStage(stage)
-            ? this.reorderByGroup(filtered)
-            : filtered;
-        stage.results = ordered.slice(0, maxResults);
+        var filtered;
+        if ((mode === "deep-here" || mode === "deep-root") && stage.query) {
+            filtered = this.deepWalk({ mode: mode, query: stage.query });
+            // Deep results are always rendered flat — the breadcrumb IS
+            // the group cue. Skip the regroup pass entirely.
+            stage.results = filtered.slice(0, maxResults);
+        } else {
+            filtered = this.filterByQuery(stage.items, stage.query);
+            // Reorder into visual (grouped) sequence when grouping is
+            // enabled, so keyboard nav's linear `selectedIndex` matches
+            // the rendered row order. With grouping off, keep the items'
+            // natural sort. Tree views always disable grouping — the
+            // tree IS the structure; overlaying plugin-source group
+            // headers is visual noise.
+            var ordered = this._isGroupingEnabledForStage(stage)
+                ? this.reorderByGroup(filtered)
+                : filtered;
+            stage.results = ordered.slice(0, maxResults);
+        }
         if (stage.selectedIndex >= stage.results.length) {
             stage.selectedIndex = Math.max(0, stage.results.length - 1);
         }

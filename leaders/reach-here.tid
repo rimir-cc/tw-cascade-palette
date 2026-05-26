@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/leaders/reach-here
+tags: $:/tags/rimir/cascade-palette/leader
+ca-leader-key: d
+ca-leader-name: Reach: Here
+ca-leader-hint: Search the subtree under the current stage.
+ca-leader-help: Pushes the ''🔍 Here'' Reach pill. Once active, typing in the input walks every reachable drill under the current stage. Picking a result replays the drill path so the cascade arrives at the row's natural location. If ''Everywhere'' is also pushed, the wider scope wins. DEL on the focused pill removes it.
+ca-leader-actions: <$action-sendmessage $message="rimir-cascade-palette-add-reach" reach="$:/plugins/rimir/cascade-palette/reach/here"/>
+ca-order: 300

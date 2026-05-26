@@ -1,0 +1,7 @@
+title: $:/plugins/rimir/cascade-palette/field/name
+tags: $:/tags/rimir/cascade-palette/field
+ca-field-name: name
+ca-field-chip: 🏷 Name
+ca-field-hint: Match against the row's display name.
+ca-field-help: When pushed, the matcher reads each row's `ca-name` (the row's visible title). One of the two default search fields when no Field pill is pushed at all. Combine with other Field pills to match against multiple fields per row.
+ca-order: 100

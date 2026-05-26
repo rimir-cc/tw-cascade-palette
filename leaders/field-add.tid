@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/leaders/field-add
+tags: $:/tags/rimir/cascade-palette/leader
+ca-leader-key: a
+ca-leader-name: Search-in: anywhere
+ca-leader-hint: Push every shipped Search-in pill so the matcher reads name + hint + description + aliases + search-text + text.
+ca-leader-help: Convenience shortcut: pushes all six shipped Search-in pills (Name, Hint, Description, Aliases, Search-text, Text) so the matcher widens to every recognised text field on each row PLUS the backing tiddler's body. Composes with the Reach pills — `d` + `a` = deep walk with widened matcher. Each pill can be removed individually via DEL on the focused pill.
+ca-leader-actions: <$action-sendmessage $message="rimir-cascade-palette-add-field" field="$:/plugins/rimir/cascade-palette/field/name"/><$action-sendmessage $message="rimir-cascade-palette-add-field" field="$:/plugins/rimir/cascade-palette/field/hint"/><$action-sendmessage $message="rimir-cascade-palette-add-field" field="$:/plugins/rimir/cascade-palette/field/description"/><$action-sendmessage $message="rimir-cascade-palette-add-field" field="$:/plugins/rimir/cascade-palette/field/aliases"/><$action-sendmessage $message="rimir-cascade-palette-add-field" field="$:/plugins/rimir/cascade-palette/field/search-text"/><$action-sendmessage $message="rimir-cascade-palette-add-field" field="$:/plugins/rimir/cascade-palette/field/text"/>
+ca-order: 302
