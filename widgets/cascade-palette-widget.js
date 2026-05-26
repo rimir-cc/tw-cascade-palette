@@ -620,6 +620,20 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 return false;
             };
             $tw.rootWidget.addEventListener(C.OPEN_MESSAGE, self._openHandler);
+            // Open-at-entry message: opens cp (if closed) and drills directly
+            // into a named entry tiddler — the entry must be visible at root
+            // (tagged $:/tags/rimir/cascade-palette/entry, declared at-root
+            // position for the active view). `entry` param = entry title.
+            if (self._openEntryHandler) {
+                $tw.rootWidget.removeEventListener(C.OPEN_ENTRY_MESSAGE, self._openEntryHandler);
+            }
+            self._openEntryHandler = function (event) {
+                var entry = (event && event.param) ||
+                    (event && event.paramObject && event.paramObject.entry) || "";
+                if (entry) self.openPaletteAtEntry(entry);
+                return false;
+            };
+            $tw.rootWidget.addEventListener(C.OPEN_ENTRY_MESSAGE, self._openEntryHandler);
             // Reset-constraints message: wipes both strips. Bound to
             // Ctrl-DEL globally and to the `Reset constraints` leader.
             if (self._resetConstraintsHandler) {
@@ -809,6 +823,25 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         setTimeout(function () {
             self.inputEl.focus();
         }, 0);
+    };
+
+    // Open cp (resets to root if already open) and immediately drill into
+    // the named entry — reuses drillSelected so any drill kind (filter
+    // stage, items-from, tree-container) works the same as a Tab press.
+    // Silent no-op if the entry isn't present in the root stage's results
+    // (e.g. hidden by the active view / visibility filters).
+    CascadePaletteWidget.prototype.openPaletteAtEntry = function (entryTitle) {
+        this.openPalette();
+        if (!entryTitle) return;
+        var stage = this.topStage();
+        if (!stage || !stage.results) return;
+        for (var i = 0; i < stage.results.length; i++) {
+            if (stage.results[i].title === entryTitle) {
+                stage.selectedIndex = i;
+                this.drillSelected();
+                return;
+            }
+        }
     };
 
     // Best-effort discovery of the tiddler the user was looking at when

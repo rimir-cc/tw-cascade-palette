@@ -11,6 +11,7 @@ sibling files require these — keep this file free of imports.
 
 // ---- TW messages ----
 exports.OPEN_MESSAGE = "rimir-cascade-palette-open";
+exports.OPEN_ENTRY_MESSAGE = "rimir-cascade-palette-open-entry";
 exports.ADD_FILTER_MESSAGE = "rimir-cascade-palette-add-filter";
 exports.SET_FILTER_MESSAGE = "rimir-cascade-palette-set-filter";
 exports.ADD_VISIBILITY_MESSAGE = "rimir-cascade-palette-add-visibility";
