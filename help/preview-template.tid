@@ -1,0 +1,23 @@
+title: $:/plugins/rimir/cascade-palette/help/preview-template
+type: text/vnd.tiddlywiki
+
+\whitespace trim
+
+<div class="cp-help-pane">
+
+<div class="cp-help-head">
+<span class="cp-help-icon">{{!!ca-icon}}</span>
+<span class="cp-help-title"><$view tiddler=<<currentTiddler>> field="ca-name"><$view field="title"/></$view></span>
+</div>
+
+<%if [<currentTiddler>has[ca-hint]] %>
+<div class="cp-help-summary">{{!!ca-hint}}</div>
+<%endif%>
+
+<div class="cp-help-body">
+
+<$transclude $tiddler=<<currentTiddler>> $mode="block"/>
+
+</div>
+
+</div>

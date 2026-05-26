@@ -95,6 +95,130 @@ type: text/css
     box-shadow: inset 2px 0 0 0 #d97706;
 }
 
+/* In-palette Help system — side-preview body styling.
+   .cp-help-pane is the root element emitted by help/preview-template.tid.
+   Kept namespaced under .cp-help-* so it can't collide with other plugin
+   preview templates that also render into .rcp-preview-pane-body. */
+.cp-help-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #1f2937;
+}
+
+.cp-help-pane .cp-help-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.cp-help-pane .cp-help-icon {
+    font-size: 18px;
+    flex: 0 0 auto;
+}
+
+.cp-help-pane .cp-help-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.cp-help-pane .cp-help-summary {
+    color: #6b7280;
+    font-style: italic;
+}
+
+.cp-help-pane .cp-help-body {
+    /* Inherit table styling from the TW theme; just tighten spacing. */
+}
+
+.cp-help-pane .cp-help-body table {
+    border-collapse: collapse;
+    margin: 6px 0;
+    font-size: 12px;
+}
+
+.cp-help-pane .cp-help-body th,
+.cp-help-pane .cp-help-body td {
+    padding: 3px 8px;
+    border: 1px solid #e5e7eb;
+    text-align: left;
+    vertical-align: top;
+}
+
+.cp-help-pane .cp-help-body th {
+    background: #f9fafb;
+    font-weight: 600;
+}
+
+.cp-help-pane .cp-help-body code {
+    font-size: 11.5px;
+    padding: 1px 4px;
+    background: #f3f4f6;
+    border-radius: 3px;
+}
+
+.cp-help-pane .cp-help-body pre {
+    font-size: 11.5px;
+    padding: 8px 10px;
+    background: #f3f4f6;
+    border-radius: 4px;
+    overflow-x: auto;
+}
+
+.cp-help-pane .cp-help-body h1 {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 10px 0 4px;
+    color: #1f2937;
+}
+
+.cp-help-pane .cp-help-see-also {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed #d1d5db;
+    color: #6b7280;
+    font-size: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .cp-help-pane {
+        color: #d1d5db;
+    }
+    .cp-help-pane .cp-help-head {
+        border-bottom-color: #374151;
+    }
+    .cp-help-pane .cp-help-title {
+        color: #f9fafb;
+    }
+    .cp-help-pane .cp-help-summary {
+        color: #9ca3af;
+    }
+    .cp-help-pane .cp-help-body th,
+    .cp-help-pane .cp-help-body td {
+        border-color: #374151;
+    }
+    .cp-help-pane .cp-help-body th {
+        background: #1f2937;
+    }
+    .cp-help-pane .cp-help-body code,
+    .cp-help-pane .cp-help-body pre {
+        background: #1f2937;
+        color: #e5e7eb;
+    }
+    .cp-help-pane .cp-help-body h1 {
+        color: #f3f4f6;
+    }
+    .cp-help-pane .cp-help-see-also {
+        border-top-color: #374151;
+        color: #9ca3af;
+    }
+}
+
 .rcp-breadcrumb {
     padding: 8px 14px;
     background: #f4f5f7;

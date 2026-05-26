@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/leaders/help
+tags: $:/tags/rimir/cascade-palette/leader
+ca-leader-key: ?
+ca-leader-name: Help
+ca-leader-hint: Open in-palette help.
+ca-leader-help: Drills into the ''Help'' entry. Shows a brief overview of the palette's keys, pills, leaders, entries, and authoring protocol — with live cheat-sheet tables driven by the protocol tags (so plugin-contributed leaders / pills / entries appear automatically). Each section's side preview links to the full docs in the story river. Plugin authors can contribute their own help tiddler by tagging it `$:/tags/rimir/cascade-palette/help` — see Authoring → Help.
+ca-leader-actions: <$action-sendmessage $message="rimir-cascade-palette-open-entry" entry="$:/plugins/rimir/cascade-palette/entries/help"/>
+ca-order: 500

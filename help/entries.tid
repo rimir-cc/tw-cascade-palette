@@ -1,0 +1,22 @@
+title: $:/plugins/rimir/cascade-palette/help/entries
+tags: $:/tags/rimir/cascade-palette/help
+ca-name: Entries
+ca-icon: 🚪
+ca-group: Pills
+ca-order: 250
+ca-hint: Top-level palette rows — every entry tagged in the wiki.
+ca-kind: leaf
+ca-actions: <$action-navigate $to=<<picked>>/>
+type: text/vnd.tiddlywiki
+
+Entries are the root-level rows you see when you open the palette. Each one is a tiddler tagged `$:/tags/rimir/cascade-palette/entry` declaring how to drill / fire / open.
+
+! Currently registered entries
+
+|!Icon |!Name |!Hint |
+<$list filter="[all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/entry]sort[ca-order]]" variable="entry">|<$view tiddler=<<entry>> field="ca-icon"/> |<$view tiddler=<<entry>> field="ca-name"><$view tiddler=<<entry>> field="title"/></$view> |<$view tiddler=<<entry>> field="ca-hint"/> |
+</$list>
+
+The list above is built from the current wiki — install or write a new entry-tagged tiddler and it appears here automatically.
+
+''→'' Field schema: <$link to="$:/plugins/rimir/cascade-palette/doc/protocol">doc/protocol</$link>

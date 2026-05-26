@@ -737,7 +737,23 @@ module.exports = function (proto) {
     // is the entity being acted upon. Called at every drill site so the
     // preview pane stays in sync with stack pushes.
     proto._attachPreviewToStage = function (newStage, item, parentStage) {
-        if (!item || !item.previewTemplate) return;
+        // Per-row inheritance: when the parent stage carries
+        // `_previewPerRow`, sub-drills inherit the same preview template
+        // AND the per-row tracking. Lets a browse-list drill (e.g.
+        // cascade-palette's Help → Plugins) keep its side-preview behaviour
+        // through sub-drills without requiring every level to re-declare
+        // ca-preview-template. The row's own preview-template still wins
+        // when it sets one — inheritance is only the fallback.
+        if (!item || !item.previewTemplate) {
+            if (parentStage && parentStage._previewPerRow &&
+                parentStage._previewTemplate) {
+                newStage._previewTemplate = parentStage._previewTemplate;
+                newStage._previewContext = parentStage._previewContext || "";
+                newStage._previewTitle = parentStage._previewTitle || "";
+                newStage._previewPerRow = true;
+            }
+            return;
+        }
         var ctx = item.title || "";
         if (item.previewContext) {
             try {
@@ -760,6 +776,7 @@ module.exports = function (proto) {
         newStage._previewTemplate = item.previewTemplate;
         newStage._previewContext = ctx;
         newStage._previewTitle = item.previewTitle || "";
+        newStage._previewPerRow = !!item.previewPerRow;
     };
 
 };

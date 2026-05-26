@@ -92,6 +92,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`$:/tags/rimir/cascade-palette/structure-layer` |Declarative structure layer — `(roots, children, leaf, label)` + row decorations. Referenced by view tiddlers via `ca-view-layers` |
 |`$:/tags/rimir/cascade-palette/leader` |Leader-key gesture — key + idle window fires a wikitext action chain |
 |`$:/tags/rimir/cascade-palette/preset` |Saved `(view, filters, visibility)` bundle — surfaced as a pill in the preset strip |
+|`$:/tags/rimir/cascade-palette/help` |In-palette help section — drillable via the ''Help'' entry or the `?` leader. Uses standard cascade-item fields (`ca-name`, `ca-icon`, `ca-group`, `ca-order`, `ca-hint`); body wikitext renders in the side preview |
 
 ! Fields
 
@@ -138,6 +139,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-preview-template` |tiddler-title |entry, action |Title of a wikitext tiddler whose body renders in the right-pane ''preview'' when the user drills into this row. Pane stays visible while the registering stage (or any deeper one) is on the stack. |
 |`ca-preview-context` |filter |entry, action |Evaluated at drill-time in the parent stage's substitution scope (`<<picked>>`, `<<parent-picked>>`, etc.). First result becomes `<<currentTiddler>>` inside the preview template AND is exposed to deeper stages as `<<stage-preview-context>>`. Defaults to `<<picked>>` (the row being drilled into). |
 |`ca-preview-title` |string |entry, action |Optional caption shown in the colored title strip above the preview body. Empty value hides the strip. |
+|`ca-preview-per-row` |`yes`\|`no` |entry, action |When `yes`, the preview pane re-resolves its context to the title of the currently-selected row on every selection change — i.e. ↑/↓ inside the drill stage updates the preview live, not just the initial drill. Used by browse-list drills where each row is a distinct document. Inherits into sub-drills that don't register their own `ca-preview-template`. Default `no`. |
 |`ca-template-applies` |filter |template |Evaluated with `currentTiddler` bound to the picked item; template applies if filter returns the picked title. Omit for a universal template. |
 |`ca-template-name` |string |template |Display name on the template tab (when multiple templates apply). |
 |`ca-filter-name` |string |filter |Display name. Required. |

@@ -1,0 +1,48 @@
+title: $:/plugins/rimir/cascade-palette/help/authoring
+tags: $:/tags/rimir/cascade-palette/help
+ca-name: Authoring
+ca-icon: ✏
+ca-group: Authoring
+ca-order: 400
+ca-hint: The contribution tags any plugin can ship to extend the palette.
+ca-kind: leaf
+ca-actions: <$action-navigate $to=<<picked>>/>
+type: text/vnd.tiddlywiki
+
+Everything the palette renders comes from tagged tiddlers. To add functionality, ship a tiddler with the right tag and the right `ca-*` fields. No JS needed for most contributions.
+
+! Contribution tags
+
+|!Tag suffix |!What you contribute |
+|`/entry` |A root-level row — drill / fire / open |
+|`/action` |An action menu item — appears when its `ca-entity-type` matches |
+|`/leader` |A keyboard shortcut after `Ctrl-Space` |
+|`/filter` |A Filter strip pill |
+|`/visibility` |A Visibility strip pill |
+|`/reach` |A Reach strip pill |
+|`/field` |A Search-in strip pill |
+|`/view` |An alternate view of the same data |
+|`/preset` |A pre-shipped configuration snapshot |
+|`/template` |A row-detail-drawer template (Ctrl-hold) |
+|`/help` |A help section (you're reading the output) |
+|`/diagnostic` |A diagnostic tile shown under Configurations → Diagnostics |
+|`/setting` |A settings row shown under Configurations → Settings |
+
+Each tag prefix is `$:/tags/rimir/cascade-palette` — e.g. the full tag for a help section is `$:/tags/rimir/cascade-palette/help`.
+
+! Help section schema (this surface)
+
+|!Field |!Purpose |
+|`ca-name` |Display name |
+|`ca-icon` |Glyph |
+|`ca-group` |Category for visual grouping. Use `Plugin: <slug>` to land in the Plugins drill. |
+|`ca-order` |Sort order (lower first) |
+|`ca-hint` |One-line subtitle |
+|`text` |Wikitext body rendered in the side preview |
+
+! Where to put your tiddler
+
+* ''In a plugin'' — `$:/plugins/<author>/<plugin>/help/<slug>`. One tiddler per plugin is the convention.
+* ''In a wiki'' — any title works; just tag it `$:/tags/rimir/cascade-palette/help`.
+
+''→'' Every field of every protocol: <$link to="$:/plugins/rimir/cascade-palette/doc/protocol">doc/protocol</$link>

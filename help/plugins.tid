@@ -1,0 +1,42 @@
+title: $:/plugins/rimir/cascade-palette/help/plugins
+tags: $:/tags/rimir/cascade-palette/help
+ca-name: Plugins
+ca-icon: 🧩
+ca-group: Plugins
+ca-order: 500
+ca-kind: drill
+ca-next-scope: [all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/help]regexp:ca-group[^Plugin:]] +[sort[ca-order]]
+ca-next-title: Plugins
+ca-hint: Other plugins' help contributions — drill in to browse.
+type: text/vnd.tiddlywiki
+
+Plugins that integrate with the cascade palette can each ship a single help tiddler — typically at `$:/plugins/<author>/<plugin>/help` — tagged `$:/tags/rimir/cascade-palette/help` with `ca-group: Plugin: <slug>`. Drill into this row to browse them.
+
+! Currently contributing
+
+<$list filter="[all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/help]regexp:ca-group[^Plugin:]sort[ca-order]]" variable="entry" emptyMessage="(no plugin contributions in this wiki yet)"><$view tiddler=<<entry>> field="ca-icon"/> ''<$view tiddler=<<entry>> field="ca-name"><$view tiddler=<<entry>> field="title"/></$view>'' — <$view tiddler=<<entry>> field="ca-hint"/><br/>
+</$list>
+
+! Why one per plugin
+
+Plugin-contributed leaders, pills, and entries already appear automatically in the live tables under ''Keys'', ''Pills'', and ''Entries'' — the protocol tags drive those cheat-sheets. The per-plugin help tiddler exists only for narrative context: a short table summarising what the plugin adds, with a story-river link to the plugin's full docs.
+
+! Authoring a plugin help tiddler
+
+```
+title: $:/plugins/<author>/<plugin>/help
+tags: $:/tags/rimir/cascade-palette/help
+ca-name: <plugin name>
+ca-icon: <glyph>
+ca-group: Plugin: <slug>
+ca-order: 10
+ca-hint: <one-line summary>
+
+|!Adds |!Activation |
+|`<key>` leader |drills into … |
+|... |... |
+
+→ Full docs: <$link to="$:/plugins/<author>/<plugin>/doc/overview"><plugin> overview</$link>
+```
+
+''→'' Authoring details: <$link to="$:/plugins/rimir/cascade-palette/doc/protocol">doc/protocol</$link>

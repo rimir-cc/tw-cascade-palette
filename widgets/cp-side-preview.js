@@ -47,10 +47,26 @@ module.exports = function (proto) {
         for (var i = this.stack.length - 1; i >= 0; i--) {
             var s = this.stack[i];
             if (s && s._previewTemplate) {
+                var context = s._previewContext || "";
+                // Per-row opt-in: when the stage carries `_previewPerRow`,
+                // re-resolve the context to the title of the currently-
+                // selected row instead of the stage's stamped context.
+                // Falls back to the stamped context for empty selection
+                // (selectedIndex out of range / synthetic row with no
+                // backing title). Applies to the TOP stage only — deeper
+                // inherited previews keep their stage-level context.
+                if (s._previewPerRow && i === this.stack.length - 1 &&
+                    s.results && s.results.length > 0 &&
+                    s.selectedIndex >= 0 && s.selectedIndex < s.results.length) {
+                    var row = s.results[s.selectedIndex];
+                    if (row && row.title) {
+                        context = row.title;
+                    }
+                }
                 return {
                     depth: i,
                     template: s._previewTemplate,
-                    context: s._previewContext || "",
+                    context: context,
                     title: s._previewTitle || ""
                 };
             }

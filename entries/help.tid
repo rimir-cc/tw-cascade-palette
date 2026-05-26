@@ -1,0 +1,12 @@
+title: $:/plugins/rimir/cascade-palette/entries/help
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Help
+ca-hint: What the palette does, key bindings, contribution protocol
+ca-icon: ❓
+ca-kind: drill
+ca-order: 980
+ca-next-scope: [all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/help]!regexp:ca-group[^Plugin:]] +[sort[ca-order]]
+ca-next-title: Help
+ca-preview-template: $:/plugins/rimir/cascade-palette/help/preview-template
+ca-preview-per-row: yes
+ca-preview-title: Help

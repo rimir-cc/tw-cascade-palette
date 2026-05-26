@@ -1,0 +1,36 @@
+title: $:/plugins/rimir/cascade-palette/help/pills
+tags: $:/tags/rimir/cascade-palette/help
+ca-name: Pills
+ca-icon: 💊
+ca-group: Pills
+ca-order: 200
+ca-hint: Six independent pill strips compose the palette's state.
+ca-kind: leaf
+ca-actions: <$action-navigate $to=<<picked>>/>
+type: text/vnd.tiddlywiki
+
+Pills are the palette's persistent state. Each strip is a separate concern, sits in its own row, and uses the same push / DEL / Tab-cycle grammar.
+
+! The six strips
+
+|!Strip |!Concern |!Activation |!Mutual exclusion |
+|''Preset'' |Snapshot every other strip's state and recall it as one |Leaders `s` (save) and `r` (recall) |No — one preset can be "active" but stacking presets is meaningless |
+|''Filter'' |Narrow which rows the engine considers |Leader `>` (push by title) or `+` picker pill |No |
+|''Visibility'' |Hide whole entry groups via filter |`v` leaders set by tiddlers tagged `$:/tags/rimir/cascade-palette/visibility` |No |
+|''View'' |Switch between alternate trees of the same data |Leader (one per view) |Yes — exactly one view active |
+|''Reach'' |Where to search (here vs. whole tree) |Leaders `d` (Here) and `g` (Everywhere) |Yes — pushing one evicts the other |
+|''Search-in'' |Which fields the matcher reads |Leader `a` (all) or individual leaders per field |No — pills accumulate (union semantics) |
+
+! Common grammar
+
+* Pills appear as text chips with an `×` close button.
+* `Tab` cycles focus into a strip; `←` / `→` move along the strip.
+* `DEL` on a focused pill removes it.
+* `Ctrl-DEL` clears the whole strip.
+* When NO pill is pushed, the strip is hidden (no visual clutter).
+
+! Discoverability
+
+Pills are discoverable by their leader keys (see ''Keys'' section). Leaders that push pills are tagged `$:/tags/rimir/cascade-palette/leader` and live in `dev-wiki/plugins/rimir/cascade-palette/leaders/`.
+
+''→'' Full pill semantics: <$link to="$:/plugins/rimir/cascade-palette/doc/protocol">doc/protocol</$link>

@@ -166,6 +166,14 @@ module.exports = function (proto) {
             previewTemplate: f["ca-preview-template"] || "",
             previewContext: f["ca-preview-context"] || "",
             previewTitle: f["ca-preview-title"] || "",
+            // When `yes`, the preview pane re-resolves its context to the
+            // CURRENTLY-SELECTED ROW's title on every selection change —
+            // i.e. ↑/↓ inside the drill stage updates the preview live,
+            // not just the initial drill. Used by browse-list drills
+            // (e.g. cascade-palette's Help entry) where each row is a
+            // distinct document to preview. The stage's own
+            // `_previewContext` becomes the fallback for empty selection.
+            previewPerRow: (f["ca-preview-per-row"] || "").toLowerCase() === "yes",
             // Configurable searched fields (filterByQuery walks these).
             // Space-separated item-key names — `name`, `hint`, `description`,
             // `aliases`, `searchText`, or any future string-valued field on

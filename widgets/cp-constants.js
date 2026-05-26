@@ -42,6 +42,7 @@ exports.VIEW_TAG = "$:/tags/rimir/cascade-palette/view";
 exports.STRUCTURE_LAYER_TAG = "$:/tags/rimir/cascade-palette/structure-layer";
 exports.LEADER_TAG = "$:/tags/rimir/cascade-palette/leader";
 exports.PRESET_TAG = "$:/tags/rimir/cascade-palette/preset";
+exports.HELP_TAG = "$:/tags/rimir/cascade-palette/help";
 
 // ---- Config tiddler titles ----
 exports.SOFT_DEPTH_CONFIG = "$:/config/rimir/cascade-palette/soft-depth-warning";
@@ -73,7 +74,7 @@ exports.STRING_ARRAY_TYPE = "application/x-string-array";
 // Section-specific hints surface the relevant gestures inline. Common
 // gestures (Tab cycle, ↵ fire, Ctrl-↵ fire+stay, hold Ctrl preview)
 // appear in every variant so the user always sees the escape hatches.
-exports.HINT_INPUT   = "Tab section · ↓ menu · ↵ fire · Ctrl-↵ fire+stay · Esc back · Shift-Esc close · hold Ctrl detail";
+exports.HINT_INPUT   = "Tab section · ↓ menu · ↵ fire · Ctrl-↵ fire+stay · Esc back · Shift-Esc close · hold Ctrl detail · ? help";
 exports.HINT_MENU    = "Tab section · ↑↓ select · → drill · ← back · Space actions/toggle/edit · +/- adjust · ↵ fire · Esc input · hold Ctrl detail";
 exports.HINT_DETAILS = "Tab section · ↑↓ scroll · Esc input · ↵ fire";
 exports.HINT_PREVIEW = "Tab section · ↑↓ scroll · Esc input";

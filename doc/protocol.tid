@@ -797,6 +797,46 @@ ca-kind: drill
 ca-next-scope: [tag[work]]
 ```
 
+! In-palette help (`$:/tags/rimir/cascade-palette/help`)
+
+Help sections are tiddlers tagged `$:/tags/rimir/cascade-palette/help`. They appear as rows in the ''Help'' entry (also reachable via the `?` leader). Each row's body wikitext renders in the side preview as the user navigates ↑/↓ — this is the standard `ca-preview-template` machinery with `ca-preview-per-row: yes`.
+
+''Schema'' (standard cascade-item fields — no `ca-help-*` namespace):
+
+|!Field |!Purpose |
+|`ca-name` |Display name in the row |
+|`ca-icon` |Glyph |
+|`ca-group` |Category for visual grouping in the Help drill. Use `Plugin: <slug>` to land in the ''Plugins'' sub-drill. |
+|`ca-order` |Sort order (lower first) |
+|`ca-hint` |One-line subtitle (shown in the row's hint slot) |
+|`ca-kind` |`leaf` (default) or `drill`. Drills declare their own `ca-next-scope`. |
+|`text` |Wikitext body rendered in the side preview |
+
+''Where to put the tiddler'':
+
+* ''In a plugin'' — `$:/plugins/<author>/<plugin>/help` (one tiddler per plugin convention).
+* ''In a wiki'' — any title works.
+
+''Worked example — a plugin contribution'':
+
+```
+title: $:/plugins/example/help
+tags: $:/tags/rimir/cascade-palette/help
+ca-name: example
+ca-icon: 🧪
+ca-group: Plugin: example
+ca-order: 10
+ca-hint: What the example plugin adds to the palette.
+
+|!Adds |!Activation |
+|`x` leader |drills into Examples |
+|`Examples` entry |root-level browser |
+
+→ Full docs: <$link to="$:/plugins/example/doc/overview">example overview</$link>
+```
+
+Plugin-contributed leaders / pills / entries already appear automatically in the core ''Keys'' / ''Pills'' / ''Entries'' help sections via `<$list filter="...">` over the existing protocol tags — the per-plugin help tiddler is just narrative context.
+
 ! Limitations & follow-ups
 
 * ''Editing presets'' — no in-palette UI for rename / delete. Use the wiki normally (preset tiddlers are real tiddlers).

@@ -120,7 +120,7 @@ module.exports = function (proto) {
         if (stage.results.length === 0) {
             var emptyEl = this.document.createElement("li");
             emptyEl.className = "rcp-empty";
-            emptyEl.textContent = "No results";
+            emptyEl.textContent = "No results — ? for help";
             this.resultsEl.appendChild(emptyEl);
             return;
         }

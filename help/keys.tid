@@ -1,0 +1,39 @@
+title: $:/plugins/rimir/cascade-palette/help/keys
+tags: $:/tags/rimir/cascade-palette/help
+ca-name: Keys
+ca-icon: ⌨
+ca-group: Basics
+ca-order: 110
+ca-hint: Built-in keys + every leader currently registered (live table).
+ca-kind: leaf
+ca-actions: <$action-navigate $to=<<picked>>/>
+type: text/vnd.tiddlywiki
+
+! Built-in keys
+
+|!Key |!Effect |
+|`Ctrl-Space` |Open / reset palette |
+|`Tab` |Cycle focus section |
+|`Shift-Tab` |Reverse cycle focus |
+|`↑` `↓` |Move row selection |
+|`→` |Drill (same as Tab on row) |
+|`←` |Pop one stage |
+|`↵` |Fire selected row |
+|`Ctrl-↵` |Fire + keep palette open |
+|`Space` |Toggle / edit / open action menu on row |
+|`Esc` |Pop stage; from root, close |
+|`Shift-Esc` |Close palette outright |
+|`DEL` |Remove focused pill / reset row to default |
+|`Ctrl-DEL` |Clear all pills in focused strip |
+|`Ctrl-↑` `Ctrl-↓` |Reorder row (when row declares move actions) |
+|hold `Ctrl` |Show row detail drawer |
+
+! Leaders (registered live)
+
+The cascade keeps the input focused while you type a leader key — once you stop typing (idle window, default 500ms), the leader fires. Plugins can register new leaders; the table below reflects what's currently in the wiki.
+
+|!Key |!Name |!Description |
+<$list filter="[all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/leader]sort[ca-leader-key]]" variable="leader">|`<$view tiddler=<<leader>> field="ca-leader-key"/>` |<$view tiddler=<<leader>> field="ca-leader-name"><$view tiddler=<<leader>> field="title"/></$view> |<$view tiddler=<<leader>> field="ca-leader-hint"/> |
+</$list>
+
+''→'' Full key reference: <$link to="$:/plugins/rimir/cascade-palette/doc/reference">doc/reference</$link>

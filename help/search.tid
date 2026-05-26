@@ -1,0 +1,51 @@
+title: $:/plugins/rimir/cascade-palette/help/search
+tags: $:/tags/rimir/cascade-palette/help
+ca-name: Search
+ca-icon: 🔎
+ca-group: Search
+ca-order: 300
+ca-hint: Reach + Search-in pills widen the search; three gestures pick a deep result.
+ca-kind: leaf
+ca-actions: <$action-navigate $to=<<picked>>/>
+type: text/vnd.tiddlywiki
+
+By default, typing in the palette filters the //current stage's// visible rows by substring match against each row's `name` and `hint`. Two pill strips widen this:
+
+! Reach (where) — mutually exclusive
+
+|!Pill |!Leader |!Walks |
+|🔍 Here |`d` |Every reachable drill below the current stage |
+|🌐 Everywhere |`g` |Every reachable drill from the active view's root |
+
+Picking a Reach result replays the drill path so the cascade arrives at the row's natural parent.
+
+! Search-in (what) — accumulating
+
+|!Pill |!Leader |!Reads |
+|🏷 Name |(individual) |Row's display name (default-on if no pills) |
+|💡 Hint |(individual) |Row's subtitle |
+|📝 Description |(individual) |`ca-description` — surfaces as snippet line |
+|↪ Aliases |(individual) |`ca-aliases` — synonyms |
+|🔎 Search-text |(individual) |`ca-search-text` — catch-all bag |
+|📄 Text |(individual) |Tiddler `text` field — body |
+|''(all 6 above)'' |`a` |Pushes every shipped Search-in pill at once |
+
+Active Search-in pills //union// — the matcher reads the combined field set.
+
+! Multi-match visualisation
+
+A row that matches in multiple fields gets:
+
+* ''Inline highlight'' on its name / hint (whichever matched).
+* ''One snippet line per non-displayed match'' — beneath the row, prefixed by the matched field name + context window around the hit.
+
+! Picking a deep result — three gestures
+
+When Reach is active, results carry a drill path. Three keys distinguish what happens after the path replays:
+
+|!Gesture |!Effect |
+|`↵` Enter |Replay path + fire (drill into drills, execute leaves) |
+|`→` Right |Replay path + drill only (no-op on plain leaves) |
+|`Space` |''Pin only'' — replay path, select row, do NOT fire. Safe for destructive matches. |
+
+''→'' Full deep-search docs: <$link to="$:/plugins/rimir/cascade-palette/doc/deep-search">doc/deep-search</$link>
