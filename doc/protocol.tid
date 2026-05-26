@@ -313,7 +313,7 @@ Removal:
 * ''`←` / `→`'' move between pills within the focused strip.
 * ''DEL'' / ''Backspace'' removes the focused pill.
 * ''Ctrl-DEL'' (any focus section) clears ''both'' strips.
-* ''Reset constraints'' leader (`x` key, idle 200ms) — same effect as Ctrl-DEL.
+* ''Reset constraints'' leader (`x` key, idle 500ms) — same effect as Ctrl-DEL.
 
 Pills ''persist within session'' — closing and reopening the palette keeps both strips intact. A full page reload clears everything.
 
@@ -529,7 +529,7 @@ The example above produces a two-level tree: roots are distinct author names; ch
 
 ! Leader keys
 
-A ''leader'' is a tiddler tagged ''`$:/tags/rimir/cascade-palette/leader`'' that binds a single character (or short string) to a wikitext action chain. Typing the key into the input and ''pausing for 200ms'' (the idle window) fires the actions. Any keystroke during the window cancels — `@foo` types four chars; `@` then idle fires the `@` leader.
+A ''leader'' is a tiddler tagged ''`$:/tags/rimir/cascade-palette/leader`'' that binds a single character (or short string) to a wikitext action chain. Typing the key into the input and ''pausing for 500ms'' (the idle window) fires the actions. Any keystroke during the window cancels — `@foo` types four chars; `@` then idle fires the `@` leader.
 
 Visual feedback while a leader is pending:
 
@@ -554,7 +554,7 @@ After the leader fires:
 ;`ca-leader-help`
 :Multi-line help rendered in the details pane during the idle window. Falls back to hint.
 ;`ca-leader-idle-ms`
-:Override the default 200ms idle window. Useful for multi-char leaders where a longer pause feels natural. Optional.
+:Override the default 500ms idle window. Useful for multi-char leaders where a longer pause feels natural. Optional.
 ;`ca-leader-actions`
 :Wikitext fired when the leader commits. Typically a chain of `<$action-sendmessage>` calls. Required.
 ;`ca-order`
@@ -590,7 +590,7 @@ ca-leader-actions:
 ca-order: 100
 ```
 
-Type `@`, pause 200ms → palette switches to Persons + the type-person filter pill appears with a brief amber flash. From there, type to filter the person list normally.
+Type `@`, pause 500ms → palette switches to Persons + the type-person filter pill appears with a brief amber flash. From there, type to filter the person list normally.
 
 ! Modal pick-mode views
 
@@ -655,14 +655,14 @@ Fields on a preset tiddler:
 
 ! Save flow (`s` leader)
 
-# Press `s`, wait 200ms.
+# Press `s`, wait 500ms.
 # The input is repurposed for one-line name entry — placeholder ''"Save preset as…"'', input picks up an emerald background.
 # Type a name, press Enter. The widget writes a preset tiddler at ''`$:/plugins/rimir/cascade-palette/presets/<sanitised-slug>`''. If a tiddler at that title already exists, ''`-2`'', ''`-3`'', … are appended.
 # Esc cancels.
 
 ! Recall flow (`r` leader)
 
-# Press `r`, wait 200ms.
+# Press `r`, wait 500ms.
 # Focus jumps to the preset pill strip at the top of the popup.
 # Use `←` / `→` to select a preset, Enter to apply. The palette: clears current filters + visibility, pushes the preset's filters and visibility rules (looked up by title), switches to the preset's view.
 

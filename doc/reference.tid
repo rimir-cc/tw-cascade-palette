@@ -28,7 +28,7 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''Shift-Esc'' |any |Close the palette directly from any focus and any depth, in one keystroke. |
 |''↓'' |input |Step into the menu (only if results exist) |
 |''↑'' |input |Enter the pill group at the bottom-most active pill row (no-op if no pills active) |
-|''(typing)'' |input |Filter the current stage. When the text matches a filter prefix, the input picks up a blue underline ("↵ commit filter: …"); when it matches a visibility prefix, an orange underline ("↵ commit visibility: …"); when it matches a leader key, an amber underline — leader fires after 200ms idle, any keystroke cancels. |
+|''(typing)'' |input |Filter the current stage. When the text matches a filter prefix, the input picks up a blue underline ("↵ commit filter: …"); when it matches a visibility prefix, an orange underline ("↵ commit visibility: …"); when it matches a leader key, an amber underline — leader fires after 500ms idle, any keystroke cancels. |
 |''Esc'' |any (in pick-mode) |Cancel pick-mode — return to prior view without committing a filter |
 |''Esc'' |preset / visibility / filter / view / details |Return focus to the input (without closing) |
 |''Esc'' |menu |Pop one stage (back). At root depth, refocuses input (since there's nothing to pop). Symmetric with ArrowLeft-in-menu. |
@@ -184,7 +184,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-leader-name` |string |leader |Display name (for catalogues / details rendering). |
 |`ca-leader-hint` |string |leader |One-line hint shown in the footer during the idle window. |
 |`ca-leader-help` |string (multiline) |leader |Help shown in the detail pane during the idle window. Falls back to hint. |
-|`ca-leader-idle-ms` |number |leader |Override the default 200ms idle window. |
+|`ca-leader-idle-ms` |number |leader |Override the default 500ms idle window. |
 |`ca-leader-views` |filter |leader |''Optional per-view scope.'' A filter producing view titles. Empty / missing = leader is global (always visible + always matchable via the typed-gesture path). Non-empty = leader is only available when the active view's title appears in the filter's result. Use this to ship view-specific leaders without polluting unrelated views. |
 |`ca-leader-actions` |wikitext |leader |Fired when the leader commits. Typically `<$action-sendmessage>` calls to one of the widget messages. Required. |
 |`ca-preset-name` |string |preset |Display name (e.g. "PersonsOfA"). Required. |

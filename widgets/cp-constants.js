@@ -56,7 +56,7 @@ exports.DEFAULT_STEP_LARGE = 20;
 exports.DEFAULT_BIND_TYPE = "text/plain";
 
 // ---- Leader-key idle window default ----
-exports.DEFAULT_LEADER_IDLE_MS = 200;
+exports.DEFAULT_LEADER_IDLE_MS = 500;
 
 // ---- Bind-type names with special handling ----
 // String-array binds get list-membership semantics on toggle (the toggle's

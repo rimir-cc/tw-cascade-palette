@@ -10,7 +10,7 @@ declaring a key (`ca-leader-key`) and a wikitext action chain
 (`ca-leader-actions`). Two activation paths:
 
   - Typed gesture: input text exactly matches the key AND the user
-    stays idle for `ca-leader-idle-ms` ms (default 200) — the leader
+    stays idle for `ca-leader-idle-ms` ms (default 500) — the leader
     fires. Any keystroke during the idle window cancels.
   - Pill activation: a dedicated leader pill row surfaces every
     visible leader as a `[key] name` pill; ←/→ navigates, ↵ fires.
