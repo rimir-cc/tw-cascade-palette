@@ -48,6 +48,13 @@ module.exports = function (proto) {
             return;
         }
 
+        // Axis picker — enter on a row commits that axis into the chain
+        // we opened the picker for and pops back to the Structure strip.
+        if (stage._isAxisPicker) {
+            this._applyAxisPick(stage, picked);
+            return;
+        }
+
         // Pick-mode override — Enter on any row (container or leaf) in a
         // pick-mode stage commits the row's effective path as a filter arg
         // and returns to the prior view. Drilling via Right-arrow still

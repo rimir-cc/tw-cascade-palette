@@ -99,6 +99,92 @@ ca-next-default-action: <$action-statewrap-navigate label=<<picked>> section=<<p
 
 The bare-string filter approach works for any small, static enumeration.
 
+! 8. Pure axis chain — group by year / month / day
+
+A view that buckets every non-system tiddler by created year, then month, then day. No recursive descent under the leaf buckets — day-rows are the tiddlers themselves.
+
+```
+title: $:/plugins/example/views/journal
+tags: $:/tags/rimir/cascade-palette/view
+ca-view-name: Journal
+ca-view-roots: [!is[system]!is[shadow]]
+ca-view-axes: $:/plugins/rimir/cascade-palette/axes/by-year-created $:/plugins/rimir/cascade-palette/axes/by-month-created $:/plugins/rimir/cascade-palette/axes/by-day-created
+ca-view-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+ca-view-show-count: yes
+ca-order: 600
+```
+
+The plugin's own ''By date'' view is the same shape with a slightly different ordering — fork it as `views/journal.tid` and tweak `roots` to scope to your journal namespace (e.g. `[prefix[journal/]]`).
+
+! 9. Mixed — bucket the recursive tree
+
+''By parent, sliced by year'' — TOC-tagged tiddlers grouped by their creation year, with each TOC then expanding its tag-subtree under the matching year:
+
+```
+title: $:/plugins/example/structure-layers/by-parent-by-year
+tags: $:/tags/rimir/cascade-palette/structure-layer
+ca-layer-name: By parent (by year)
+ca-layer-roots: [tag[TableOfContents]]
+ca-layer-children: [tag<currentTiddler>]
+ca-layer-axes: $:/plugins/rimir/cascade-palette/axes/by-year-created
+ca-layer-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+ca-layer-row-entity-type: [[tag-tree-node]]
+```
+
+```
+title: $:/plugins/example/views/by-parent-yearly
+tags: $:/tags/rimir/cascade-palette/view
+ca-view-name: By parent (yearly)
+ca-view-layers: $:/plugins/example/structure-layers/by-parent-by-year
+ca-view-sort: alphabetical
+ca-view-containers-first: yes
+ca-view-show-count: yes
+ca-order: 700
+```
+
+Descent: root shows year buckets containing TOC tiddlers. Drill ''2026'' → TOC tiddlers created in 2026. Drill any TOC → its `tag<currentTiddler>` subtree, recursive — axes are exhausted; from here on it's standard ''By parent''.
+
+Watch out: ''cross-bucket children.'' Inside the 2026 subtree, a child tiddler tagged with one of the 2026 TOCs may itself have been created in 2025 — the year bucketing only applies at the transition, not all the way down. Almost always what you want for tag-trees. If you need date-coherent descent, intersect a date predicate into `ca-layer-children` (e.g. `[tag<currentTiddler>get[created]format:date[YYYY]match<stage-1-picked>]`).
+
+! 10. Group by an arbitrary field — parametric `by-field`
+
+The shipped ''By field'' axis takes a `field` param at runtime. Add it via the picker → edit the state tiddler to fill in the field name:
+
+```
+title: $:/state/rimir/cascade-palette/layer-axes/by-tasks
+type: application/json
+{"axes":[{"title":"$:/plugins/rimir/cascade-palette/axes/by-field","params":{"field":"status"}}]}
+```
+
+This activates a ''By status'' grouping on whichever layer has slug `by-tasks`. For task lists, that produces buckets like ''open'' / ''in-progress'' / ''done'' — one per distinct value of the `status` field.
+
+! 11. Custom axis — first tag as bucket
+
+```
+title: $:/plugins/example/axes/by-first-tag
+tags: $:/tags/rimir/cascade-palette/axis
+ca-axis-name: First tag
+ca-axis-hint: Group by the first tag of each tiddler. Untagged rows land in the "—" bucket.
+ca-axis-key: [tags[]first[]]
+ca-axis-sort: asc
+ca-axis-empty-label: untagged
+```
+
+Drop this on any structure-layer's `ca-layer-axes` to bucket the layer's source by primary tag.
+
+! 12. Custom axis — namespace prefix (first /-segment)
+
+```
+title: $:/plugins/example/axes/by-namespace-root
+tags: $:/tags/rimir/cascade-palette/axis
+ca-axis-name: Namespace root
+ca-axis-key: [<currentTiddler>split[/]first[]]
+ca-axis-sort: asc
+ca-axis-empty-label: (top-level)
+```
+
+Combine with the existing ''By namespace'' children filter for a "namespace root → tree" two-level descent — bucket by top-level namespace, then descend each via path segments.
+
 ! What's NOT recommended
 
 * ''Heavy filters in `ca-next-scope`'' — re-runs on every keystroke. If you can't avoid an expensive filter, cache the result in a state tiddler at palette-open time and have the scope read from the cache.

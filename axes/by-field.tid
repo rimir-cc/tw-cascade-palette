@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/axes/by-field
+tags: $:/tags/rimir/cascade-palette/axis
+ca-axis-name: By field
+ca-axis-hint: Group rows by the literal value of a configured field. Set the field name via the axis pill's param prompt (e.g. `status`, `priority`, `kind.type`).
+ca-axis-key: [get<axis-param-field>]
+ca-axis-sort: asc
+ca-axis-empty-label: (no value)
+type: text/vnd.tiddlywiki

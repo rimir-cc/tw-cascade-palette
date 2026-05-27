@@ -39,6 +39,7 @@ type.
 "use strict";
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
+var cpAxes = require("$:/plugins/rimir/cascade-palette/widgets/cp-axes");
 var VIEW_TAG = C.VIEW_TAG;
 var STRUCTURE_LAYER_TAG = C.STRUCTURE_LAYER_TAG;
 var ENTRY_TAG = C.ENTRY_TAG;
@@ -149,6 +150,7 @@ module.exports = function (proto) {
             children: f["ca-view-children"] || "",
             leaf: f["ca-view-leaf"] || "",
             label: f["ca-view-label"] || "",
+            axes: f["ca-view-axes"] || "",
             rowName: f["ca-view-row-name"] || "",
             rowHint: f["ca-view-row-hint"] || "",
             rowIcon: f["ca-view-row-icon"] || "",
@@ -183,6 +185,7 @@ module.exports = function (proto) {
             children: f["ca-layer-children"] || "",
             leaf: f["ca-layer-leaf"] || "",
             label: f["ca-layer-label"] || "",
+            axes: f["ca-layer-axes"] || "",
             rowName: f["ca-layer-row-name"] || "",
             rowHint: f["ca-layer-row-hint"] || "",
             rowIcon: f["ca-layer-row-icon"] || "",
@@ -262,29 +265,27 @@ module.exports = function (proto) {
     //   { kind: "tree", parentPath: [...] }    — descending into a sub-node
     proto._buildRowsForView = function (view, parentContext) {
         if (!view) return [];
-        var parentTitle = "";
-        if (parentContext && parentContext.parentPath &&
-            parentContext.parentPath.length) {
-            parentTitle = parentContext.parentPath[
-                parentContext.parentPath.length - 1
-            ];
-        }
+        var parentPath = (parentContext && parentContext.parentPath) || [];
+        var parentTitle = parentPath.length
+            ? parentPath[parentPath.length - 1] : "";
         // Tree-stage may pin to a specific layer (the one whose container
         // we drilled into) — only that layer contributes children. Root
         // stage evaluates every layer.
         var layerIdx = (parentContext && parentContext.layerIdx !== undefined)
             ? parentContext.layerIdx : null;
-        return this._buildNodeForView(view, parentTitle, layerIdx);
+        return this._buildNodeForView(view, parentTitle, layerIdx, parentPath);
     };
 
-    proto._buildNodeForView = function (view, parentTitle, pinnedLayerIdx) {
+    proto._buildNodeForView = function (view, parentTitle, pinnedLayerIdx, parentPath) {
         var rows = [];
         for (var i = 0; i < view.layers.length; i++) {
             if (pinnedLayerIdx !== null && pinnedLayerIdx !== undefined &&
                 pinnedLayerIdx !== i) {
                 continue;
             }
-            var layerRows = this._evaluateLayer(view, view.layers[i], i, parentTitle);
+            var layerRows = this._evaluateLayer(
+                view, view.layers[i], i, parentTitle, parentPath || []
+            );
             rows = rows.concat(layerRows);
         }
         return rows;
@@ -292,30 +293,57 @@ module.exports = function (proto) {
 
     // Evaluate a single layer at a given node, returning its rows.
     // Dispatches built-in layers (entries) to their dedicated path.
-    proto._evaluateLayer = function (view, layer, layerIdx, parentTitle) {
+    proto._evaluateLayer = function (view, layer, layerIdx, parentTitle, parentPath) {
         if (layer.isBuiltIn && layer.builtInKind === "entries") {
             return this._evaluateEntriesLayer(view, layerIdx, parentTitle);
         }
         var self = this;
-        var filterExpr = parentTitle ? layer.children : layer.roots;
-        var widget = parentTitle
-            ? this.makeFakeWidget({ currentTiddler: parentTitle })
-            : null;
-        var candidates = [];
-        if (filterExpr) {
-            try {
-                candidates = this.wiki.filterTiddlers(
-                    filterExpr + this._composeFilterSuffix(),
-                    widget
-                );
-            } catch (err) {
-                if (console && console.error) {
-                    console.error(
-                        "[cascade-palette] layer filter error",
-                        view.title, "/", layer.title || ("layer#" + layerIdx),
-                        parentTitle ? ("children of " + parentTitle) : "roots",
-                        "—", err && err.message
+        parentPath = parentPath || [];
+        var candidates = null;
+        // Axis chain: when the layer declares axes and we're still within
+        // the chain, emit synthetic bucket rows. When the chain is exactly
+        // exhausted (depth === chain.length), enumerate the narrowed
+        // source set so the layer's roots/children logic takes over at the
+        // next drill. Past that depth, parentTitle is a real tiddler and
+        // we fall through to the standard recursive path.
+        if (layer.axes) {
+            var chain = cpAxes.activeChain(this.wiki, layer);
+            if (chain.length) {
+                var axisDepth = cpAxes.depthIntoChain(parentPath, chain.length);
+                if (axisDepth < chain.length) {
+                    var buckets = cpAxes.evaluateAxisChainAtDepth(
+                        this, layer, parentPath
                     );
+                    return this._buildAxisBucketRows(
+                        view, layer, layerIdx, buckets || [], chain[axisDepth]
+                    );
+                }
+                if (axisDepth === chain.length) {
+                    candidates = cpAxes.sourceAfterAxes(this, layer, parentPath);
+                }
+            }
+        }
+        if (candidates === null) {
+            var filterExpr = parentTitle ? layer.children : layer.roots;
+            var widget = parentTitle
+                ? this.makeFakeWidget({ currentTiddler: parentTitle })
+                : null;
+            candidates = [];
+            if (filterExpr) {
+                try {
+                    candidates = this.wiki.filterTiddlers(
+                        filterExpr + this._composeFilterSuffix(),
+                        widget
+                    );
+                } catch (err) {
+                    if (console && console.error) {
+                        console.error(
+                            "[cascade-palette] layer filter error",
+                            view.title, "/", layer.title || ("layer#" + layerIdx),
+                            parentTitle ? ("children of " + parentTitle) : "roots",
+                            "—", err && err.message
+                        );
+                    }
                 }
             }
         }
@@ -419,6 +447,42 @@ module.exports = function (proto) {
             }
         });
         return rows;
+    };
+
+    // Build cascade-item rows for axis buckets emitted by cp-axes. Each
+    // bucket is a synthetic drill container: drilling appends the bucket
+    // key to parentPath via _treeParent, and the next stage re-enters the
+    // axis logic at depth+1 (or transitions to layer.roots/children once
+    // the chain is exhausted).
+    proto._buildAxisBucketRows = function (view, layer, layerIdx, buckets, axis) {
+        var self = this;
+        var setLayerGroup = !layer.isImplicit || view.layers.length >= 2;
+        return buckets.map(function (b) {
+            var hintParts = [];
+            if (axis) hintParts.push(axis.name);
+            if (b.count !== undefined) {
+                hintParts.push(b.count + (b.count === 1 ? " entry" : " entries"));
+            }
+            var fieldsObj = {
+                "ca-name": b._bucketLabel,
+                "ca-kind": "drill",
+                "ca-icon": b._bucketIcon || "",
+                "ca-hint": hintParts.join(" · ")
+            };
+            if (setLayerGroup && layer.name) fieldsObj["ca-group"] = layer.name;
+            var item = self._buildCascadeItem(fieldsObj, "");
+            item._layerIdx = layerIdx;
+            item._treeContainer = true;
+            item._treeParent = b._bucketKey;
+            item._childCount = b.count;
+            item._isAxisBucket = true;
+            item._axisTitle = b._axisTitle;
+            item._axisDepth = b._axisDepth;
+            item._bucketKey = b._bucketKey;
+            item._bucketLabel = b._bucketLabel;
+            item.isSynthetic = true;
+            return item;
+        });
     };
 
     // ---- per-row computations -------------------------------------------
@@ -811,6 +875,16 @@ module.exports = function (proto) {
         this._viewConfigPillList = pillList;
     };
 
+    // The pill spec currently under focus (or null when the strip is
+    // unfocused / empty). Used by keyboard handlers to dispatch on pill
+    // kind (axis pills get Backspace / Shift-←→ / Enter, etc.).
+    proto._currentViewConfigPill = function () {
+        var list = this._viewConfigPillList || [];
+        var idx = this.viewConfigFocusIdx;
+        if (idx < 0 || idx >= list.length) return null;
+        return list[idx] && list[idx].pill;
+    };
+
     // 2D pill navigation: build a row-by-row index of the flat pill list
     // so left/right walks within a row and up/down walks across rows.
     proto._viewConfigGrid = function () {
@@ -954,8 +1028,22 @@ module.exports = function (proto) {
                 "(yes / no / auto). Auto = append when any declared layer " +
                 "is tree-shaped.",
             "grouping": "Section-header grouping policy. `off` means rows " +
-                "render without group separators."
+                "render without group separators.",
+            "axis": "Group-by axis applied to this layer. Position in the " +
+                "chain is the tree depth — first axis buckets the source, " +
+                "each subsequent axis re-groups within the parent bucket. " +
+                "Backspace/Delete removes this axis from the chain; Enter " +
+                "swaps it for a different axis.",
+            "axis-add": "Add a new axis to this layer's chain. Enter opens " +
+                "an axis picker; the picked axis is appended at the end of " +
+                "the chain. Parametric axes (e.g. By field) prompt for " +
+                "their parameter."
         };
+        if (k === "axis" && pill.axisTitle) {
+            var t = this.wiki.getTiddler(pill.axisTitle);
+            var axisHint = t && t.fields && t.fields["ca-axis-hint"];
+            if (axisHint) return axisHint + "\n\n" + H[k];
+        }
         return H[k] || "(no description)";
     };
 
@@ -1038,7 +1126,213 @@ module.exports = function (proto) {
         if (layer.rowName)       pills.push({ kind: "row-name",     label: "name",     value: layer.rowName });
         if (layer.rowGroup)      pills.push({ kind: "row-group",    label: "group",    value: layer.rowGroup });
         if (layer.rowKind)       pills.push({ kind: "row-kind",     label: "kind",     value: layer.rowKind });
+        // Axis chain (post-edit-by-user OR declared default). Each axis
+        // gets its own pill; the trailing "+" pill lets the user append.
+        if (!layer.isBuiltIn) {
+            var chainSpec = cpAxes.activeChainSpec(this.wiki, layer);
+            var self = this;
+            chainSpec.forEach(function (entry, idx) {
+                var axis = cpAxes.loadAxisByTitle(self.wiki, entry.title, entry.params);
+                var displayName = axis ? axis.name : entry.title.split("/").pop();
+                if (entry.params) {
+                    var paramParts = [];
+                    Object.keys(entry.params).forEach(function (k) {
+                        paramParts.push(k + "=" + entry.params[k]);
+                    });
+                    if (paramParts.length) displayName += " (" + paramParts.join(", ") + ")";
+                }
+                pills.push({
+                    kind: "axis",
+                    label: idx === 0 ? "by" : "→",
+                    value: displayName,
+                    axisIdx: idx,
+                    axisTitle: entry.title,
+                    axisParams: entry.params || null,
+                    layerTitle: layer.title || "",
+                    layerName: layer.name || ""
+                });
+            });
+            pills.push({
+                kind: "axis-add",
+                label: "+",
+                value: "axis",
+                layerTitle: layer.title || "",
+                layerName: layer.name || ""
+            });
+        }
         return pills;
+    };
+
+    // ===================================================================
+    // Axis-chain editing (from Structure strip pills)
+    // ===================================================================
+
+    // Find a layer descriptor by tiddler title across all loaded views.
+    // Implicit layers have view-title as their layer.title — so this
+    // also works for `ca-view-axes` (per-view chains).
+    proto._findLayerByTitle = function (layerTitle) {
+        if (!layerTitle) return null;
+        for (var i = 0; i < this.views.length; i++) {
+            var layers = this.views[i].layers || [];
+            for (var j = 0; j < layers.length; j++) {
+                if (layers[j].title === layerTitle) return layers[j];
+            }
+        }
+        return null;
+    };
+
+    // Open the axis picker for a given layer. `mode` is "add", "replace",
+    // or "insert" (replaceIdx required for the last two).
+    proto._openAxisPicker = function (layerTitle, mode, replaceIdx) {
+        var self = this;
+        var AXIS_TAG = C.AXIS_TAG;
+        var axisTitles = this.wiki.filterTiddlers(
+            "[all[shadows+tiddlers]tag[" + AXIS_TAG + "]]"
+        );
+        if (!axisTitles.length) {
+            if (console && console.warn) {
+                console.warn("[cascade-palette] no axes registered (tag " + AXIS_TAG + ")");
+            }
+            return;
+        }
+        var items = axisTitles.map(function (title) {
+            var t = self.wiki.getTiddler(title);
+            var f = (t && t.fields) || {};
+            var item = self._buildCascadeItem({
+                "ca-name": f["ca-axis-name"] || title.split("/").pop(),
+                "ca-hint": f["ca-axis-hint"] || "",
+                "ca-icon": f["ca-axis-icon"] || "",
+                "ca-kind": "leaf"
+            }, title);
+            item.isItem = true;
+            return item;
+        });
+        var titlePrefix = (mode === "replace") ? "Replace axis at #" + (replaceIdx + 1)
+            : (mode === "insert") ? "Insert axis at #" + (replaceIdx + 1)
+            : "Add axis";
+        var layer = this._findLayerByTitle(layerTitle);
+        var layerName = (layer && layer.name) || layerTitle.split("/").pop();
+        var stage = {
+            kind: "filter",
+            title: titlePrefix + " to " + layerName,
+            query: "",
+            selectedIndex: 0,
+            filter: "",
+            itemsFromFilter: "",
+            stageDefaultAction: "",
+            entityDefaultActions: [],
+            asLink: false,
+            items: items,
+            results: items.slice(),
+            parentPicked: null,
+            entityType: null,
+            _freezeItems: true,
+            _isAxisPicker: true,
+            _axisPickerMode: mode,
+            _axisPickerLayerTitle: layerTitle,
+            _axisPickerReplaceIdx: (replaceIdx === undefined) ? null : replaceIdx
+        };
+        this.pushStage(stage);
+        this.setFocus && this.setFocus("input");
+    };
+
+    // Commit the user's pick into the chain spec, persist state, reset to
+    // root. The stack reset is necessary because parentPath entries that
+    // were bucket keys under the OLD chain may not match keys produced by
+    // the NEW chain (different axis at the same depth). Cleanest is to
+    // re-drill from root under the new structure.
+    //
+    // For parametric axes (axes whose key-filter references
+    // <axis-param-*> variables), default the params to placeholder values
+    // — the user can edit the state tiddler to refine. A future iteration
+    // can prompt for params via a follow-up stage.
+    proto._applyAxisPick = function (stage, picked) {
+        if (!stage || !picked || !picked.title) return;
+        var layerTitle = stage._axisPickerLayerTitle;
+        var layer = this._findLayerByTitle(layerTitle);
+        if (!layer) {
+            this.popStage();
+            return;
+        }
+        var mode = stage._axisPickerMode || "add";
+        var replaceIdx = stage._axisPickerReplaceIdx;
+        var current = cpAxes.readChainSpec(this.wiki, layer);
+        var params = this._defaultParamsForAxis(picked.title);
+        var entry = params ? { title: picked.title, params: params }
+                           : { title: picked.title };
+        var next = current.slice();
+        if (mode === "replace" && replaceIdx !== null && replaceIdx >= 0 &&
+            replaceIdx < next.length) {
+            next[replaceIdx] = entry;
+        } else if (mode === "insert" && replaceIdx !== null && replaceIdx >= 0 &&
+                   replaceIdx <= next.length) {
+            next.splice(replaceIdx, 0, entry);
+        } else {
+            next.push(entry);
+        }
+        cpAxes.writeChainState(this.wiki, layer, next);
+        this._resetStackAfterChainEdit();
+    };
+
+    // Look up the axis tiddler and find any <axis-param-*> references in
+    // its key-filter — return a default params map (placeholder values
+    // ready for user editing). Empty result means the axis is not
+    // parametric.
+    proto._defaultParamsForAxis = function (axisTitle) {
+        var t = this.wiki.getTiddler(axisTitle);
+        if (!t) return null;
+        var key = (t.fields && t.fields["ca-axis-key"]) || "";
+        var re = /<axis-param-([\w-]+)>/g;
+        var params = null;
+        var m;
+        while ((m = re.exec(key)) !== null) {
+            if (!params) params = {};
+            // Sensible default: empty string. User edits the state tiddler
+            // (or a future param-prompt UI) to set a real value.
+            params[m[1]] = params[m[1]] !== undefined ? params[m[1]] : "";
+        }
+        return params;
+    };
+
+    // Remove the axis at chainIdx from a layer's chain; persist; reset.
+    proto._removeAxisAt = function (layerTitle, chainIdx) {
+        var layer = this._findLayerByTitle(layerTitle);
+        if (!layer) return;
+        var current = cpAxes.readChainSpec(this.wiki, layer);
+        if (chainIdx < 0 || chainIdx >= current.length) return;
+        current.splice(chainIdx, 1);
+        cpAxes.writeChainState(this.wiki, layer, current);
+        this._resetStackAfterChainEdit();
+    };
+
+    // Reorder: swap axis at chainIdx with its left (-1) or right (+1)
+    // neighbour. Reorder changes which axis runs at each depth, so the
+    // saved parentPath becomes meaningless — same reset-to-root treatment
+    // as add/replace/remove.
+    proto._moveAxisAt = function (layerTitle, chainIdx, direction) {
+        var layer = this._findLayerByTitle(layerTitle);
+        if (!layer) return;
+        var current = cpAxes.readChainSpec(this.wiki, layer);
+        var target = chainIdx + direction;
+        if (chainIdx < 0 || chainIdx >= current.length) return;
+        if (target < 0 || target >= current.length) return;
+        var tmp = current[chainIdx];
+        current[chainIdx] = current[target];
+        current[target] = tmp;
+        cpAxes.writeChainState(this.wiki, layer, current);
+        this._resetStackAfterChainEdit();
+    };
+
+    // Any chain edit invalidates the current parentPath (entries at axis
+    // depths are bucket keys produced by the old chain). Drop the stack
+    // back to root, recompute, re-render the Structure strip, and restore
+    // focus there so the user can keep editing without re-Tab'ing.
+    proto._resetStackAfterChainEdit = function () {
+        this.stack = [this.buildRootStage()];
+        this.recomputeStage(this.topStage());
+        this.renderStage();
+        if (this._renderViewConfigStrip) this._renderViewConfigStrip();
+        if (this.setFocus) this.setFocus("viewconfig");
     };
 
     // ===================================================================

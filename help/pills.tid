@@ -21,6 +21,12 @@ Pills are the palette's persistent state. Each strip is a separate concern, sits
 |''Reach'' |Where to search (here vs. whole tree) |Leaders `d` (Here) and `g` (Everywhere) |Yes — pushing one evicts the other |
 |''Search-in'' |Which fields the matcher reads |Leader `a` (all) or individual leaders per field |No — pills accumulate (union semantics) |
 
+! Plus: the Structure strip
+
+Below the view strip sits a ''Structure'' strip (only visible when the active view declares layers). Tab into it, Enter / → to expand. Each layer's mini-row carries primitive pills (roots / children / leaf / label / row decorations) AND, after them, the layer's ''axis chain'' as yellow ''by'' / ''→'' pills + a dashed ''+'' pill to append. The axis chain is the only ''editable'' part of the Structure strip — primitive pills are read-only.
+
+See <$link to="$:/plugins/rimir/cascade-palette/help/axes">Axes</$link> for the axis grammar and edit gestures.
+
 ! Common grammar
 
 * Pills appear as text chips with an `×` close button.

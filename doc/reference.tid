@@ -47,6 +47,10 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''↑ / ↓'' |structure (expanded) |Move focus across sub-rows. ↑ at topmost sub-row ''collapses'' and steps into the pill section above; ↓ at bottommost sub-row collapses and steps into the section below (or input). |
 |''Esc'' |structure (expanded) |Collapse back to compact view (focus stays on strip) |
 |''Esc'' |structure (compact) |Return focus to input |
+|''Backspace / Delete'' |structure (focused axis pill) |Remove this axis from the layer's chain — re-renders the strip and the tree. |
+|''Shift-← / Shift-→'' |structure (focused axis pill) |Reorder the focused axis within the chain. |
+|''Enter'' |structure (focused axis pill) |Open the axis picker in ''replace'' mode — pick a different axis to swap into this position. |
+|''Enter / Space'' |structure (focused `+` pill) |Open the axis picker in ''append'' mode — pick an axis to add to the end of the chain. |
 |''← / →'' |leader |Move focus between leader pills (clamps at edges) |
 |''Enter / Space'' |leader |Fire the focused leader — same actions as the typed-gesture path (key + idle). The strip re-renders for the new active view; focus returns to the strip if the leader stays visible. |
 |''Esc'' |leader |Return focus to input |
@@ -89,7 +93,8 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`$:/tags/rimir/cascade-palette/filter` |Declarative ''filter'' — adds a removable pill whose expression is appended (intersected) to every result-list filter |
 |`$:/tags/rimir/cascade-palette/visibility` |Declarative ''visibility rule'' — adds a removable pill whose predicate filter hides matching root entries |
 |`$:/tags/rimir/cascade-palette/view` |Declarative view — composition of one or more structure layers. Each view appears as a pill in the view strip |
-|`$:/tags/rimir/cascade-palette/structure-layer` |Declarative structure layer — `(roots, children, leaf, label)` + row decorations. Referenced by view tiddlers via `ca-view-layers` |
+|`$:/tags/rimir/cascade-palette/structure-layer` |Declarative structure layer — `(roots, children, leaf, label)` + row decorations + optional `ca-layer-axes` chain. Referenced by view tiddlers via `ca-view-layers` |
+|`$:/tags/rimir/cascade-palette/axis` |Declarative grouping axis — `(key, label, sort)` derive-key spec. Referenced by structure-layers / views via `ca-layer-axes` / `ca-view-axes`. Buckets the layer's source set at the top of the descent, with the chain consuming one tree depth per axis. |
 |`$:/tags/rimir/cascade-palette/leader` |Leader-key gesture — key + idle window fires a wikitext action chain |
 |`$:/tags/rimir/cascade-palette/preset` |Saved `(view, filters, visibility)` bundle — surfaced as a pill in the preset strip |
 |`$:/tags/rimir/cascade-palette/help` |In-palette help section — drillable via the ''Help'' entry or the `?` leader. Uses standard cascade-item fields (`ca-name`, `ca-icon`, `ca-group`, `ca-order`, `ca-hint`); body wikitext renders in the side preview |
@@ -186,6 +191,16 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-layer-row-entity-type` |filter |structure-layer |Per-row entity-type filter. Returning a non-empty type on a leaf row makes Right-arrow open the action-menu stage of that type. |
 |`ca-layer-row-next-scope` / `-items-from` |filter |structure-layer |Per-row synthetic drill filter. |
 |`ca-layer-include-position` |`yes`\|`no` |structure-layer |Whether `ca-position` annotations apply to rows emitted by this layer. Default `yes`. |
+|`ca-layer-axes` |space-separated axis titles ''or'' JSON |structure-layer |Optional axis chain. Each entry is the title of a tiddler tagged `$:/tags/rimir/cascade-palette/axis`. When non-empty, the chain runs at the top of the descent, bucketing `layer.roots` by each axis in order; past the chain, `layer.children` (if set) takes over recursively under the leaf bucket. JSON form `[{"title":"…","params":{"field":"status"}}, …]` supports parametric axes. Per-session overrides land in `$:/state/rimir/cascade-palette/layer-axes/<slug>` — declared default is the reset target. |
+|`ca-view-axes` |space-separated axis titles ''or'' JSON |view (implicit-layer) |Same semantics as `ca-layer-axes` but for views that declare structure inline (no `ca-view-layers`). The chain attaches to the synthesised implicit layer. |
+|`ca-axis-name` |string |axis |Display name shown on the chain pill in the Structure strip and in the axis picker. |
+|`ca-axis-hint` |string |axis |Detail-drawer help text — shown when the axis pill is focused, prepended to the generic axis-pill help. |
+|`ca-axis-key` |filter |axis |Per-row filter (`<currentTiddler>` = row tiddler) returning the bucket key. ''Required.'' Examples: `[get[created]format:date[YYYY]]`, `[get<axis-param-field>]` (parametric — receives `<<axis-param-field>>`). |
+|`ca-axis-label` |filter |axis |Optional per-bucket filter (`<currentTiddler>` = bucket key) returning the display label. Falls back to the key itself. |
+|`ca-axis-sort` |`first-seen`\|`asc`\|`desc`\|`enum` |axis |Bucket sort policy. `first-seen` (default) preserves source insertion order; `asc` / `desc` localeCompare on key; `enum` reads `ca-axis-sort-keys`. |
+|`ca-axis-sort-keys` |space-separated tokens |axis (`enum`) |Explicit key order for `enum` sort. Keys not in the list sort after the enum, alpha-ascending. E.g. for the `by-month-created` axis: `Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec`. |
+|`ca-axis-empty-label` |string |axis |Label for the synthetic empty bucket (rows whose `ca-axis-key` resolves to empty/missing). Default `—`. |
+|`ca-axis-icon` |string |axis |Optional glyph displayed on bucket rows. |
 |`ca-view-sort` |`alphabetical`\|`natural`\|`by-field`\|`custom` |view |Row sort policy; default `alphabetical` |
 |`ca-view-sort-field` |string |view (by-field) |Field name read off each row |
 |`ca-view-sort-key` |filter |view (custom) |Per-row filter returning a sortable key |
@@ -221,6 +236,7 @@ The built-in views compose layers as follows:
 |`by-parent` |implicit single layer (`roots: [tag[TableOfContents]]`, `children: [tag<currentTiddler>]`); built-in entries layer auto-appended |TW tag-tree |
 |`by-namespace-pick` |same as `by-namespace` plus `ca-view-pick-mode: yes` |Hidden pick variant — Enter commits picked tiddler as filter arg |
 |`hybrid` |two explicit layers (`structure-layers/tag-tree` + `structure-layers/path-tree`) plus built-in entries layer |Demo view exercising multi-layer composition. Rows from each layer interleave by sort; the layer name becomes the default `ca-group` per row |
+|`by-date` |implicit single layer (`roots: [!is[system]!is[shadow]]`); chain `[by-year-created, by-month-created, by-day-created]` |Demo view exercising the axis chain. Pure grouping — no `children`, so day buckets contain tiddler leaves directly. |
 
 The `cp-child-of` filter operator is shipped by this plugin (`widgets/cp-filter-ops.js`). Its operand is the parent tiddler title; with an empty operand it returns titles that contain no `/`. Authors writing custom path-style views can reuse it directly.
 
@@ -269,6 +285,19 @@ When `$:/config/rimir/cascade-palette/show-perf-footer` is `yes`, a small footer
 * `actions Xms (N rows)` — total action-preview evaluation time + how many rows were preview-evaluated (only shown when non-zero)
 
 Use it to spot slow filters (large `recompute`), expensive views with many rows, or to gauge the cost of per-row action preview before disabling it on a view.
+
+! Shipped axes
+
+The plugin ships five axes for the common cases. All live under `$:/plugins/rimir/cascade-palette/axes/`.
+
+|!Axis |!Key |!Sort |!Notes |
+|`by-year-created` |`[get[created]format:date[YYYY]]` |`desc` |Newest year first. Pair with month + day for journaling-style trees. |
+|`by-month-created` |`[get[created]format:date[MMM]]` |`enum` |Jan…Dec via `ca-axis-sort-keys`. |
+|`by-day-created` |`[get[created]format:date[0DD]]` |`asc` |Zero-padded so alphabetical sort = chronological. |
+|`by-year-modified` |`[get[modified]format:date[YYYY]]` |`desc` |Same shape as the created variant. |
+|`by-field` |`[get<axis-param-field>]` |`asc` |''Parametric.'' Set the `field` param when adding the axis via the picker (default empty — placeholder for user to fill in). |
+
+''Session state for an axis chain'' lives at `$:/state/rimir/cascade-palette/layer-axes/<slug>` where `<slug>` is the layer title's last `/`-segment (or, for implicit layers, the view title's last segment). Body: JSON `{"axes":[{"title":"…","params":{…}}, …]}`. Delete the tiddler to revert a layer to its declared `ca-layer-axes` default.
 
 ! Settings
 

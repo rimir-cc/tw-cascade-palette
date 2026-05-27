@@ -16,6 +16,7 @@ The novelty (vs. flat palettes like souk21/commandpalette or VS Code's Cmd-P) is
 
 * ''Generic engine'' — no domain knowledge. The same widget serves any catalogue plugin that ships ''entry'' and ''action'' tiddlers.
 * ''Declarative cascades'' — extending the palette is writing one tiddler per cascade edge. No JS. No widget changes.
+* ''Composable tree shapes'' — a view is a composition of ''structure layers''. Each layer declares its own `roots` + `children` filters AND can optionally chain ''axes'' (year / month / day / status / prefix — anything you can express as a derive-key filter). Axes form the top of the descent, `children` forms the recursive bottom; they're orthogonal and combine cleanly on a single layer.
 * ''Filter substitution'' — `<<query>>`, `<<picked>>`, `<<parent-picked>>` available in any filter or action wikitext.
 * ''Keyboard-first'' — Up/Down/Tab/Esc/Enter/→/Space. Esc walks one stage back (closes only at root from input), Shift-Esc closes from any depth. Left/Right inside the input keep normal cursor semantics.
 

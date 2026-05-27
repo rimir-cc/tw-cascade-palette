@@ -790,6 +790,40 @@ module.exports = function (proto) {
             }
             return;
         }
+        // Expanded mode: axis-pill operations come first so they short-
+        // circuit before generic grid navigation.
+        var focusedPill = this._currentViewConfigPill && this._currentViewConfigPill();
+        if (focusedPill && focusedPill.kind === "axis") {
+            if (e.key === "Backspace" || e.key === "Delete") {
+                e.preventDefault();
+                this._removeAxisAt(focusedPill.layerTitle, focusedPill.axisIdx);
+                return;
+            }
+            if (e.shiftKey && e.key === "ArrowLeft") {
+                e.preventDefault();
+                this._moveAxisAt(focusedPill.layerTitle, focusedPill.axisIdx, -1);
+                return;
+            }
+            if (e.shiftKey && e.key === "ArrowRight") {
+                e.preventDefault();
+                this._moveAxisAt(focusedPill.layerTitle, focusedPill.axisIdx, +1);
+                return;
+            }
+            if (e.key === "Enter") {
+                e.preventDefault();
+                this._openAxisPicker(
+                    focusedPill.layerTitle, "replace", focusedPill.axisIdx
+                );
+                return;
+            }
+        }
+        if (focusedPill && focusedPill.kind === "axis-add") {
+            if (e.key === "Enter" || e.key === " " || e.code === "Space") {
+                e.preventDefault();
+                this._openAxisPicker(focusedPill.layerTitle, "add");
+                return;
+            }
+        }
         // Expanded mode: 4-arrow grid navigation. Up at the top-most row
         // and Down at the bottom-most row cross the strip boundary —
         // collapse and step into the adjacent pill section (or input).

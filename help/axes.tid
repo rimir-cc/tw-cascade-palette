@@ -1,0 +1,64 @@
+title: $:/plugins/rimir/cascade-palette/help/axes
+tags: $:/tags/rimir/cascade-palette/help
+ca-name: Axes
+ca-icon: 📐
+ca-group: Pills
+ca-order: 250
+ca-hint: Group any tree by year, status, prefix — chain axes inside a structure-layer.
+ca-kind: leaf
+ca-actions: <$action-navigate $to=<<picked>>/>
+type: text/vnd.tiddlywiki
+
+An ''axis'' is a reusable derive-key spec — a filter that maps each tiddler to a bucket key (a year, a status, the first tag, anything). A structure-layer can chain several axes to build a grouped tree:
+
+''year → month → day → tiddlers in that day''.
+
+Each axis runs at one tree depth. Drilling into a bucket narrows the source set to rows whose key matches the bucket, then re-enters at the next axis.
+
+! Where to find it
+
+* ''Pick a grouped view:'' Tab into the view strip, switch to ''By date'' — the shipped demo (axes: year → month → day, no children).
+* ''Edit any layer's chain in-place:'' Tab to the ''Structure'' strip, press Enter / → to expand. Each layer's mini-row shows its current chain as yellow ''by'' / ''→'' pills, ending in a dashed ''+''. The strip is hidden when there are no pills to show.
+
+! Editing the chain
+
+|!Gesture |!Effect |
+|''Backspace'' / ''Delete'' on a focused axis pill |Remove that axis from the chain |
+|''Shift-←'' / ''Shift-→'' on a focused axis pill |Reorder within the chain |
+|''Enter'' on a focused axis pill |Open the picker in ''replace'' mode |
+|''Enter'' / ''Space'' on the ''+'' pill |Open the picker in ''append'' mode |
+|''Esc'' in the picker |Cancel — no change to the chain |
+
+The picker is itself a cascade stage listing every axis registered in the wiki. On commit, the new chain is written to a session-state tiddler — survives reload, but isn't filesystem-synced. Delete that state tiddler to revert the layer to its declared default.
+
+! Axes vs. children — one descent, two halves
+
+|!Layer has |!Result |
+|axes only |Pure grouping. Buckets all the way down; deepest buckets contain tiddler leaves. |
+|children only |Today's recursive tree (''By parent'', ''By namespace''). Axes never engage. |
+|axes + children |Buckets at the top, recursive tree at the bottom. E.g. "TOC tiddlers grouped by year, each TOC then expanding its tag-subtree." |
+|neither |Flat list of `roots`. |
+
+The two never fight: axes own the top of the tree, children owns the bottom. The transition happens at the depth where the chain runs out — that's the only place they meet, in the leaf-detection check (''does `children` return anything under this tiddler?'').
+
+! Shipped axes
+
+<$list filter="[all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/axis]sort[ca-axis-name]]" variable="axis">|`<$view tiddler=<<axis>> field="ca-axis-name"/>` |<$view tiddler=<<axis>> field="ca-axis-hint"/> |
+</$list>
+
+! Authoring your own
+
+Tag a tiddler `$:/tags/rimir/cascade-palette/axis` with at minimum a `ca-axis-name` and a `ca-axis-key` filter:
+
+```
+title: $:/plugins/example/axes/by-first-tag
+tags: $:/tags/rimir/cascade-palette/axis
+ca-axis-name: First tag
+ca-axis-key: [tags[]first[]]
+ca-axis-sort: asc
+ca-axis-empty-label: untagged
+```
+
+The next palette open picks it up. Attach it to a layer via `ca-layer-axes` (or `ca-view-axes` on an implicit-layer view) — space-separated tiddler titles, in chain order.
+
+''→'' Full axis schema + composition rules: <$link to="$:/plugins/rimir/cascade-palette/doc/protocol">doc/protocol</$link> (Axes section).

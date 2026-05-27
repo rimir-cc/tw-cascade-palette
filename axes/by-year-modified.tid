@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/axes/by-year-modified
+tags: $:/tags/rimir/cascade-palette/axis
+ca-axis-name: Year (modified)
+ca-axis-hint: Group rows by the year their tiddler was last modified.
+ca-axis-key: [get[modified]format:date[YYYY]]
+ca-axis-sort: desc
+ca-axis-empty-label: No date
+type: text/vnd.tiddlywiki

@@ -38,5 +38,29 @@ type: text/vnd.tiddlywiki
 ;Can I customise the look?
 :Override the styles in `$:/plugins/rimir/cascade-palette/styles` (e.g. via a real-tiddler with the same title) or ship your own stylesheet tagged `$:/tags/Stylesheet`. All classnames are prefixed `rcp-` (rimir cascade palette).
 
+;What's the difference between ''axes'' and ''children''?
+:Axes group at the top of the descent (year → month → day buckets); children form the recursive tree at the bottom (descend tag-children indefinitely). They're orthogonal layers of the same descent — a structure-layer can declare either, neither, or both. Set axes only → pure grouping. Set children only → today's recursive tree (e.g. ''By parent''). Set both → bucket the forest roots first, then descend each. The transition happens at `parentPath.length === chain.length`: the engine emits `layer.roots` narrowed by every parent bucket key as real tiddler rows, then ''`layer.children`'' takes over from there. Full mental model in the Architecture section.
+
+;Why is my axis chain empty / not showing buckets?
+:Three common causes. ''(1)'' The axis tiddlers themselves don't exist — `cpAxes.resolveChain` silently drops missing titles, so a typo in `ca-layer-axes` leaves the chain empty. Check the title resolves. ''(2)'' `layer.roots` is empty — no candidates to bucket. ''(3)'' For the implicit-layer case, you declared `ca-view-axes` but the view tiddler also has `ca-view-layers` set — explicit layers win over implicit fields, so the axes are ignored. Move axes onto the explicit layer.
+
+;A tiddler appears under the "wrong" year in my mixed (axes + children) tree — why?
+:Cross-bucket children. Past the axis transition, `layer.children` runs with `<currentTiddler>` = the parent ''tiddler'' you just drilled into — not the bucket path. A 2025-tagged child of a 2026 TOC tiddler will appear in the 2026 subtree because tag-child means "tagged with this tiddler", not "created in this year". Almost always what you want for tag-trees. If you genuinely need date-coherent descent, intersect a date predicate into `ca-layer-children` (e.g. `[tag<currentTiddler>get[created]format:date[YYYY]match<stage-1-picked>]`).
+
+;Why does the same tiddler appear in multiple buckets?
+:Your `ca-axis-key` filter returned more than one result for that row. The engine reads only the ''first'' result — but groupBy considers each tiddler exactly once per axis. If a tiddler's key changes between bucket-rendering and child-filtering (e.g. a filter side-effect or a stale cache), you can see ghost duplication. Bump the wiki — `wiki.getChangeCount()` invalidates the per-axis key cache; the next render is consistent.
+
+;How do I reset a layer's axis chain back to the declared default?
+:Delete the state tiddler at `$:/state/rimir/cascade-palette/layer-axes/<slug>` (slug = last `/`-segment of the layer's title; for implicit-layer views, the view title's last segment). The next palette open reads from the layer's `ca-layer-axes` / `ca-view-axes` again. There's no in-palette "reset" button yet — clearing each pill with Backspace works too, since an empty chain falls back to the declared default.
+
+;The shipped ''By field'' axis adds with empty params — how do I fill them in?
+:Open `$:/state/rimir/cascade-palette/layer-axes/<slug>` directly, edit the JSON, set `"params": {"field": "status"}` (or whatever field you want to group by), save. The next palette render uses the new param. A picker-side param prompt is on the roadmap — for now, the state tiddler is the editing surface.
+
+;Will the axis chain make my big wiki slow?
+:Probably not. Axis key results are memoised per `(axisTitle + paramsHash) × tiddlerTitle`, invalidated on `wiki.getChangeCount()`. For a 3-axis chain over a 2500-tiddler source: ~150ms cold first-render, near-zero on subsequent keystrokes / drills. If you do hit slowness, the usual culprits are an expensive `ca-axis-key` filter (it runs per row) or a very broad `ca-layer-roots`. Tighten roots first; consider caching expensive key computations into a tiddler field at write-time if necessary.
+
+;Can a structure-layer have ''multiple parallel'' axis chains, like Hybrid has parallel layers?
+:Not on a single layer — `ca-layer-axes` is one chain per layer. But Hybrid-style composition still works: put two structure-layers in a view via `ca-view-layers`, give each its own `ca-layer-axes` chain. Each layer's rows interleave at every node; the chain belongs to its emitting layer.
+
 ;What's coming in future versions?
 :The next milestone is ''context-driven actions'' — actions that operate on the entity currently selected in the running orga app (no need to re-pick). Also ''form stages'' for multi-field input (e.g. ''New Project'' with name + description + due-date inline). And eventually a builder UI so users can author action tiddlers without editing wikitext.

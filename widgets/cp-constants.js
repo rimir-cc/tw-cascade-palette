@@ -40,6 +40,7 @@ exports.REACH_TAG = "$:/tags/rimir/cascade-palette/reach";
 exports.FIELD_TAG = "$:/tags/rimir/cascade-palette/field";
 exports.VIEW_TAG = "$:/tags/rimir/cascade-palette/view";
 exports.STRUCTURE_LAYER_TAG = "$:/tags/rimir/cascade-palette/structure-layer";
+exports.AXIS_TAG = "$:/tags/rimir/cascade-palette/axis";
 exports.LEADER_TAG = "$:/tags/rimir/cascade-palette/leader";
 exports.PRESET_TAG = "$:/tags/rimir/cascade-palette/preset";
 exports.HELP_TAG = "$:/tags/rimir/cascade-palette/help";
@@ -55,6 +56,10 @@ exports.PERF_FOOTER_CONFIG = "$:/config/rimir/cascade-palette/show-perf-footer";
 // they left off. Uses $:/temp/ so TW does NOT sync it to disk: it's
 // session-only by virtue of the namespace, no sessionStorage needed.
 exports.SAVED_STACK_TIDDLER = "$:/temp/rimir/cascade-palette/saved-stack";
+// Per-layer axis-chain session state. Slug = last segment of layer title.
+// Lives under $:/state/ so it survives reload but isn't filesystem-synced.
+// Body is JSON: { "axes": [ "<axis-title>", ... ] }.
+exports.LAYER_AXES_STATE_PREFIX = "$:/state/rimir/cascade-palette/layer-axes/";
 
 // ---- Defaults for nullable / fallback fields ----
 exports.DEFAULT_ORDER = 100;

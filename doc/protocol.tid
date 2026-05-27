@@ -540,6 +540,118 @@ The example above produces a two-level tree: roots are distinct author names; ch
 
 ''Performance note:'' tree views run the children filter once per drilled node and once per show-count badge (when enabled). The cost scales with the number of candidates the filter examines, not with the depth of the tree. Keep filters tight (lead with `!is[system]` / `[tag[...]]` / `[prefix[...]]` operators that benefit from TW's title index) for large stores.
 
+! Axes — grouping chains on top of a structure-layer
+
+A view's structure-layer can declare a chain of ''axes'' that bucket the layer's source set at the top of the descent. Each axis runs at one tree depth: depth 0 buckets `layer.roots` by the first axis, depth 1 buckets the parent-bucket-narrowed set by the second axis, and so on. Past the chain, the layer's normal `roots` / `children` filters take over — so axes ''compose'' with recursive trees rather than replacing them.
+
+''Three useful configurations'' of a single layer:
+
+|!Axes |!Children |!Behaviour |
+|none |none |Flat list. Every row in `roots` is a leaf. |
+|none |set |Pure recursive tree (today's ''By parent'', ''By namespace''). Axes never engage. |
+|set |none |Pure grouping. Chain runs all the way down; leaves under the deepest axis are tiddlers from the narrowed source. |
+|set |set |Bucket the source first, then under each leaf bucket each tiddler descends recursively via `children` as today. ''Mixed'' tree. |
+
+''Axis tag:'' `$:/tags/rimir/cascade-palette/axis`. ''Layer declaration:'' `ca-layer-axes` lists axis tiddler titles in chain order, space-separated. Implicit-layer views use `ca-view-axes` with the same semantics.
+
+! Axis tiddler fields
+
+;`ca-axis-name`
+:Display name shown on chain pills + in the axis picker. Required.
+;`ca-axis-hint`
+:Detail-drawer help text shown when the axis pill is focused.
+;`ca-axis-key`
+:Filter evaluated per row with `<currentTiddler>` bound to the row tiddler; the first result is the bucket key. ''Required.'' Examples: `[get[created]format:date[YYYY]]`, `[get[status]]`, `[tags[]first[]]`. For parametric axes, reference `<axis-param-X>` widget variables (e.g. `[get<axis-param-field>]`).
+;`ca-axis-label`
+:Optional filter evaluated per bucket with `<currentTiddler>` bound to the bucket key; the first result is the display label. Falls back to the key itself.
+;`ca-axis-sort`
+:`first-seen` (default) — preserve source insertion order. `asc` / `desc` — localeCompare on key. `enum` — explicit order from `ca-axis-sort-keys` (keys outside the list sort after, alpha-ascending).
+;`ca-axis-sort-keys`
+:Space-separated key order, used by `enum` sort. E.g. for a month axis: `Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec`.
+;`ca-axis-empty-label`
+:Label shown for the synthetic empty bucket (rows where `ca-axis-key` resolves to empty/missing). Default `—`.
+;`ca-axis-icon`
+:Optional glyph displayed on bucket rows.
+
+! Worked example — pure grouping by year / month / day
+
+```
+title: $:/plugins/example/axes/by-year-created
+tags: $:/tags/rimir/cascade-palette/axis
+ca-axis-name: Year (created)
+ca-axis-key: [get[created]format:date[YYYY]]
+ca-axis-sort: desc
+ca-axis-empty-label: No date
+```
+
+```
+title: $:/plugins/example/views/by-date
+tags: $:/tags/rimir/cascade-palette/view
+ca-view-name: By date
+ca-view-roots: [!is[system]!is[shadow]]
+ca-view-axes: $:/plugins/example/axes/by-year-created $:/plugins/example/axes/by-month-created $:/plugins/example/axes/by-day-created
+ca-view-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+ca-view-show-count: yes
+```
+
+Open the palette, switch to ''By date'': year buckets at root, drill into a year → month buckets within, drill into a month → day buckets, drill into a day → tiddler leaves; Enter navigates.
+
+! Worked example — mixed (axes + recursive children)
+
+''By parent, sliced by year'' — TOC tiddlers grouped by year of creation, each TOC then expanding its tag-subtree:
+
+```
+title: $:/plugins/example/structure-layers/by-parent-by-year
+tags: $:/tags/rimir/cascade-palette/structure-layer
+ca-layer-name: By parent + year
+ca-layer-roots: [tag[TableOfContents]]
+ca-layer-children: [tag<currentTiddler>]
+ca-layer-axes: $:/plugins/example/axes/by-year-created
+ca-layer-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+```
+
+Descent: root → year buckets containing TOC-tagged tiddlers. Drill ''2026'' → the TOC tiddlers created in 2026. Drill any TOC → its `tag<currentTiddler>` subtree, recursive — the axis chain is exhausted; from here on it's pure ''By parent''.
+
+''Caveat — `layer.roots` does double duty.'' It's both the universe to bucket (during the chain) AND the forest roots at the transition. Pick the right set: `[!is[system]]` buckets every non-system tiddler AND every non-system tiddler becomes a recursive root; `[tag[TOC]]` keeps both phases TOC-only.
+
+''Caveat — cross-bucket children.'' Past the transition, `layer.children` runs with `<currentTiddler>` = the parent ''tiddler''; date stops following you down. A 2025-tagged child of a 2026 TOC tiddler will appear in the 2026 subtree. If you need date-coherent descent, intersect a date predicate into `ca-layer-children`.
+
+! Parametric axes
+
+An axis whose `ca-axis-key` references `<axis-param-X>` is ''parametric'' — the chain entry carries a `params` map bound at evaluation time. The shipped ''by-field'' axis is the canonical example:
+
+```
+title: $:/plugins/example/axes/by-field
+tags: $:/tags/rimir/cascade-palette/axis
+ca-axis-name: By field
+ca-axis-key: [get<axis-param-field>]
+ca-axis-sort: asc
+```
+
+When the user picks `by-field` from the axis picker, `_defaultParamsForAxis` scans the key filter for `<axis-param-X>` references and seeds an empty params map. The state tiddler then stores `{ "title": "$:/.../axes/by-field", "params": { "field": "" } }`. Editing the state tiddler directly to fill in `"field": "status"` (or any field name) activates the axis. A future picker iteration may prompt for params at add-time — for now the state is the editing surface.
+
+! Pill UX for axes
+
+The active chain renders in the Structure pill row, in each layer's mini-row: yellow ''by'' / ''→'' chain pills + a dashed ''+'' pill at the end. In expanded mode:
+
+* ''Backspace / Delete'' removes the focused axis.
+* ''Shift-← / Shift-→'' reorders within the chain.
+* ''Enter'' on a chain pill opens the axis picker in ''replace'' mode.
+* ''Enter / Space'' on the ''+'' pill opens the picker in ''append'' mode.
+
+The picker is itself a cascade stage listing every tiddler tagged `$:/tags/rimir/cascade-palette/axis`. Esc cancels. On commit, the chain spec is written to `$:/state/rimir/cascade-palette/layer-axes/<slug>` and the strip is re-rendered with focus restored.
+
+! Axis state — session override vs. declared default
+
+Each layer's active chain is read in this order:
+
+# Session state: `$:/state/rimir/cascade-palette/layer-axes/<slug>` (JSON `{"axes":[…]}`).
+# Declared default: `ca-layer-axes` / `ca-view-axes` on the layer / view tiddler.
+
+`<slug>` is the layer title's last `/`-segment (for explicit structure-layers) or the view title's last segment (for implicit layers). Deleting the state tiddler reverts the layer to its declared default — that's the ''reset'' affordance.
+
+The `$:/state/...` namespace is NOT filesystem-synced — chain edits survive a reload but don't pollute the wiki on disk. Use the declared `ca-layer-axes` on a layer / view tiddler when you want the chain to ship with the plugin / wiki.
+
 ! Leader keys
 
 A ''leader'' is a tiddler tagged ''`$:/tags/rimir/cascade-palette/leader`'' that binds a single character (or short string) to a wikitext action chain. Typing the key into the input and ''pausing for 500ms'' (the idle window) fires the actions. Any keystroke during the window cancels — `@foo` types four chars; `@` then idle fires the `@` leader.

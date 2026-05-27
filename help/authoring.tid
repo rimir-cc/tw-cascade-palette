@@ -22,6 +22,8 @@ Everything the palette renders comes from tagged tiddlers. To add functionality,
 |`/reach` |A Reach strip pill |
 |`/field` |A Search-in strip pill |
 |`/view` |An alternate view of the same data |
+|`/structure-layer` |A reusable structure-layer (roots / children / decorations) referenced by views via `ca-view-layers` |
+|`/axis` |A reusable grouping axis (derive-key spec) referenced by layers via `ca-layer-axes` |
 |`/preset` |A pre-shipped configuration snapshot |
 |`/template` |A row-detail-drawer template (Ctrl-hold) |
 |`/help` |A help section (you're reading the output) |

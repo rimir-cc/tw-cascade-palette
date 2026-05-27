@@ -37,6 +37,85 @@ The keyboard router does one of:
 * ''Esc'' → pop one stage. From input at root depth, closes the palette; from menu at root depth, refocuses input.
 * ''Shift-Esc'' → close the palette from any focus and any depth in one keystroke. Freezes the current stack to `$:/temp/rimir/cascade-palette/saved-stack` so the next open resumes here.
 
+! Axes — per-layer grouping chains
+
+A structure-layer can declare a chain of ''axes'' that group the layer's source set by a derived key — year, month, day, status, prefix, or any tiddler-to-string mapping you can write as a filter. Each axis runs at one tree depth: first axis at root, second under each first-axis bucket, and so on. Axes ''compose with the layer's recursive `children` filter'': past the chain, the children filter takes over with the source narrowed to whatever leaf bucket the user drilled into. The two concepts are orthogonal halves of the same descent — axes form the top, children forms the bottom.
+
+!! The descent at a glance
+
+```
+depth:    0       1       2       3            4        5       …
+        ┌─────────────────────────┐  ┌─────────────────────────┐
+data:   │  AXIS CHAIN (buckets)   │  │  RECURSIVE TREE         │
+        │  parentPath[i] = key    │  │  parentPath[i] = tiddler│
+        │  source = layer.roots,  │  │  filter = layer.children│
+        │  narrowed by axis-keys  │  │  currentTiddler = parent│
+        │  matching parentPath    │  │                         │
+        └─────────────────────────┘  └─────────────────────────┘
+                       ↑                ↑
+                    transition: parentPath.length === chain.length
+```
+
+`parentPath` (the array carried on every tree-stage) holds bucket keys for indices `0..chain.length - 1` and real tiddler titles for indices `chain.length..`. The reader doesn't need a type check: depth alone tells the engine which interpretation applies.
+
+!! Three useful configurations of a single layer
+
+|!Axes |!Children |!Behaviour |
+|empty |empty |Flat list. `roots` is the source, every row is a leaf. (Today's ''All tiddlers''.) |
+|empty |set |Pure recursive tree — same `children` filter at every depth, source narrowed by `<currentTiddler>` rebinding. (Today's ''By parent'', ''By namespace''.) Axes never engage. |
+|set |empty |Pure grouping. Buckets all the way down; at the deepest axis, the leaves are tiddlers from the narrowed source — no further descent. (Shipped ''By date''.) |
+|set |set |Bucket the source first, then descend each leaf-bucket tiddler via `children` as today. E.g. ''By parent, sliced by year'' — TOC tiddlers grouped by year, each TOC then expanding its tag-subtree. |
+
+!! Transition mechanics
+
+At the exact moment `parentPath.length === chain.length` (axes consumed but no tiddler drilled yet), the engine calls `cp-axes.sourceAfterAxes` to emit `layer.roots` narrowed by every parent bucket key. Each result row is a real tiddler — and runs through the same row-builder as every other tiddler row in the engine: `_isLeafInLayer` decides drill vs. leaf by asking ''"does `layer.children` return anything under this tiddler?"'' (empty children → always leaf; non-empty → `_treeContainer = true`).
+
+That single test is the only place axes and children indirectly meet. After it, drilling appends the picked tiddler title to `parentPath`, depth becomes `chain.length + 1`, and the descent is in standard recursive mode — `layer.children` evaluates with `<currentTiddler> = parentPath[last]` exactly like today's tree views.
+
+!! Two practical caveats
+
+# ''`layer.roots` is doing double duty.'' It's both the ''universe to bucket'' (when the axis chain is evaluating) AND the ''forest roots'' at the transition. If you write `ca-layer-roots: [!is[system]]`, every non-system tiddler is bucketable AND every non-system tiddler is a recursive root candidate. If you write `ca-layer-roots: [tag[TOC]]`, only TOC-tagged tiddlers participate in either phase. Same filter, two consumers.
+# ''Cross-bucket children.'' Past the transition, `layer.children` runs with `<currentTiddler>` = the parent ''tiddler'', not the bucket path. A 2025-tagged child of a 2026 TOC tiddler will appear in the 2026 subtree — the date stops following you down. That's almost always what you want for tag-trees. If you need date-coherent descent, intersect a date predicate into `ca-layer-children`.
+
+!! Axis schema (tag `$:/tags/rimir/cascade-palette/axis`)
+
+|!Field |!Purpose |
+|`ca-axis-name` |Pill label / picker label |
+|`ca-axis-hint` |Detail-drawer help text |
+|`ca-axis-key` |Filter (`<currentTiddler>` = row tiddler) returning the bucket key |
+|`ca-axis-label` |Optional pretty-label filter (`<currentTiddler>` = bucket key) |
+|`ca-axis-sort` |`first-seen` (default) / `asc` / `desc` / `enum` |
+|`ca-axis-sort-keys` |Space-separated key order; used by `enum` sort |
+|`ca-axis-empty-label` |Bucket label when the key resolves to empty (default `—`) |
+|`ca-axis-icon` |Optional bucket glyph |
+
+Parametric axes (e.g. shipped `by-field`) reference `<axis-param-X>` variables in their key/label filters; per-pill params are stored alongside the axis title in the session state and bound at evaluation time as `<<axis-param-X>>` widget variables.
+
+!! Pill UX
+
+The Structure pill-row (`viewconfig` strip) renders each axis in the active chain as a yellow ''by'' / ''→'' pill in that layer's mini-row, plus a dashed ''+'' pill at the end. In expanded mode (Tab to the strip, Enter to expand):
+
+* ''Backspace / Delete'' on a focused axis pill removes it from the chain.
+* ''Shift-← / Shift-→'' reorders it within the chain.
+* ''Enter'' on a chain pill swaps it via the axis picker.
+* ''Enter / Space'' on the ''+'' pill appends a new axis.
+
+The picker is itself a cascade stage — a (`_freezeItems`) filter-stage listing every tiddler tagged `$:/tags/rimir/cascade-palette/axis`. On commit, `cp-axes.writeChainState` persists the new chain to `$:/state/rimir/cascade-palette/layer-axes/<layer-slug>` and `popStage` bounces focus back to the strip. Cancel (Esc) leaves state untouched.
+
+!! State precedence
+
+* Session override in `$:/state/rimir/cascade-palette/layer-axes/<slug>` wins over the layer's declared `ca-layer-axes`.
+* Resetting (delete the state tiddler) reverts to the declared default.
+* `$:/state/...` survives reload but is NOT filesystem-synced — same pattern as `cp-leader` state.
+
+Schema in the state tiddler: JSON `{ "axes": [ { "title": "...", "params": {…} }, ... ] }`. Bare strings are accepted shorthand for un-parameterised axes in either the declared default OR the state — `parseChainSpec` handles both shapes.
+
+!! Performance
+
+Axis `keyFn` results are memoised per `(axisTitle + paramsHash) × tiddlerTitle`, invalidated on `wiki.getChangeCount()`. First touch of the cache fills it; subsequent re-renders cost O(rows visited at the current depth), not O(source). For a 3-axis chain over a 2500-tiddler source: ~150ms cold first-render, then near-zero on subsequent keystrokes.
+
+The `groupBy` / `sortGroups` primitive is loaded from `$:/plugins/rimir/mindmap/lib/grouped-tree.js` when the mindmap plugin is installed (soft-dep); a tiny inline fallback covers the case where mindmap isn't around — same algorithm, no feature degradation.
+
 ! Session stack persistence
 
 `close()` paths split into two camps: ''preserve'' (Shift-Esc, action-fire close — including the default close-on-fire via `afterAction`) write the current stack to `$:/temp/rimir/cascade-palette/saved-stack`, and ''reset'' (plain Esc at root, backdrop click, `popStage` past root) clear it. `openPalette()` reads that tiddler on each open; if present, the stack is restored (with `items`/`results` left empty for `recomputeStage` to repopulate); else a fresh root is built. `confirm` and `actions` stages are dropped on serialize — they reference closure-captured strings or a parent-picked tiddler that may be gone — so the saved chain truncates at the first such stage. `openPaletteAtEntry` (and the `OPEN_ENTRY_MESSAGE` handler) pass `{ fresh: true }` to skip restore, since the caller is explicitly pointing at one entry. Filters / visibilities / reaches / fields persist independently across open/close — this layers stack-resume on top.

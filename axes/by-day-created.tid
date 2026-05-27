@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/axes/by-day-created
+tags: $:/tags/rimir/cascade-palette/axis
+ca-axis-name: Day (created)
+ca-axis-hint: Group rows by the day-of-month they were created (zero-padded so alphabetical sort matches chronological).
+ca-axis-key: [get[created]format:date[0DD]]
+ca-axis-sort: asc
+ca-axis-empty-label: No date
+type: text/vnd.tiddlywiki

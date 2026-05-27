@@ -448,6 +448,31 @@ type: text/css
 .rcp-view-config-pill-entries-mode .rcp-view-config-pill-label { color: #6b7280; }
 .rcp-view-config-pill-grouping .rcp-view-config-pill-label    { color: #475569; }
 
+/* Axis pills — derived/computed dimension, distinct hue from declarative
+   pills above. The label colour deliberately reads as accent-on-cream, so
+   chained "by → → →" axis pills cluster visually together. */
+.rcp-view-config-pill-axis {
+    background: #fdf4e3;
+    border-color: #facc15;
+}
+.rcp-view-config-pill-axis .rcp-view-config-pill-label  { color: #b45309; }
+.rcp-view-config-pill-axis .rcp-view-config-pill-value  { color: #78350f; }
+
+.rcp-view-config-pill-axis-add {
+    background: #f8fafc;
+    border-style: dashed;
+    border-color: #cbd5e1;
+    color: #94a3b8;
+}
+.rcp-view-config-pill-axis-add .rcp-view-config-pill-label {
+    color: #475569;
+    font-size: 11px;
+}
+.rcp-view-config-pill-axis-add .rcp-view-config-pill-value {
+    color: #94a3b8;
+    font-style: italic;
+}
+
 @media (prefers-color-scheme: dark) {
     .rcp-view-config-strip {
         background: #181d24;
@@ -495,6 +520,18 @@ type: text/css
     .rcp-view-config-pill-pick .rcp-view-config-pill-label        { color: #f472b6; }
     .rcp-view-config-pill-entries-mode .rcp-view-config-pill-label { color: #9ca3af; }
     .rcp-view-config-pill-grouping .rcp-view-config-pill-label    { color: #94a3b8; }
+    .rcp-view-config-pill-axis {
+        background: #422006;
+        border-color: #ca8a04;
+    }
+    .rcp-view-config-pill-axis .rcp-view-config-pill-label  { color: #fbbf24; }
+    .rcp-view-config-pill-axis .rcp-view-config-pill-value  { color: #fde68a; }
+    .rcp-view-config-pill-axis-add {
+        background: #1f2937;
+        border-color: #475569;
+    }
+    .rcp-view-config-pill-axis-add .rcp-view-config-pill-label { color: #cbd5e1; }
+    .rcp-view-config-pill-axis-add .rcp-view-config-pill-value { color: #64748b; }
     .rcp-view-config-row-label                                     { color: #9ca3af; }
     .rcp-view-config-row-view .rcp-view-config-row-label,
     .rcp-view-config-row-builtin .rcp-view-config-row-label        { color: #6b7280; }

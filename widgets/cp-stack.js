@@ -57,13 +57,22 @@ module.exports = function (proto) {
             this.close();
             return;
         }
-        this.stack.pop();
+        var popped = this.stack.pop();
         // Recompute the now-top stage so it reflects any state that changed
         // while we were in the deeper stage (e.g. visibility filters can
         // turn entries on/off after Switch Apps changes active-app).
         var top = this.topStage();
         if (top) this.recomputeStage(top);
         this.renderStage();
+        // Axis pickers are opened from the Structure strip — when they're
+        // popped (whether by commit, Esc, or backdrop click), bounce focus
+        // back to the strip and re-render its pills (the chain just
+        // changed). Doing this in popStage keeps the focus restoration
+        // central instead of duplicating it across every dismissal path.
+        if (popped && popped._isAxisPicker) {
+            if (this._renderViewConfigStrip) this._renderViewConfigStrip();
+            if (this.setFocus) this.setFocus("viewconfig");
+        }
     };
 
     /* ---------- session-stack persistence ---------- */
@@ -93,6 +102,10 @@ module.exports = function (proto) {
             var s = this.stack[i];
             if (!s) continue;
             if (s.kind === "confirm" || s.kind === "actions") break;
+            // Axis picker stages are pre-populated, transient editing UI —
+            // dropping them on serialize is correct (the next open should
+            // resume at the previous "real" stage, not in the picker).
+            if (s._isAxisPicker) break;
             var copy = {};
             for (var k in s) {
                 if (s.hasOwnProperty(k) && k !== "items" && k !== "results") {
@@ -327,6 +340,13 @@ module.exports = function (proto) {
     };
 
     proto._recomputeStageBody = function (stage) {
+        // Pre-populated stages (e.g. axis picker) — items are set when the
+        // stage is pushed and survive every recompute. Query still filters
+        // them in-place via applyQueryToStage.
+        if (stage._freezeItems) {
+            this.applyQueryToStage(stage);
+            return;
+        }
         if (stage.kind === "root") {
             var view = this._getViewByTitle(stage.viewTitle || this.activeView);
             if (view) {
