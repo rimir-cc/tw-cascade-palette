@@ -254,7 +254,7 @@ If no template applies and no help text is set, the drawer falls back to a raw f
 
 ! Confirm drills
 
-DEL/Backspace on certain rows pushes a synthetic ''confirm stage'' with two leaves: Confirm and Cancel. The destructive ''consequence'' is shown in the details drawer when on a confirm stage. Selection defaults to Cancel; the user must explicitly arrow down to Confirm and press Enter.
+DEL/Backspace on certain rows pushes a synthetic ''confirm stage'' with two leaves: Confirm and Cancel. The destructive ''consequence'' is shown as the inline hint of the Confirm row AND in the details drawer banner. Selection defaults to Cancel; the user must explicitly arrow down to Confirm and press Enter.
 
 Triggered automatically by the engine in two scenarios:
 * ''Overridden setting:'' DEL on a row whose `ca-bind-tiddler` has both a shadow AND a real (override) tiddler. Confirm deletes the override; the shadow default is restored.

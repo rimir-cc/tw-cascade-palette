@@ -188,10 +188,14 @@ module.exports = function (proto) {
     // The stage pops on either choice (handled in fireSelected). Selection
     // defaults to Cancel so accidental Enter does nothing.
     proto.buildConfirmStage = function (spec) {
+        // Consequence text doubles as the Confirm row's hint so it is
+        // visible inline in the menu — not only in the detail drawer
+        // (which requires Ctrl-hold to surface). The detail drawer still
+        // shows the full text via consequenceText on the stage.
         var confirmItem = {
             title: "",
             name: "Confirm",
-            hint: "",
+            hint: spec.consequence || "",
             icon: "",
             kind: "leaf",
             order: 10,

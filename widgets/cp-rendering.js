@@ -525,7 +525,15 @@ module.exports = function (proto) {
             return;
         }
         var picked = stage.results[stage.selectedIndex];
-        if (!picked || !picked.title) {
+        if (!picked) {
+            this.hideDetail();
+            return;
+        }
+        // Confirm-stage synthetic items (Confirm / Cancel) carry empty
+        // titles by design — but we still want the drawer to render so
+        // the consequence banner below shows. Only the empty-title +
+        // non-confirm combination has nothing useful to display.
+        if (!picked.title && stage.kind !== "confirm") {
             this.hideDetail();
             return;
         }
@@ -539,10 +547,12 @@ module.exports = function (proto) {
             this.detailEl.removeChild(this.detailEl.firstChild);
         }
 
-        var headerEl = this.document.createElement("div");
-        headerEl.className = "rcp-detail-title";
-        headerEl.textContent = picked.title;
-        this.detailEl.appendChild(headerEl);
+        if (picked.title) {
+            var headerEl = this.document.createElement("div");
+            headerEl.className = "rcp-detail-title";
+            headerEl.textContent = picked.title;
+            this.detailEl.appendChild(headerEl);
+        }
 
         // Confirm-stage consequence banner — surfaces what DEL or Enter
         // will do. Pre-empts both help text and templates so the user

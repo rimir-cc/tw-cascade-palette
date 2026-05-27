@@ -104,7 +104,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-kind` |`leaf`\|`drill`\|`toggle`\|`number`\|`text`\|`date` |entry, action, setting |Leaf fires actions, drill pushes next stage, toggle flips a bound boolean, number adjusts via `+/-` (Space to type-set), text edits a string via Space → type → Enter, date adjusts via `+/-` ±day (Shift ±month, Ctrl ±year), Space → typed-edit with smart parser |
 |`ca-actions` |wikitext |leaf items |Fired on Enter |
 |`ca-confirm` |`yes`\|empty |leaf items |When `yes`, the leaf's actions are wrapped in a confirm-drill stage rather than fired directly. The consequence text shows the cost of confirming (e.g. "Delete tiddler X"). |
-|`ca-confirm-consequence` |string |leaf with `ca-confirm:yes` |Text shown in the detail drawer of the confirm stage. Supports `<<picked>>` / `<<parent-picked>>` / `<<stage-N-picked>>` substitution. |
+|`ca-confirm-consequence` |string |leaf with `ca-confirm:yes` |Text shown as the ''hint'' of the synthetic Confirm row (inline, always visible) AND in the detail drawer banner (Ctrl-hold or details-always-on). Supports `<<picked>>` / `<<parent-picked>>` / `<<stage-N-picked>>` substitution. |
 |`ca-after-fire` |`close`\|`pop` |leaf |Post-fire behaviour. Default `close` (closes the palette). `pop` fires the action then pops one stage, keeping the palette open — for single-select sub-drills inside a field-edit flow, so the user lands back on the field stage with their pick already applied. |
 |`ca-entity-type` |string\|`*` |action |Entity type this action applies to, or `*` for global |
 |`ca-default` |`yes`\|empty |action |Marks the "Enter on entity result" default action |

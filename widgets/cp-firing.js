@@ -63,11 +63,19 @@ module.exports = function (proto) {
         // user expects to return to the previous stage. Action vars captured
         // when the stage was built (e.g. parent-picked from a ca-confirm
         // trigger) are passed through so referenced entities resolve.
+        //
+        // Pop guard: if the actions replaced the stack (e.g. via the
+        // OPEN_ENTRY_MESSAGE handler, which calls openPalette() and rebuilds
+        // the stack to [root, entry-stage]), the confirm stage is no longer
+        // on top — popping would discard the entry stage the actions just
+        // installed. Only pop if our confirm stage is still the top.
         if (stage.kind === "confirm" && picked.kind === "leaf") {
             if (picked.actions) {
                 this.invokeViaNavigator(picked.actions, stage.actionVars || {});
             }
-            this.popStage();
+            if (this.topStage() === stage) {
+                this.popStage();
+            }
             return;
         }
 
