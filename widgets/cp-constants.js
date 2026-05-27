@@ -50,6 +50,11 @@ exports.POPUP_WIDTH_CONFIG = "$:/config/rimir/cascade-palette/popup-width";
 exports.MAX_RESULTS_CONFIG = "$:/config/rimir/cascade-palette/max-results";
 exports.DETAILS_ALWAYS_ON_CONFIG = "$:/config/rimir/cascade-palette/details-always-on";
 exports.PERF_FOOTER_CONFIG = "$:/config/rimir/cascade-palette/show-perf-footer";
+// Saved stage stack — written on close (when the close path opts in to
+// "preserve") and read by the next openPalette so the user resumes where
+// they left off. Uses $:/temp/ so TW does NOT sync it to disk: it's
+// session-only by virtue of the namespace, no sessionStorage needed.
+exports.SAVED_STACK_TIDDLER = "$:/temp/rimir/cascade-palette/saved-stack";
 
 // ---- Defaults for nullable / fallback fields ----
 exports.DEFAULT_ORDER = 100;

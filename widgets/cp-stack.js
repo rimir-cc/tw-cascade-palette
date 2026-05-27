@@ -23,6 +23,7 @@ var ACTION_TAG = C.ACTION_TAG;
 var ENTRY_TAG = C.ENTRY_TAG;
 var SOFT_DEPTH_CONFIG = C.SOFT_DEPTH_CONFIG;
 var DEFAULT_SOFT_DEPTH = C.DEFAULT_SOFT_DEPTH;
+var SAVED_STACK_TIDDLER = C.SAVED_STACK_TIDDLER;
 
 module.exports = function (proto) {
 
@@ -63,6 +64,89 @@ module.exports = function (proto) {
         var top = this.topStage();
         if (top) this.recomputeStage(top);
         this.renderStage();
+    };
+
+    /* ---------- session-stack persistence ---------- */
+    //
+    // Close paths that opt into "preserve" (Shift-Esc, action-fire close)
+    // call `persistStack()` to dump the current stack to a $:/temp
+    // tiddler. The next `openPalette()` calls `restoreSavedStack()` —
+    // if a saved stack exists, the user resumes where they left off.
+    // Close paths that mean "I'm done" (Esc-at-root, backdrop click,
+    // popStage walking past root) call `clearSavedStack()` to forget it.
+    //
+    // Why $:/temp and not sessionStorage: TW treats $:/temp as
+    // non-persistent by convention (filesystem syncers skip it), so the
+    // tiddler dies with the page and we get session-only semantics
+    // without reaching for browser storage APIs. Same pattern the rest
+    // of the workspace already uses.
+
+    proto.serializeStack = function () {
+        // Strip items/results (recomputed on next access) and drop stages
+        // whose context doesn't survive a close — confirm stages reference
+        // closure-captured actions, and action-menu stages reference a
+        // parent-picked tiddler that may be gone. Truncate the stack at
+        // the first such stage so the restored chain is internally
+        // consistent.
+        var safe = [];
+        for (var i = 0; i < this.stack.length; i++) {
+            var s = this.stack[i];
+            if (!s) continue;
+            if (s.kind === "confirm" || s.kind === "actions") break;
+            var copy = {};
+            for (var k in s) {
+                if (s.hasOwnProperty(k) && k !== "items" && k !== "results") {
+                    copy[k] = s[k];
+                }
+            }
+            safe.push(copy);
+        }
+        return safe;
+    };
+
+    proto.persistStack = function () {
+        var safe = this.serializeStack();
+        // Skip persisting a "root only" stack — there's nothing to resume.
+        if (!safe || safe.length <= 1) {
+            this.clearSavedStack();
+            return;
+        }
+        this.wiki.addTiddler({
+            title: SAVED_STACK_TIDDLER,
+            type: "application/json",
+            text: JSON.stringify(safe)
+        });
+    };
+
+    proto.clearSavedStack = function () {
+        this.wiki.deleteTiddler(SAVED_STACK_TIDDLER);
+    };
+
+    proto.restoreSavedStack = function () {
+        // Returns true if a saved stack was restored onto this.stack;
+        // false if no saved data, parse failure, or empty stack. Caller
+        // builds a fresh root on false.
+        var text = this.wiki.getTiddlerText(SAVED_STACK_TIDDLER, "");
+        if (!text) return false;
+        var parsed;
+        try { parsed = JSON.parse(text); }
+        catch (e) { return false; }
+        if (!Array.isArray(parsed) || parsed.length === 0) return false;
+        for (var i = 0; i < parsed.length; i++) {
+            var s = parsed[i];
+            s.items = [];
+            s.results = [];
+            if (typeof s.selectedIndex !== "number") s.selectedIndex = 0;
+            // Re-lookup entity default actions — the wiki's action tags
+            // may have changed since save; a stale snapshot would
+            // misroute Enter on a dynamic item.
+            if (s.kind === "filter" && s.entityType) {
+                s.entityDefaultActions =
+                    this.lookupEntityDefaultActions(s.entityType);
+            }
+        }
+        this.stack = parsed;
+        return true;
     };
 
     proto.popToDepth = function (depth) {

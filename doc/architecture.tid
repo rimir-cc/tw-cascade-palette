@@ -35,7 +35,11 @@ The keyboard router does one of:
 * ''Space'' → on toggle/text/number/date kinds, kind-specific edit; on any other row with a non-empty entity type, pushes the action-menu stage (works for containers too).
 * ''Enter'' → fire the selected item's default behaviour (leaf action OR push if drill).
 * ''Esc'' → pop one stage. From input at root depth, closes the palette; from menu at root depth, refocuses input.
-* ''Shift-Esc'' → close the palette from any focus and any depth in one keystroke.
+* ''Shift-Esc'' → close the palette from any focus and any depth in one keystroke. Freezes the current stack to `$:/temp/rimir/cascade-palette/saved-stack` so the next open resumes here.
+
+! Session stack persistence
+
+`close()` paths split into two camps: ''preserve'' (Shift-Esc, action-fire close — including the default close-on-fire via `afterAction`) write the current stack to `$:/temp/rimir/cascade-palette/saved-stack`, and ''reset'' (plain Esc at root, backdrop click, `popStage` past root) clear it. `openPalette()` reads that tiddler on each open; if present, the stack is restored (with `items`/`results` left empty for `recomputeStage` to repopulate); else a fresh root is built. `confirm` and `actions` stages are dropped on serialize — they reference closure-captured strings or a parent-picked tiddler that may be gone — so the saved chain truncates at the first such stage. `openPaletteAtEntry` (and the `OPEN_ENTRY_MESSAGE` handler) pass `{ fresh: true }` to skip restore, since the caller is explicitly pointing at one entry. Filters / visibilities / reaches / fields persist independently across open/close — this layers stack-resume on top.
 
 ! Variable substitution
 

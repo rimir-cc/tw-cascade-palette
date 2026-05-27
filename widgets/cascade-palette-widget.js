@@ -908,10 +908,21 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.popupEl.style.width = n + "vw";
     };
 
-    CascadePaletteWidget.prototype.openPalette = function () {
+    // opts.fresh = true skips the saved-stack restore and forces a clean
+    // root. Used by openPaletteAtEntry / OPEN_ENTRY_MESSAGE — the caller
+    // is explicitly pointing the palette at a known entry and doesn't
+    // want a stale resumed stack overwriting that intent.
+    CascadePaletteWidget.prototype.openPalette = function (opts) {
+        opts = opts || {};
         this._loadViews();
         this.open = true;
-        this.stack = [this.buildRootStage()];
+        var restored = false;
+        if (!opts.fresh) {
+            restored = this.restoreSavedStack();
+        }
+        if (!restored) {
+            this.stack = [this.buildRootStage()];
+        }
         this.focus = "input";
         this.detailsTemplateIdx = 0;
         this._detailsCache = null;
@@ -946,7 +957,9 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     // Silent no-op if the entry isn't present in the root stage's results
     // (e.g. hidden by the active view / visibility filters).
     CascadePaletteWidget.prototype.openPaletteAtEntry = function (entryTitle) {
-        this.openPalette();
+        // Always fresh — the caller pointed us at a specific entry, so
+        // any saved stack would silently override that intent.
+        this.openPalette({ fresh: true });
         if (!entryTitle) return;
         var stage = this.topStage();
         if (!stage || !stage.results) return;
@@ -1007,7 +1020,16 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         }
     };
 
-    CascadePaletteWidget.prototype.close = function () {
+    // reason = "preserve" → serialize the current stack to $:/temp so
+    // the next openPalette() resumes there. Used by Shift-Esc and
+    // action-fire close paths. Any other reason (default) → clear any
+    // saved stack so the next open starts fresh.
+    CascadePaletteWidget.prototype.close = function (reason) {
+        if (reason === "preserve") {
+            this.persistStack();
+        } else {
+            this.clearSavedStack();
+        }
         this.open = false;
         this.stack = [];
         this.detailsOpen = false;

@@ -64,7 +64,10 @@ module.exports = function (proto) {
         // at a time.
         if (e.key === "Escape" && e.shiftKey) {
             e.preventDefault();
-            this.close();
+            // Shift-Esc explicitly freezes the current stack — the user
+            // is parking the palette mid-flow and wants to resume next
+            // open. See cp-stack.js comment block on session persistence.
+            this.close("preserve");
             return;
         }
         // Tier 2a'' — bare Esc cancels pick-mode globally (input / menu

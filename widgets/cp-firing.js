@@ -167,7 +167,9 @@ module.exports = function (proto) {
             return;
         }
         // 4. Anything else — just close (Shift modifier ignored).
-        if (!keepOpen) this.close();
+        // Preserve the stack: the user fired some action (even if a
+        // no-op leaf) and may want to come back to this point.
+        if (!keepOpen) this.close("preserve");
     };
 
     // Replace `<<name>>` tokens in a string with values from a variable map.
@@ -481,7 +483,11 @@ module.exports = function (proto) {
     // reflect any state the action may have mutated (keepOpen=true).
     proto.afterAction = function (stage, keepOpen, doAction) {
         if (!keepOpen) {
-            this.close();
+            // Close-on-fire is the most common "I picked something" exit
+            // — preserve so the next open lands the user back at the
+            // same drill (typical pattern: drill into a kind → fire an
+            // action that opens a tiddler → user comes back to continue).
+            this.close("preserve");
             doAction.call(this);
             return;
         }
