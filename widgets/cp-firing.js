@@ -187,19 +187,24 @@ module.exports = function (proto) {
         var current = this.isToggleOn(item);
         // String-array bindings: toggle list-membership of trueValue
         // rather than swapping in trueValue/falseValue scalar literals.
-        // The scribetype's toField turns the rebuilt space-separated
-        // string back into a JSON array on write.
+        // Parse/format via TW list-format helpers so entries with spaces
+        // (e.g. tiddler titles like "Echo Fox") round-trip through [[...]]
+        // quoting. The scribetype's toField then turns the rebuilt list
+        // text back into a JSON array on write.
         var next;
         if (item.bindType === STRING_ARRAY_TYPE) {
             var raw = this.readBoundValue(item) || "";
-            var list = String(raw).split(/\s+/).filter(function (s) { return s; });
+            var list = $tw.utils.parseStringArray(String(raw)) || [];
+            // parseStringArray may return the same array instance per call,
+            // and downstream code mutates it; copy to be safe.
+            list = list.slice();
             var needle = String(item.trueValue);
             if (current) {
                 list = list.filter(function (s) { return s !== needle; });
             } else if (list.indexOf(needle) === -1) {
                 list.push(needle);
             }
-            next = list.join(" ");
+            next = $tw.utils.stringifyList(list);
         } else {
             next = current ? item.falseValue : item.trueValue;
         }
@@ -656,6 +661,17 @@ module.exports = function (proto) {
         var stage = this.topStage();
         if (!stage || stage.results.length === 0) return;
         var picked = stage.results[stage.selectedIndex];
+
+        // ca-actions on a drill row fire on every drill-enter (before the
+        // next stage is pushed). Author-side contract: keep the actions
+        // idempotent — backing out and re-entering the drill re-fires them.
+        // Used e.g. by kind to seed a fresh draft with field defaults before
+        // the create-fields drill renders. Backward-compatible — drill items
+        // without ca-actions behave exactly as before.
+        if (picked && picked.kind === "drill" && picked.actions) {
+            var preVars = this.buildStageVariables(stage, picked.title || "");
+            this.invokeViaNavigator(picked.actions, preVars);
+        }
 
         // Deep-search result — same intercept as fireSelected, so
         // Right-arrow on a deep result also replays the path before

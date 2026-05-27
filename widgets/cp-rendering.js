@@ -440,13 +440,21 @@ module.exports = function (proto) {
     proto._renderBoundDrillValue = function (rowEl, item) {
         var raw = this.readBoundValue(item);
         var text;
+        var self = this;
         if (raw === undefined || raw === null || raw === "") {
             text = "(unset)";
         } else if (Array.isArray(raw)) {
             // string-array multi-select: comma-join captions for compactness.
-            var self = this;
             text = raw.length
                 ? raw.map(function (v) { return self._displayRef(v); }).join(", ")
+                : "(unset)";
+        } else if (item.bindType === C.STRING_ARRAY_TYPE) {
+            // After scribetype.fromField the value is TW-list-format text
+            // (entries with spaces wrapped in [[...]]); parse and comma-join
+            // captions so the row shows "brown fox, Bar" not "[[brown fox]] Bar".
+            var list = $tw.utils.parseStringArray(String(raw)) || [];
+            text = list.length
+                ? list.map(function (v) { return self._displayRef(v); }).join(", ")
                 : "(unset)";
         } else {
             text = this._displayRef(String(raw)) || "(unset)";

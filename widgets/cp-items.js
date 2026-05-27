@@ -396,7 +396,7 @@ module.exports = function (proto) {
         // "on" = trueValue is currently in the list. Bare bind types use
         // scalar comparison.
         if (item.bindType === STRING_ARRAY_TYPE) {
-            var list = String(v).split(/\s+/).filter(function (s) { return s; });
+            var list = $tw.utils.parseStringArray(String(v)) || [];
             var needle = String(item.trueValue);
             return list.indexOf(needle) !== -1;
         }
