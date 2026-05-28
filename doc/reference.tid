@@ -58,11 +58,11 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''Esc'' |leader |Return focus to input |
 |''↑'' |menu |Move selection up; at top-of-list, returns focus to input |
 |''↓'' |menu |Move selection down |
-|''→'' |menu |Drill into the selected item (push a new stage). On a ''leaf'' row carrying a non-empty entity type, opens the action-menu stage of that type. |
+|''→'' |menu |Drill into the selected item (push a new stage). On a tree container, descends children; on a ''leaf'' row carrying a non-empty entity type, opens the action-menu stage of that type. Tab does ''not'' drill — it cycles sections. |
 |''←'' |menu |Pop one stage (back). No-op at root depth. Same effect as Esc-in-menu; Esc additionally refocuses input at root. |
 |''Space'' on toggle |menu |Flip the bound value (palette stays open) |
 |''Space'' on text/number/date |menu |Enter edit mode — bound value pushed into input, Enter commits, Esc cancels |
-|''Space'' on typed row (any kind) |menu |If no kind-specific Space handler applies and the row carries a non-empty `entityType`, opens the action-menu stage of that type. Generalised action trigger — works for ''containers'' too (where Right-arrow keeps descending into children). |
+|''Space'' on any tiddler row |menu |If no kind-specific Space handler applies, scans applicable actions for the row's tiddler. Two paths run in parallel: catalogue (action `ca-entity-type` matches the row's bound type) and filter (action `ca-applies` filter non-empty with `<currentTiddler>` = row title). Union of matches opens the action-menu stage. Empty match → silent no-op. Works in catalogue and tree views, leaf and container rows. |
 |''+ / -'' on number |menu |Adjust by `ca-step` (default 1). Shift = `ca-step-medium` (5). Ctrl = `ca-step-large` (20). Matched on physical key (Equal/NumpadAdd/Minus/NumpadSubtract) so layout is irrelevant. |
 |''DEL / Backspace'' |menu |On an overridden setting → confirm drill to restore default. On a non-shadow tiddler in a diagnostic list → confirm drill to delete. On a synthetic row declaring `ca-on-delete` → fires that action (confirm-wrapped iff `ca-on-delete-consequence` is set). Otherwise no-op. |
 |''Shift-DEL / Shift-Backspace'' |menu (root stage) |Add a ''hide-entry'' visibility pill for the selected row — the entry disappears from the root menu until the pill is removed. |
@@ -115,13 +115,15 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-confirm` |`yes`\|empty |leaf items |When `yes`, the leaf's actions are wrapped in a confirm-drill stage rather than fired directly. The consequence text shows the cost of confirming (e.g. "Delete tiddler X"). |
 |`ca-confirm-consequence` |string |leaf with `ca-confirm:yes` |Text shown as the ''hint'' of the synthetic Confirm row (inline, always visible) AND in the detail drawer banner (Ctrl-hold or details-always-on). Supports `<<picked>>` / `<<parent-picked>>` / `<<stage-N-picked>>` substitution. |
 |`ca-after-fire` |`close`\|`pop` |leaf |Post-fire behaviour. Default `close` (closes the palette). `pop` fires the action then pops one stage, keeping the palette open — for single-select sub-drills inside a field-edit flow, so the user lands back on the field stage with their pick already applied. |
-|`ca-entity-type` |string\|`*` |action |Entity type this action applies to, or `*` for global |
+|`ca-entity-type` |string\|`*` |action |Catalogue-path binding. The action surfaces on rows whose emitting layer declared `ca-layer-row-entity-type` matching this value. Use `*` for a global. Tree-view rows have no bound entityType — use `ca-applies` for those. |
+|`ca-applies` |filter |action |Filter-path discovery. Evaluated with `<currentTiddler>` bound to the row's title; non-empty result ⇒ action surfaces on that row in ''any'' view (catalogue or tree). Combines with `ca-entity-type` (union, deduplicated by action title). |
+|''(auto-derive)'' |//config// |action |When the wiki sets `$:/config/rimir/cascade-palette/entity-type-field` to a field name, an action's `ca-entity-type: <X>` ALSO matches any row whose tiddler carries `<configured-field>: <X>`. Lets catalogue plugins surface their actions in tree / flat views without authoring per-action `ca-applies`. The cascade-palette engine ships no default — typically set by a type-system plugin (e.g. `rimir/kind` ≥ 0.1.50 ships it as `kind.type`). Empty / missing config = no auto-derive. |
 |`ca-default` |`yes`\|empty |action |Marks the "Enter on entity result" default action |
-|`ca-action-when` |filter |action |Optional applicability predicate. Evaluated with `<currentTiddler>` bound to the picked entity. Non-empty result ⇒ action is applicable; empty/missing filter ⇒ always applicable. Used to hide actions that don't make sense for a specific tiddler (e.g. "Mark done" only when `done` field is empty). |
+|`ca-action-when` |filter |action |Refinement filter — narrows whichever path matched (entity-type or `ca-applies`) by per-row state. Evaluated with `<currentTiddler>` bound to the picked entity. Non-empty result ⇒ action is applicable; empty/missing filter ⇒ always applicable. Used to hide actions that don't make sense for a specific tiddler (e.g. "Mark done" only when `done` field is empty). |
 |`ca-next-scope` |filter |drill items |Filter expression for the new stage's items (mutually exclusive with `ca-items-from`) |
 |`ca-items-from` |filter |drill items |Filter that returns one JSON-encoded item shape per result. The palette parses each as a synthetic cascade item (no backing tiddler). Use for stages populated from configuration data rather than tiddlers. Mutually exclusive with `ca-next-scope`. |
 |`ca-next-title` |string |drill items |Title shown in breadcrumb for the new stage |
-|`ca-next-entity-type` |string |drill items |Sets the next stage's entity type (enables action-menu drilling on Tab) |
+|`ca-next-entity-type` |string |drill items |Sets the next stage's entity type (enables action-menu drilling on Right/Space) |
 |`ca-next-default-action` |wikitext |drill items |Fired on Enter in the next stage when no entity default exists |
 |`ca-next-as-link` |`yes`\|empty |drill items |When `yes`, the next-stage filter results render as plain link rows (no chevron, Enter navigates) even if the result tiddlers carry `ca-kind`. Use for inspector / diagnostic lists. |
 |`ca-group` |string |entry, action |Override the visual cluster label. Defaults to the contributing plugin's `name`. Headers are suppressed when only one cluster is present in a stage. |
@@ -328,6 +330,7 @@ The plugin ships five axes for the common cases. All live under `$:/plugins/rimi
 |`$:/config/rimir/cascade-palette/popup-width` |`50` |Popup width in `vw` (clamped to [20, 95]). |
 |`$:/config/rimir/cascade-palette/search-fields-default` |`name hint` |Per-item `ca-search-fields` fallback. Space-separated field names. |
 |`$:/config/rimir/cascade-palette/url-fields` |`url` |Space-separated list of fields scanned by the built-in `url` row-icon. First field on a row's tiddler whose value matches an http/https/ftp/mailto/tel URL prefix wins. |
+|`$:/config/rimir/cascade-palette/entity-type-field` |//(empty)// |Bridge from catalogue `ca-entity-type` to filter-based discovery. When set to a field name (e.g. `kind.type` — `rimir/kind` ≥ 0.1.50 ships this), an action's `ca-entity-type: <X>` ALSO matches any row whose tiddler carries `<configured-field>: <X>`. Lets catalogue actions surface in tree / flat views (''All tiddlers'', ''By namespace'', etc.) without per-action `ca-applies` filters. Engine ships no default — opt-in by a type-system plugin. |
 |`$:/config/rimir/cascade-palette/deep-search-max-depth` |`4` |Maximum drill depth a deep-search walk follows from the search anchor. |
 |`$:/config/rimir/cascade-palette/deep-search-max-nodes` |`800` |Total items visited before a deep walk aborts and surfaces the truncation hint row. |
 |`$:/config/rimir/cascade-palette/deep-search-max-ms` |`80` |Wall-clock cap per keystroke for the deep walk. |

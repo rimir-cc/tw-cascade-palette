@@ -9,19 +9,28 @@ type: text/vnd.tiddlywiki
 ! FAQ
 
 ;Why isn't this just a fork of souk21/commandpalette?
-:Souk21's data model is flat — one input, one list, terminal Enter. The cascade model is a stack of stages with right-arrow / Tab drilling and per-entity action menus. Retrofitting a stage stack into souk21's widget meant fighting its assumptions on every change. Building fresh ended up smaller (~500 LOC vs souk21's 1100) and the data model is the protocol.
+:Souk21's data model is flat — one input, one list, terminal Enter. The cascade model is a stack of stages with right-arrow drilling and per-entity action menus (opened on Right for typed catalogue rows, on Space for any tiddler with applicable actions). Retrofitting a stage stack into souk21's widget meant fighting its assumptions on every change. Building fresh ended up smaller (~500 LOC vs souk21's 1100) and the data model is the protocol.
 
 ;How does this differ from a flat command palette?
 :Flat palettes (souk21, VS Code's Cmd-P) treat every option as a terminal action: pick → fire → done. Cascading palettes treat picks as ''entry points into a graph''. Pick a person → see what you can do with them. Pick "Assigned Teams" → see their teams. Pick a team → see what you can do with that team. The graph composes — you discover what's possible by drilling, not by memorizing.
 
 ;Can I have a flat-palette mode where Enter on a result just navigates without showing the action menu?
-:Yes — that's already the default. Enter fires the entity type's `ca-default: yes` action (typically "Open"). Tab opens the action menu. The flat-palette feel is preserved for users who just want to navigate; the cascade is available when they want it.
+:Yes — that's already the default. Enter fires the entity type's `ca-default: yes` action (typically "Open"). Right-arrow (catalogue rows) or Space (any row) opens the action menu. The flat-palette feel is preserved for users who just want to navigate; the cascade is available when they want it.
 
 ;Does the palette work in [[appify|$:/plugins/rimir/appify]] mode?
 :Yes. The widget mounts in `document.body` via a startup module rather than via `$:/tags/AboveStory`, so it's independent of the page template — including appify's substituted UI.
 
 ;Can I rebind the hotkey?
 :Edit `$:/config/shortcuts/rimir-cascade-palette-open`. Default is `ctrl+space`. ''Important:'' the tiddler body must have no trailing newline (TW's keyboard parser reads the raw text including the `\n`). When editing via the wiki UI this is usually handled, but if you edit the file directly, verify with `xxd`.
+
+;Why don't I see person/team/task actions in tree views (''By namespace'', ''By parent'', ''Hybrid'')?
+:Three action-discovery paths run in parallel — union, deduplicated by action title. ''(1) Catalogue:'' `ca-entity-type` matches the row's bound type (set by `ca-layer-row-entity-type` on the emitting layer). That's how the ''Entries'' view surfaces actions. Tree-view layers don't bind an entityType, so this path alone produces nothing in them. ''(2) Configured-field auto-derive:'' when the wiki sets `$:/config/rimir/cascade-palette/entity-type-field` to a field name (e.g. `rimir/kind` ≥ 0.1.50 presets it to `kind.type` — the universal type-marker stamped on every kind-instance), an action's `ca-entity-type: <X>` ''also'' matches any row whose tiddler carries `<configured-field>: <X>`. With the kind plugin installed, every catalogue action automatically surfaces on Space in any view — zero per-action authoring changes. ''(3) Filter path:'' `ca-applies` is a filter evaluated with `<currentTiddler>` = the row title. Use it for cross-cutting actions that aren't kind-bound (e.g. ''Open URL'' on any tiddler with a `url` field) or for selective scope finer than a kind label.
+
+;How do I open the action menu on a row in a tree view?
+:Press ''Space''. Right-arrow descends the tree container; Space short-circuits straight to the action menu (filter-discovered via `ca-applies`). Empty match → silent no-op (no empty menu pops up). This is the same gesture used for catalogue rows, just routed through filter discovery instead of entity-type binding.
+
+;What's the difference between `ca-entity-type`, `ca-action-when`, and `ca-applies`?
+:''`ca-entity-type`'' — the catalogue tag. Match on a string label set by the row's emitting layer. Use this for entities authored in a typed catalogue (orga-palette persons, tasks, projects). ''`ca-applies`'' — filter-based discovery. The action surfaces wherever the filter matches, regardless of view. Use this when the action should reach rows that have no bound entityType (tree views) or should apply by tiddler property rather than by catalogue label. ''`ca-action-when`'' — refinement filter. Narrows whichever path matched (catalogue or filter) by per-row state (e.g. only on rows that pass an `is-active` check). Combine all three: `ca-entity-type: person` to bind to the Persons catalogue; `ca-applies: [<currentTiddler>get[kind]match[person]]` to also surface in tree views; `ca-action-when: [<currentTiddler>!field[status][archived]]` to skip archived persons.
 
 ;Why is the engine generic — no orga knowledge?
 :So the same widget can serve multiple domain catalogues. The orga-data-model catalogue ships in `rimir/orga-palette`. A private-data-model catalogue could ship in `rimir/priv-palette`. Both depend on `rimir/cascade-palette`. No engine changes needed to add a new domain.

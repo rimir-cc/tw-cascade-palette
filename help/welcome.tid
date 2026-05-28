@@ -11,13 +11,16 @@ type: text/vnd.tiddlywiki
 
 The cascade palette is a keyboard-driven command surface — a single window into actions, configuration, entities, and search that follows a small set of consistent gestures.
 
-! Four gestures
+! Five gestures
 
 |!Gesture |!Effect |
 |`Ctrl-Space` |Open the palette anywhere. Resets to root if already open. |
-|`Tab` or `→` |Drill into the selected row (push a new stage). |
+|`→` |Drill — descend a tree container or push the action menu on a typed catalogue row. |
+|`Space` |Open the action menu on any tiddler row with applicable actions (works in tree views too — see ''Action discovery''). |
 |`Esc` |Pop the current stage. From root, closes the palette. |
 |`↵` |Fire the selected row (or commit text). |
+
+`Tab` cycles focus //between sections// (input → preset → filter → view → menu → details → …). `Shift-Tab` jumps between the pill-group (top strips) and the main group (input/menu/details/preview).
 
 Everything else — pills, leaders, search reach, side preview, action menus — composes on top of these four.
 

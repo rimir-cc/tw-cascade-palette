@@ -23,7 +23,7 @@ The palette is a stack of stages, growing on Right-arrow / Space / Enter-on-dril
 ;`kind: "filter"`
 :A stage scoped by a filter expression. Pushed when the user drills from a `ca-kind: drill` entry or action. Items are dynamic — tiddler titles (or bare strings) returned by `ca-next-scope`.
 ;`kind: "actions"`
-:An action-menu stage. Pushed when the user Right-arrows on a typed leaf (via `ca-layer-row-entity-type`), Space's on any typed row (leaf or container), or drills on a dynamic entity item in a filter stage. Items are tiddlers tagged `$:/tags/rimir/cascade-palette/action` whose `ca-entity-type` matches the resolved type (plus globals tagged `ca-entity-type: *`), further narrowed by each action's optional `ca-action-when` applicability filter.
+:An action-menu stage. Pushed in three situations: (a) the user Right-arrows on a typed leaf — `ca-layer-row-entity-type` set on the emitting layer; (b) the user Spaces on any tiddler row whose discovery scan produced at least one applicable action; (c) the user drills on a dynamic entity item in a filter stage. Item-discovery unions three parallel paths, deduplicated by action title: ''catalogue'' — actions whose `ca-entity-type` matches the row's bound type (plus globals tagged `ca-entity-type: *`); ''configured-field auto-derive'' — when `$:/config/rimir/cascade-palette/entity-type-field` is set to a field name (e.g. `rimir/kind` ships it as `kind.type`), an action's `ca-entity-type: <X>` ALSO matches any row whose tiddler carries `<configured-field>: <X>`; ''filter'' — actions whose `ca-applies` filter matches when `<currentTiddler>` is the row's title. All three paths are further narrowed by each action's optional `ca-action-when` applicability filter.
 ;`kind: "confirm"`
 :A two-row Confirm / Cancel stage pushed when a leaf action carries `ca-confirm: yes`, or on Delete-on-row for destructive list operations. The consequence text shows inline as the Confirm row's hint AND in the detail drawer banner.
 
@@ -31,8 +31,9 @@ The keyboard router does one of:
 
 * ''Type'' → update current stage's `query`, recompute items.
 * ''Up/Down'' → move `selectedIndex`.
-* ''Right-arrow'' → drill from the selected item (push new stage). On typed leaves, pushes the action-menu stage.
-* ''Space'' → on toggle/text/number/date kinds, kind-specific edit; on any other row with a non-empty entity type, pushes the action-menu stage (works for containers too).
+* ''Right-arrow'' → drill from the selected item (push new stage). On tree containers, descends children; on typed catalogue leaves, pushes the action-menu stage.
+* ''Space'' → on toggle/text/number/date kinds, kind-specific edit; on any other tiddler row whose action-discovery scan produces at least one applicable action (catalogue or `ca-applies`-filter), pushes the action-menu stage. Empty match → silent no-op. Works in tree views (By namespace / By parent / Hybrid), not just the catalogue.
+* ''Tab'' → cycle focus //between sections// (input → preset → filter → view → menu → details → …). Never drills. ''Shift-Tab'' jumps between the pill-group (top strips) and the main group (input/menu/details/preview).
 * ''Enter'' → fire the selected item's default behaviour (leaf action OR push if drill).
 * ''Esc'' → pop one stage. From input at root depth, closes the palette; from menu at root depth, refocuses input.
 * ''Shift-Esc'' → close the palette from any focus and any depth in one keystroke. Freezes the current stack to `$:/temp/rimir/cascade-palette/saved-stack` so the next open resumes here.

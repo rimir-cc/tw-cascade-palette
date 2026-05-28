@@ -799,10 +799,12 @@ module.exports = function (proto) {
     // keystroke that just narrows the visible list doesn't reevaluate
     // already-computed rows.
     proto._maybeAppendActionPreview = function (rowEl, item, stage) {
-        if (!item || !item.entityType) return;
+        if (!item || !item.title || item.isSynthetic) return;
         var view = this._getViewByTitle(stage.viewTitle || this.activeView);
         if (view && view.showActionPreview === false) return;
-        var key = item.entityType + " " + (item.title || "");
+        var entityType = item.entityType ||
+            (item.isItem ? stage.entityType : null) || null;
+        var key = (entityType || "") + " " + item.title;
         var cache = this._actionPreviewCountCache || (this._actionPreviewCountCache = {});
         var count;
         if (Object.prototype.hasOwnProperty.call(cache, key)) {
@@ -812,7 +814,7 @@ module.exports = function (proto) {
                 ? performance : Date;
             var t0 = perfNow.now();
             try {
-                var actions = this.loadActionsForType(item.entityType, item.title);
+                var actions = this.loadActionsForType(entityType, item.title);
                 count = actions.length;
             } catch (err) {
                 count = 0;
@@ -822,6 +824,7 @@ module.exports = function (proto) {
             cache[key] = count;
         }
         if (count <= 0) return;
+        rowEl.classList.add("rcp-row-actionable");
         var badge = this.document.createElement("span");
         badge.className = "rcp-row-action-preview";
         badge.textContent = "→" + count;

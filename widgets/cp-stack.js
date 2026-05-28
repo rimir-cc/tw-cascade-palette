@@ -23,6 +23,7 @@ var ACTION_TAG = C.ACTION_TAG;
 var ENTRY_TAG = C.ENTRY_TAG;
 var SOFT_DEPTH_CONFIG = C.SOFT_DEPTH_CONFIG;
 var DEFAULT_SOFT_DEPTH = C.DEFAULT_SOFT_DEPTH;
+var ENTITY_TYPE_FIELD_CONFIG = C.ENTITY_TYPE_FIELD_CONFIG;
 var SAVED_STACK_TIDDLER = C.SAVED_STACK_TIDDLER;
 
 module.exports = function (proto) {
@@ -385,9 +386,26 @@ module.exports = function (proto) {
         this.applyQueryToStage(stage);
     };
 
+    // Discover actions applicable to a row. Three parallel mechanisms,
+    // unioned and deduplicated (each action matches at most once):
+    //   - Catalogue path: `ca-entity-type` matches the row's bound type
+    //     (set by `ca-layer-row-entity-type` on the emitting layer);
+    //     globals (`ca-entity-type: *`) match any row.
+    //   - Filter path: `ca-applies` is a filter; non-empty result for
+    //     `<currentTiddler> = contextTitle` means the action surfaces
+    //     for that row. Explicit, per-action; works in any view.
+    //   - Configured-field path: when the wiki has set
+    //     `$:/config/rimir/cascade-palette/entity-type-field` to a field
+    //     name (typically by `rimir/kind` presetting it to `kind.type`),
+    //     an action's `ca-entity-type: <X>` ALSO matches any row whose
+    //     tiddler carries `<configured-field>: <X>`. Lets catalogue
+    //     plugins surface their actions in tree / flat views without
+    //     adding per-action `ca-applies` filters.
+    // `ca-action-when` further narrows whichever path matched.
+    // Passing entityType=null skips the row-bound catalogue check;
+    // configured-field + ca-applies + globals still apply.
     proto.loadActionsForType = function (entityType, contextTitle) {
         var self = this;
-        // Actions matching the entity type OR globals (ca-entity-type: *).
         var titles = this.wiki.filterTiddlers(
             "[all[shadows+tiddlers]tag[" + ACTION_TAG + "]] +[!is[draft]]"
         );
@@ -397,13 +415,65 @@ module.exports = function (proto) {
             })
             .filter(function (a) {
                 var t = self.getActionEntityType(a.title);
-                if (t !== entityType && t !== "*") return false;
-                // `ca-action-when` (optional) — filter evaluated with
-                // currentTiddler bound to the picked entity. Non-empty
-                // result ⇒ applicable. Empty filter ⇒ always applicable
-                // (back-compat with pre-0.0.39 actions).
+                var matched = false;
+                if (t === "*") {
+                    matched = true;
+                } else if (entityType && t === entityType) {
+                    matched = true;
+                } else if (self.actionMatchesByConfiguredField(t, contextTitle)) {
+                    matched = true;
+                } else if (self.actionAppliesViaFilter(a.title, contextTitle)) {
+                    matched = true;
+                }
+                if (!matched) return false;
                 return self.isActionApplicable(a.title, contextTitle);
             });
+    };
+
+    proto._entityTypeField = function () {
+        var raw = this.wiki.getTiddlerText(ENTITY_TYPE_FIELD_CONFIG, "");
+        return raw ? raw.trim() : "";
+    };
+
+    // Auto-derived ca-applies — when a type-system plugin has set the
+    // entity-type-field config, an action's `ca-entity-type: <X>` matches
+    // rows whose tiddler carries `<configured-field>: <X>`. Skips globals
+    // (`*`) and unset action types — those are handled by the catalogue
+    // / explicit ca-applies paths in loadActionsForType.
+    proto.actionMatchesByConfiguredField = function (actionEntityType, contextTitle) {
+        if (!actionEntityType || actionEntityType === "*") return false;
+        if (!contextTitle) return false;
+        var field = this._entityTypeField();
+        if (!field) return false;
+        var tid = this.wiki.getTiddler(contextTitle);
+        if (!tid || !tid.fields) return false;
+        return tid.fields[field] === actionEntityType;
+    };
+
+    // ca-applies — filter evaluated with currentTiddler bound to the
+    // row title. Non-empty result = action surfaces. Used for cross-view
+    // discovery so actions reach tree-view rows that have no bound
+    // entityType.
+    proto.actionAppliesViaFilter = function (actionTitle, contextTitle) {
+        var t = this.wiki.getTiddler(actionTitle);
+        var f = (t && t.fields) || {};
+        var applies = f["ca-applies"];
+        if (!applies || !String(applies).trim()) return false;
+        try {
+            var result = this.wiki.filterTiddlers(
+                String(applies),
+                this.makeFakeWidget({ currentTiddler: contextTitle || "" })
+            );
+            return result && result.length > 0;
+        } catch (err) {
+            if (console && console.warn) {
+                console.warn(
+                    "[cascade-palette] ca-applies filter error on",
+                    actionTitle, "—", err && err.message
+                );
+            }
+            return false;
+        }
     };
 
     proto.isActionApplicable = function (actionTitle, contextTitle) {

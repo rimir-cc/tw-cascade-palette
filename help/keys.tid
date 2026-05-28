@@ -13,16 +13,16 @@ type: text/vnd.tiddlywiki
 
 |!Key |!Effect |
 |`Ctrl-Space` |Open / reset palette |
-|`Tab` |Cycle focus section |
-|`Shift-Tab` |Reverse cycle focus |
+|`Tab` |Cycle focus section (within current group) |
+|`Shift-Tab` |Jump between pill-group (top strips) and main group (input/menu/details/preview) |
 |`↑` `↓` |Move row selection |
-|`→` |Drill (same as Tab on row) |
+|`→` |Drill — descend tree containers, push action menu on typed catalogue rows |
 |`←` |Pop one stage |
 |`↵` |Fire selected row |
 |`Ctrl-↵` |Fire + keep palette open |
 |`Alt-↵` |Fire row's primary icon (e.g. 🌐 opens URL in new tab) |
 |`Ctrl-Alt-↵` |Fire row icon's secondary action (e.g. 🌐 copies URL) |
-|`Space` |Toggle / edit / open action menu on row |
+|`Space` |Open action menu on any row whose tiddler has applicable actions (works in tree views via `ca-applies` filter); also: toggle / edit kind-specific rows |
 |`Esc` |Pop stage; from root, close |
 |`Shift-Esc` |Close palette outright |
 |`DEL` |Remove focused pill / reset row to default |

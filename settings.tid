@@ -15,6 +15,7 @@ type: text/vnd.tiddlywiki
 :* ''Soft depth warning'' — engine logs a warning to the console if stack depth exceeds this. Default 10. Configured at <code>$:/config/rimir/cascade-palette/soft-depth-warning</code>. No hard cap.
 :* ''Show perf footer'' — toggle a small diagnostic footer with recompute / render timings and item counts. Off by default. Configured at <code>$:/config/rimir/cascade-palette/show-perf-footer</code>.
 :* ''URL row-icon fields'' — space-separated list of fields scanned by the built-in 🌐 row-icon. First field whose value matches an http/https/ftp/mailto/tel URL prefix wins; rows with a match get a 🌐 glyph in their footer strip that opens the URL in a new tab on Alt-↵ or click. Default `url`. Configured at <code>$:/config/rimir/cascade-palette/url-fields</code>.
+:* ''Entity-type field bridge'' — a single field name that auto-bridges catalogue actions to every view. When set, an action's `ca-entity-type: <X>` ALSO matches any row whose tiddler carries `<configured-field>: <X>` — Space opens that action menu in tree views (''All tiddlers'', ''By namespace'', etc.) without per-action `ca-applies` filters. Engine ships ''no default'' (opt-in); type-system plugins set it. Installing ''`rimir/kind` ≥ 0.1.50'' presets this to `kind.type` (the universal type-marker stamped on every kind-instance). Configured at <code>$:/config/rimir/cascade-palette/entity-type-field</code>.
 
 ;Diagnostics
 :* See all loaded entries: <$button>List entries<$action-navigate $to="$:/temp/cascade-palette/entries-listing"/></$button>

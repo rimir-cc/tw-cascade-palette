@@ -70,6 +70,16 @@ exports.PERF_FOOTER_CONFIG = "$:/config/rimir/cascade-palette/show-perf-footer";
 // First field on a row's tiddler whose value matches an http/https/ftp/
 // mailto/tel URL prefix wins. Default: "url".
 exports.URL_FIELDS_CONFIG = "$:/config/rimir/cascade-palette/url-fields";
+// Single field name used to auto-derive `ca-applies` from `ca-entity-type`.
+// When set (typically by an installed type-system plugin like `rimir/kind`
+// which presets it to `kind.type`), an action with `ca-entity-type: <X>`
+// automatically surfaces on any row whose tiddler has `<configured-field>:
+// <X>` — no per-action `ca-applies` needed. Empty / missing = no auto-
+// derive (engine ships no default; only catalogue + explicit `ca-applies`
+// + `*` globals contribute). The cascade-palette plugin does NOT ship a
+// default tiddler at this title — the bridge is opt-in via a catalogue /
+// type-system plugin that ships the override.
+exports.ENTITY_TYPE_FIELD_CONFIG = "$:/config/rimir/cascade-palette/entity-type-field";
 // Saved stage stack — written on close (when the close path opts in to
 // "preserve") and read by the next openPalette so the user resumes where
 // they left off. Uses $:/temp/ so TW does NOT sync it to disk: it's

@@ -621,6 +621,26 @@ type: text/css
     }
 }
 
+/* Left-edge marker on rows whose action-discovery returned a non-empty
+   set. Mirrors what the right-side ".rcp-row-action-preview" badge
+   communicates, but at the leading edge of the row so the user can
+   scan ↑/↓ and spot actionable rows at a glance. Stamped by
+   _maybeAppendActionPreview after it confirms count > 0. */
+.rcp-row-actionable {
+    box-shadow: inset 3px 0 0 #6366f1;
+}
+.rcp-row-selected.rcp-row-actionable {
+    box-shadow: inset 3px 0 0 #c7d2fe;
+}
+@media (prefers-color-scheme: dark) {
+    .rcp-row-actionable {
+        box-shadow: inset 3px 0 0 #818cf8;
+    }
+    .rcp-row-selected.rcp-row-actionable {
+        box-shadow: inset 3px 0 0 #eef2ff;
+    }
+}
+
 @media (prefers-color-scheme: dark) {
     .rcp-view-strip {
         background: #1f1d18;

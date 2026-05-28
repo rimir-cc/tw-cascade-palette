@@ -37,7 +37,7 @@ ca-next-scope: [has:field[draft.of]search<query>]
 ca-next-title: Drafts
 ```
 
-Tab in, type to narrow, Enter on a draft → standard tm-navigate opens it.
+Right-arrow into "Drafts", type to narrow, Enter on a draft → standard tm-navigate opens it.
 
 ! 3. Type-narrowed search
 

@@ -330,19 +330,41 @@ module.exports = function (proto) {
                     this.enterEditMode(picked);
                     return;
                 }
-                // Entity-type action menu — Space mirrors Right-arrow's
-                // entity-type drill on leaves AND additionally enables it
-                // on containers (where Right descends instead). Lets the
-                // user reach the action menu on a tag-tree / namespace
-                // folder etc. without first having to navigate into it.
-                if (picked.entityType) {
-                    e.preventDefault();
-                    var spaceActStage = this.buildActionMenuStage(
-                        picked.title, picked.entityType, picked.name
+                // Action menu — surfaces in three modes:
+                //   1. Catalogue (row-bound): the row carries an
+                //      entityType (set by `ca-layer-row-entity-type`
+                //      on its emitting layer); action discovery
+                //      matches on `ca-entity-type`.
+                //   2. Catalogue (stage-bound): a filter-stage's
+                //      dynamic items inherit the stage's entityType
+                //      (e.g. drill into "Persons" → person rows
+                //      whose item.entityType is unset but
+                //      stage.entityType = "person").
+                //   3. Filter-based: real tiddler row with no bound
+                //      entityType anywhere (e.g. tree-view leaves in
+                //      By namespace / By parent / All tiddlers).
+                //      Discovery scans actions whose `ca-applies`
+                //      filter matches the row title, plus globals
+                //      tagged `ca-entity-type: *`.
+                // Pre-flight the action list so we silently no-op
+                // when no applicable actions exist — avoids opening
+                // an empty stage on rows that have no actions wired.
+                if (picked.title && !picked.isSynthetic) {
+                    var spaceEntityType = picked.entityType ||
+                        (picked.isItem ? stage.entityType : null) ||
+                        null;
+                    var spaceApplicable = this.loadActionsForType(
+                        spaceEntityType, picked.title
                     );
-                    this._attachPreviewToStage(spaceActStage, picked, stage);
-                    this.pushStage(spaceActStage);
-                    return;
+                    if (spaceApplicable && spaceApplicable.length > 0) {
+                        e.preventDefault();
+                        var spaceActStage = this.buildActionMenuStage(
+                            picked.title, spaceEntityType, picked.name
+                        );
+                        this._attachPreviewToStage(spaceActStage, picked, stage);
+                        this.pushStage(spaceActStage);
+                        return;
+                    }
                 }
             }
         }

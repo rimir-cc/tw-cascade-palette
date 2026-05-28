@@ -1,6 +1,6 @@
 # tw-cascade-palette
 
-A keyboard-driven, cascading command palette engine for TiddlyWiki. Open with a hotkey, type to filter, Tab to drill into a stage, Esc to back out, Enter to fire an action. Extensible via declarative entry and action tiddlers — no widget code required.
+A keyboard-driven, cascading command palette engine for TiddlyWiki. Open with a hotkey, type to filter, Right-arrow to drill into a stage, Space to open the action menu on any tiddler row, Esc to back out, Enter to fire an action. Extensible via declarative entry and action tiddlers — no widget code required.
 
 ## What it does
 
@@ -13,7 +13,7 @@ A keyboard-driven, cascading command palette engine for TiddlyWiki. Open with a 
 
 - v0.0.1 — initial scaffold, no widget yet.
 - v0.0.2 (planned) — single-stage widget + Ctrl-Space binding.
-- v0.1.0 (target) — full Tab/Esc/Enter cascade with breadcrumb and action discovery.
+- v0.1.0 (target) — full keyboard cascade (Right/Space/Esc/Enter) with breadcrumb and action discovery.
 
 ## Inspiration
 

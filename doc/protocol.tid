@@ -26,15 +26,17 @@ Each tiddler has a tag and a small set of `ca-*` fields. The engine reads them a
 ;`ca-icon`
 :Single character or emoji shown to the left of the name. Optional.
 ;`ca-kind`
-:`leaf` or `drill`. Default: `leaf`. A leaf fires `ca-actions` on Enter and closes the palette. A drill pushes a new stage on Tab or Enter.
+:`leaf` or `drill`. Default: `leaf`. A leaf fires `ca-actions` on Enter and closes the palette. A drill pushes a new stage on Right-arrow or Enter.
 ;`ca-order`
 :Numeric sort key. Default: `100`. Lower numbers appear higher in the list. Ties break by `ca-name` (alphabetical).
 ;`ca-entity-type` (actions only)
-:Which entity type this action applies to. The engine matches `rrt.type` of dynamic items against this field. Use ''`*`'' to make the action global (appears for any entity type).
+:Catalogue-path binding. The action surfaces on rows whose emitting layer declared `ca-layer-row-entity-type` matching this value (e.g. an Entries-view drill into a typed picker). Use ''`*`'' to make the action global (appears for any entity type). Tree-view rows have no bound entityType — to reach them either (a) install a type-system plugin that sets `$:/config/rimir/cascade-palette/entity-type-field` (e.g. `rimir/kind` ≥ 0.1.50 sets it to `kind.type`, making `ca-entity-type: <X>` auto-match any tiddler with `kind.type: <X>` in any view), or (b) add a per-action `ca-applies` filter.
+;`ca-applies` (actions only, optional)
+:Filter-path discovery. Filter evaluated with `<currentTiddler>` bound to the row's title. Non-empty result ⇒ the action surfaces on that row in ''any'' view — Entries, By Namespace, By parent, Hybrid, custom. Lets actions reach tree-view rows that have no bound entityType, and lets the same action register on multiple ad-hoc tiddler shapes without ceremony. Example: `ca-applies: [<currentTiddler>get[kind]match[person]]` surfaces wherever a tiddler's kind is `person`, regardless of how it was reached. Combines with `ca-entity-type` — both paths union, deduplicated by action title.
 ;`ca-default` (actions only)
-:Set to ''`yes`'' on the action that should fire when the user hits Enter on a dynamic entity result (without first opening the action menu via Tab). Usually the ''Open'' action. Exactly one per entity type.
+:Set to ''`yes`'' on the action that should fire when the user hits Enter on a dynamic entity result (without first opening the action menu via Right or Space). Usually the ''Open'' action. Exactly one per entity type.
 ;`ca-action-when` (actions only, optional)
-:Filter evaluated with `<currentTiddler>` bound to the picked entity. Non-empty result ⇒ the action is applicable for that specific tiddler. Empty / missing filter ⇒ always applicable. Use to hide actions that don't make sense per instance — e.g. `[<currentTiddler>!has[done]]` shows "Mark done" only for tiddlers without a `done` field.
+:Refinement filter — narrows whichever discovery path (entity-type or `ca-applies`) matched. Evaluated with `<currentTiddler>` bound to the picked entity. Non-empty result ⇒ the action is applicable for that specific tiddler. Empty / missing filter ⇒ always applicable. Use to hide actions that don't make sense per instance — e.g. `[<currentTiddler>!has[done]]` shows "Mark done" only for tiddlers without a `done` field.
 ;`ca-actions` (leaf only)
 :Wikitext fired on Enter. Receives `<<picked>>` and `<<parent-picked>>` in scope. Typically a single action widget like `<$action-navigate $to=<<picked>>/>` or a setfield.
 ;`ca-next-scope` (drill only)
@@ -42,7 +44,7 @@ Each tiddler has a tag and a small set of `ca-*` fields. The engine reads them a
 ;`ca-next-title` (drill only)
 :Title shown in the breadcrumb for the new stage. Can use `<<parent-picked>>` to reference what was picked.
 ;`ca-next-entity-type` (drill only)
-:Sets the next stage's entity type. The engine uses this to discover action tiddlers if the user Tab's on a result. Omit when the picker shouldn't have its own action menu (e.g. an enum picker that should just fire a setfield).
+:Sets the next stage's entity type. The engine uses this to discover action tiddlers when the user opens the action menu on a result (Right-arrow or Space). Omit when the picker shouldn't have its own action menu (e.g. an enum picker that should just fire a setfield).
 ;`ca-next-default-action` (drill only)
 :Wikitext fired when the user picks an item in the new stage if no entity-type default action exists. Typical use: an enum picker where the items are bare strings and you want Enter to act on the parent.
 
@@ -84,7 +86,7 @@ ca-next-title: Persons
 ca-next-entity-type: person
 ```
 
-Tab into "Persons" → palette shows persons filtered by your input. Enter on a person fires the person type's default action (typically Open). Tab on a person opens the action menu.
+Right-arrow into "Persons" → palette shows persons filtered by your input. Enter on a person fires the person type's default action (typically Open). Right-arrow (or Space) on a person opens the action menu.
 
 ! Worked example 3 — A type's default action (Open)
 
@@ -113,9 +115,40 @@ ca-next-title: Teams of <<parent-picked>>
 ca-next-entity-type: team
 ```
 
-The chain works: Persons → pick Alice → action menu → Tab "Assigned Teams" → stage shows Alice's teams → Tab a team to see TEAM actions, or Enter to open the team.
+The chain works: Persons → pick Alice → action menu → Right "Assigned Teams" → stage shows Alice's teams → Right (or Space) on a team to see TEAM actions, or Enter to open the team.
 
-! Worked example 5 — Drill-then-act (enum picker)
+! Worked example 5 — Same action in catalogue ''and'' tree views
+
+To surface the same person-action in the Entries catalogue (via `ca-entity-type`) AND in tree views like ''By namespace'' (via `ca-applies`):
+
+```
+title: $:/plugins/example/actions/person/open
+tags: $:/tags/rimir/cascade-palette/action
+ca-entity-type: person
+ca-applies: [<currentTiddler>get[kind]match[person]]
+ca-name: Open
+ca-kind: leaf
+ca-default: yes
+ca-order: 10
+ca-actions: <$action-statewrap-navigate label=<<picked>> person=<<picked>>/>
+```
+
+In ''Entries'' the catalogue path matches on `ca-entity-type: person`. In ''By namespace'' / ''By parent'' the same row has no bound entityType, so the engine evaluates `ca-applies` against the row title; non-empty result ⇒ the action surfaces. Hitting Space on a person tiddler in any tree view now opens the same action menu users see in the catalogue.
+
+A purely filter-bound action (no catalogue presence) just omits `ca-entity-type`:
+
+```
+title: $:/plugins/example/actions/has-url/open
+tags: $:/tags/rimir/cascade-palette/action
+ca-applies: [<currentTiddler>get[url]prefix[http]]
+ca-name: Open URL
+ca-kind: leaf
+ca-actions: <$action-sendmessage $message="tm-browser-open-url" url={{!!url}}/>
+```
+
+This action surfaces on any tiddler with an http-prefixed `url` field, anywhere the user can press Space on it.
+
+! Worked example 6 — Drill-then-act (enum picker)
 
 When you want a sub-pick that just sets a field (no further drilling), use `ca-next-default-action`:
 
