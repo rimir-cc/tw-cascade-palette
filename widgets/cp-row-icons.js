@@ -307,11 +307,18 @@ module.exports = function (proto) {
     // Focus restore: copyToClipboard internally creates a transient
     // <textarea>, appends it to body, calls .select() / .focus(), runs
     // execCommand("copy"), then removes the node. The .select() step
-    // steals focus from whichever palette element (typically the
-    // search input) currently had it — when the textarea is removed
-    // afterwards, focus lands on document.body, not back on the input.
-    // We re-call `setFocus(this.focus)` after the copy so the user can
-    // keep typing without having to click back into the palette.
+    // steals focus from the palette; when the textarea is removed
+    // afterwards, focus lands on `<body>`, not back where it came from.
+    // The effect is that keystrokes go to the story river behind the
+    // popup instead of the palette's search input.
+    //
+    // We can't go through `setFocus(this.focus)` because that helper
+    // short-circuits when the section already equals `this.focus` (it
+    // only updates the data-focus attribute, never re-calls the
+    // element's native `.focus()`). So we resolve the DOM element for
+    // the captured section ourselves and call `.focus()` directly.
+    // setTimeout(0) defers the call past the textarea's removal so
+    // the focus actually sticks.
     proto._copyPayloadToClipboard = function (text) {
         if (!text) return;
         if (!$tw.utils || typeof $tw.utils.copyToClipboard !== "function") {
@@ -327,12 +334,37 @@ module.exports = function (proto) {
                     err && err.message);
             }
         }
-        // Restore focus on the next tick so the textarea's removal
-        // settles first. setFocus is a no-op when the popup isn't open,
-        // so this is safe even if the palette closed somehow during
-        // the copy (it won't — the gesture doesn't trigger any close).
-        if (typeof this.setFocus === "function" && section) {
-            setTimeout(function () { self.setFocus(section); }, 0);
+        setTimeout(function () { self._refocusSection(section); }, 0);
+    };
+
+    // Refocus the DOM element backing the named palette section.
+    // Mirrors `setFocus`'s dispatch table but bypasses its early-return
+    // when the section already matches — used by code paths where
+    // external code (e.g. the clipboard textarea) stole the DOM focus
+    // without changing the palette's logical `this.focus` state.
+    proto._refocusSection = function (section) {
+        var el = null;
+        switch (section) {
+            case "input":      el = this.inputEl;            break;
+            case "menu":       el = this.resultsEl;          break;
+            case "details":    el = this.detailEl;           break;
+            case "preview":    el = this.sidePreviewEl;      break;
+            case "preset":     el = this.presetStripEl;      break;
+            case "filter":     el = this.filterStripEl;      break;
+            case "visibility": el = this.visibilityStripEl;  break;
+            case "reach":      el = this.reachStripEl;       break;
+            case "field":      el = this.fieldStripEl;       break;
+            case "view":       el = this.viewStripEl;        break;
+            case "viewconfig": el = this.viewConfigStripEl;  break;
+            case "leader":     el = this.leaderStripEl;      break;
+        }
+        // Fall back to the input — the most useful default if the
+        // section we recorded is no longer reachable (its strip was
+        // removed, etc.). This matches `setFocus`'s coalescing logic
+        // for empty strips.
+        if (!el && this.inputEl) el = this.inputEl;
+        if (el && typeof el.focus === "function") {
+            try { el.focus(); } catch (e) { /* ignore */ }
         }
     };
 
