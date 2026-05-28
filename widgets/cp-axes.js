@@ -203,9 +203,18 @@ function evalKey(widget, axis, tiddlerTitle) {
         var vars = paramsAsVars(axis.params);
         vars.currentTiddler = tiddlerTitle;
         try {
+            // Source = [tiddlerTitle] so bare filters like
+            // `[get[created]format:date[YYYY]]` operate on this row's tiddler.
+            // Without an explicit source, wiki.filterTiddlers falls back to
+            // `wiki.each` (all non-system tiddlers) and the filter returns a
+            // result per-tiddler instead of per-row — `r[0]` then resolves to
+            // the first iteration order tiddler's value, bucketing every row
+            // under the same wrong key. Filters that explicitly reference
+            // `<currentTiddler>` still work — the variable remains bound.
             var r = widget.wiki.filterTiddlers(
                 axis.keyFilter,
-                widget.makeFakeWidget(vars)
+                widget.makeFakeWidget(vars),
+                [tiddlerTitle]
             );
             val = (r.length && r[0]) ? r[0] : "";
         } catch (err) {
@@ -225,9 +234,14 @@ function evalLabel(widget, axis, key) {
     var vars = paramsAsVars(axis.params);
     vars.currentTiddler = key;
     try {
+        // Source = [key] so the label filter operates on the bucket key
+        // (matches the key-filter convention in `evalKey` above). The
+        // `<currentTiddler>` variable is bound to the key too — filters
+        // can reference either form.
         var r = widget.wiki.filterTiddlers(
             axis.labelFilter,
-            widget.makeFakeWidget(vars)
+            widget.makeFakeWidget(vars),
+            [key]
         );
         return (r.length && r[0]) ? r[0] : key;
     } catch (err) {
