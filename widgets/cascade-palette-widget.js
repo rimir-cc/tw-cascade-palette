@@ -170,6 +170,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     require("$:/plugins/rimir/cascade-palette/widgets/cp-stack")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-items")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-actions")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-row-icons")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-rendering")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-side-preview")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-keyboard")(CascadePaletteWidget.prototype);
@@ -640,6 +641,31 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                         self._taggedPreviewsCache = null;
                         self._invalidateSidePreviewCache();
                     }
+                }
+                // Same hook for row-icon tiddlers + the URL-fields config:
+                // any change to a row-icon-tagged tiddler (created /
+                // modified / deleted) or the URL_FIELDS_CONFIG list
+                // requires the per-item icon list to be recomputed on the
+                // next render. The cache is rebuilt lazily on first
+                // touch — we just drop it here.
+                if (self._rowIconsCache || changes[C.URL_FIELDS_CONFIG]) {
+                    var rowIconDirty = !!changes[C.URL_FIELDS_CONFIG];
+                    var cachedRowIcons = (self._rowIconsCache &&
+                        self._rowIconsCache.entries) || [];
+                    for (var ri = 0; ri < cachedRowIcons.length && !rowIconDirty; ri++) {
+                        if (changes[cachedRowIcons[ri].title]) rowIconDirty = true;
+                    }
+                    if (!rowIconDirty) {
+                        Object.keys(changes).forEach(function (title) {
+                            if (rowIconDirty) return;
+                            var t = self.wiki.getTiddler(title);
+                            var tags = (t && t.fields && t.fields.tags) || [];
+                            if (tags.indexOf(C.ROW_ICON_TAG) >= 0) {
+                                rowIconDirty = true;
+                            }
+                        });
+                    }
+                    if (rowIconDirty) self._invalidateRowIconsCache();
                 }
                 // Invalidate preset pills if any preset-tagged tiddler
                 // changed (created/edited/deleted). Cheap heuristic: scan
@@ -1267,7 +1293,18 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             this.hintEl.textContent = C.HINT_EDIT;
             return;
         }
-        if (this.focus === "menu")            this.hintEl.textContent = C.HINT_MENU;
+        if (this.focus === "menu") {
+            // Swap in the row-icon hint variant when the selected row has
+            // at least one icon resolved, so the Alt-↵ gesture is
+            // discoverable.
+            var stageMenu = this.topStage();
+            var pickedMenu = stageMenu && stageMenu.results &&
+                stageMenu.results[stageMenu.selectedIndex];
+            var iconsMenu = pickedMenu && pickedMenu._rowIcons;
+            this.hintEl.textContent = (iconsMenu && iconsMenu.length)
+                ? C.HINT_MENU_ROW_ICON
+                : C.HINT_MENU;
+        }
         else if (this.focus === "details")    this.hintEl.textContent = C.HINT_DETAILS;
         else if (this.focus === "preview")    this.hintEl.textContent =
             this._previewHasMultipleCandidates() ? C.HINT_PREVIEW_PILLS : C.HINT_PREVIEW;

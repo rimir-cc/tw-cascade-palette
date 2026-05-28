@@ -23,6 +23,7 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''Shift-Tab'' |any |Jump between the two groups. From main → bottom-most active pill; from pills → input. |
 |''Enter'' |input / menu / details |Fire the selected item and close the palette. ''Exception:'' in input focus, if the current text matches a known filter or visibility prefix with a non-empty argument, Enter commits that pill instead. |
 |''Ctrl-Enter'' |any |Fire the selected item but keep the palette open. Shift-Enter is a silent alias for back-compat (removed in v0.3). |
+|''Alt-Enter'' |input / menu / details |Fire the selected row's ''primary row-icon'' (e.g. the 🌐 glyph opens an external URL in a new tab). No-op when the row has no icons resolved. |
 |''Ctrl-DEL / Ctrl-Backspace'' |any |Clear ''both'' constraint strips (filters + visibility) AND the active-preset marker in one step. |
 |''Esc'' |input |Pop one stage (back). At root depth (nothing to pop), closes the palette. |
 |''Shift-Esc'' |any |Close the palette directly from any focus and any depth, in one keystroke. |
@@ -99,6 +100,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`$:/tags/rimir/cascade-palette/preset` |Saved `(view, filters, visibility)` bundle — surfaced as a pill in the preset strip |
 |`$:/tags/rimir/cascade-palette/help` |In-palette help section — drillable via the ''Help'' entry or the `?` leader. Uses standard cascade-item fields (`ca-name`, `ca-icon`, `ca-group`, `ca-order`, `ca-hint`); body wikitext renders in the side preview |
 |`$:/tags/rimir/cascade-palette/side-preview` |Side-preview candidate — auto-attached to the right-pane preview when `ca-preview-applies` matches the active context. The tagged tiddler IS the template by default (override via `ca-preview-template`). Fields: `ca-preview-applies` (filter), `ca-preview-name` (pill label), `ca-preview-title` (caption), `ca-preview-order` (sort). When two or more candidates apply at once, a pill row appears at the top of the pane — ←/→ when focus is on the preview cycles between them. |
+|`$:/tags/rimir/cascade-palette/row-icon` |Row-icon registration — declares a small glyph that renders in a footer strip beneath any tiddler-bearing row whose `ca-row-icon-applies` filter matches (or, for the built-in `ca-row-icon-key: url`, whose URL field carries a value). Alt-↵ on the row (or clicking the glyph) fires the icon's `ca-row-icon-action` / `ca-row-icon-message`. Fields: `ca-row-icon-key`, `-glyph`, `-hint`, `-applies`, `-payload`, `-action`, `-message`, `-primary`, `-order`. |
 
 ! Fields
 
@@ -205,6 +207,15 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-axis-sort-keys` |space-separated tokens |axis (`enum`) |Explicit key order for `enum` sort. Keys not in the list sort after the enum, alpha-ascending. E.g. for the `by-month-created` axis: `Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec`. |
 |`ca-axis-empty-label` |string |axis |Label for the synthetic empty bucket (rows whose `ca-axis-key` resolves to empty/missing). Default `—`. |
 |`ca-axis-icon` |string |axis |Optional glyph displayed on bucket rows. |
+|`ca-row-icon-key` |string |row-icon |Symbolic id for the icon (`url` triggers the built-in field-scanning resolver — other keys rely on the filter fields below). Used by the keyboard router to map gestures to icons. |
+|`ca-row-icon-glyph` |string |row-icon |The displayed character / emoji. Default `•`. |
+|`ca-row-icon-hint` |string |row-icon |Tooltip text. Suffixed with ` · Alt-↵ or click` on hover. |
+|`ca-row-icon-applies` |filter |row-icon |Per-row applicability — `<currentTiddler>` is the row's tiddler title; non-empty result = icon shows. Ignored for the built-in `ca-row-icon-key: url`. |
+|`ca-row-icon-payload` |filter |row-icon |Optional per-row filter producing a value bound to `<<payload>>` when the icon fires. First result wins. The `url` key sets payload from the URL_FIELDS scan automatically. |
+|`ca-row-icon-action` |wikitext |row-icon |Fired on Alt-↵ / click with `<<payload>>` + `<<row-icon-key>>` + standard stage variables. |
+|`ca-row-icon-message` |string |row-icon |Built-in JS dispatch key. Currently recognised: `open-url` — opens `<<payload>>` in a new browser tab. May coexist with `ca-row-icon-action` (both fire). |
+|`ca-row-icon-primary` |`yes`\|empty |row-icon |When `yes`, this icon is the Alt-↵ target on rows where multiple icons apply. First-seen wins ties; if no icon is `primary`, the first applicable icon (by `ca-row-icon-order`) wins. |
+|`ca-row-icon-order` |number |row-icon |Display order in the strip (lower first, default `100`). |
 |`ca-view-sort` |`alphabetical`\|`natural`\|`by-field`\|`custom` |view |Row sort policy; default `alphabetical` |
 |`ca-view-sort-field` |string |view (by-field) |Field name read off each row |
 |`ca-view-sort-key` |filter |view (custom) |Per-row filter returning a sortable key |
@@ -312,6 +323,7 @@ The plugin ships five axes for the common cases. All live under `$:/plugins/rimi
 |`$:/config/rimir/cascade-palette/details-always-on` |`no` |Keep the detail drawer visible without holding Ctrl. Toggle live via Settings → Details always on. |
 |`$:/config/rimir/cascade-palette/popup-width` |`50` |Popup width in `vw` (clamped to [20, 95]). |
 |`$:/config/rimir/cascade-palette/search-fields-default` |`name hint` |Per-item `ca-search-fields` fallback. Space-separated field names. |
+|`$:/config/rimir/cascade-palette/url-fields` |`url` |Space-separated list of fields scanned by the built-in `url` row-icon. First field on a row's tiddler whose value matches an http/https/ftp/mailto/tel URL prefix wins. |
 |`$:/config/rimir/cascade-palette/deep-search-max-depth` |`4` |Maximum drill depth a deep-search walk follows from the search anchor. |
 |`$:/config/rimir/cascade-palette/deep-search-max-nodes` |`800` |Total items visited before a deep walk aborts and surfaces the truncation hint row. |
 |`$:/config/rimir/cascade-palette/deep-search-max-ms` |`80` |Wall-clock cap per keystroke for the deep walk. |

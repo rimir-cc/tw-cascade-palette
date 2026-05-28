@@ -52,6 +52,13 @@ exports.HELP_TAG = "$:/tags/rimir/cascade-palette/help";
 // user navigates between alternatives via ←/→ pills inside the preview
 // pane. See `widgets/cp-side-preview.js` for the resolution algorithm.
 exports.SIDE_PREVIEW_TAG = "$:/tags/rimir/cascade-palette/side-preview";
+// Row-icon registration. Tiddlers tagged with this declare a small glyph
+// that renders in a footer strip beneath any tiddler-bearing row when
+// the icon's `ca-row-icon-applies` filter matches (or, for the built-in
+// `ca-row-icon-key: url`, when the row's tiddler carries a value matching
+// the configured URL fields). Alt-Enter on the row fires the primary
+// icon's action / message. See `widgets/cp-row-icons.js`.
+exports.ROW_ICON_TAG = "$:/tags/rimir/cascade-palette/row-icon";
 
 // ---- Config tiddler titles ----
 exports.SOFT_DEPTH_CONFIG = "$:/config/rimir/cascade-palette/soft-depth-warning";
@@ -59,6 +66,10 @@ exports.POPUP_WIDTH_CONFIG = "$:/config/rimir/cascade-palette/popup-width";
 exports.MAX_RESULTS_CONFIG = "$:/config/rimir/cascade-palette/max-results";
 exports.DETAILS_ALWAYS_ON_CONFIG = "$:/config/rimir/cascade-palette/details-always-on";
 exports.PERF_FOOTER_CONFIG = "$:/config/rimir/cascade-palette/show-perf-footer";
+// Space-separated list of fields scanned by the built-in `url` row-icon.
+// First field on a row's tiddler whose value matches an http/https/ftp/
+// mailto/tel URL prefix wins. Default: "url".
+exports.URL_FIELDS_CONFIG = "$:/config/rimir/cascade-palette/url-fields";
 // Saved stage stack — written on close (when the close path opts in to
 // "preserve") and read by the next openPalette so the user resumes where
 // they left off. Uses $:/temp/ so TW does NOT sync it to disk: it's
@@ -94,6 +105,9 @@ exports.STRING_ARRAY_TYPE = "application/x-string-array";
 // appear in every variant so the user always sees the escape hatches.
 exports.HINT_INPUT   = "Tab section · ↓ menu · ↵ fire · Ctrl-↵ fire+stay · Esc back · Shift-Esc close · hold Ctrl detail · ? help";
 exports.HINT_MENU    = "Tab section · ↑↓ select · → drill · ← back · Space actions/toggle/edit · +/- adjust · ↵ fire · Esc input · hold Ctrl detail";
+// Same as HINT_MENU plus the Alt-↵ row-icon gesture. Surfaced when the
+// selected row has at least one row-icon resolved.
+exports.HINT_MENU_ROW_ICON = "Tab section · ↑↓ select · → drill · Alt-↵ open · ↵ fire · Esc input · hold Ctrl detail";
 exports.HINT_DETAILS = "Tab section · ↑↓ scroll · Esc input · ↵ fire";
 exports.HINT_PREVIEW = "Tab section · ↑↓ scroll · Esc input";
 exports.HINT_PREVIEW_PILLS = "Tab section · ←→ switch preview · ↑↓ scroll · Esc input";

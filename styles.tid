@@ -1378,6 +1378,68 @@ type: text/css
     text-align: center;
 }
 
+/* Row-icon footer strip — surfaces affordances on the row's backing
+   tiddler (URLs etc.) as small glyphs below the main line. Container is
+   appended only when at least one icon resolves, so there is no empty-
+   strip case to suppress. */
+.rcp-row-has-icons {
+    flex-wrap: wrap;
+}
+
+.rcp-row-icons {
+    flex: 0 0 100%;
+    display: flex;
+    gap: 6px;
+    margin-top: 2px;
+    margin-left: calc(1.4em + 10px);  /* align with row name (icon + gap) */
+    font-size: 12px;
+    line-height: 1;
+}
+
+.rcp-row-icon-glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.2em;
+    padding: 1px 3px;
+    border-radius: 3px;
+    color: #6b7280;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.12s ease, background 0.12s ease;
+}
+
+.rcp-row-icon-glyph:hover {
+    color: #2563eb;
+    background: rgba(37, 99, 235, 0.08);
+}
+
+.rcp-row-icon-glyph-primary {
+    color: #4b5563;
+}
+
+.rcp-row-selected .rcp-row-icon-glyph {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.rcp-row-selected .rcp-row-icon-glyph:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+    .rcp-row-icon-glyph {
+        color: #9ca3af;
+    }
+    .rcp-row-icon-glyph:hover {
+        color: #93c5fd;
+        background: rgba(147, 197, 253, 0.12);
+    }
+    .rcp-row-icon-glyph-primary {
+        color: #d1d5db;
+    }
+}
+
 .rcp-row-checkbox {
     flex: 0 0 auto;
     width: 1.4em;

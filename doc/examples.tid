@@ -185,6 +185,57 @@ ca-axis-empty-label: (top-level)
 
 Combine with the existing ''By namespace'' children filter for a "namespace root → tree" two-level descent — bucket by top-level namespace, then descend each via path segments.
 
+! 13. Row icon — open an external URL
+
+The plugin ships a `url` row-icon out of the box; this is what it looks like:
+
+```
+title: $:/plugins/rimir/cascade-palette/row-icons/url
+tags: $:/tags/rimir/cascade-palette/row-icon
+ca-row-icon-key: url
+ca-row-icon-glyph: 🌐
+ca-row-icon-hint: Open external URL in a new tab
+ca-row-icon-message: open-url
+ca-row-icon-primary: yes
+ca-row-icon-order: 10
+```
+
+The key `url` triggers a built-in resolver that scans the fields listed in `$:/config/rimir/cascade-palette/url-fields` (default `url`, space-separated). The first field whose value matches `^(?:https?|ftp|ftps|mailto|tel):` becomes `<<payload>>`; the message `open-url` opens it via `window.open(payload, "_blank", "noopener,noreferrer")`. Author your own URL field set by editing the config tiddler — e.g. `url website homepage source`.
+
+! 14. Row icon — domain-specific deep-link
+
+Surface a 🔗 on any tiddler that carries a `linear-ticket` field — Alt-↵ (or clicking the glyph) opens the matching ticket in Linear:
+
+```
+title: $:/plugins/example/row-icons/linear
+tags: $:/tags/rimir/cascade-palette/row-icon
+ca-row-icon-key: linear
+ca-row-icon-glyph: 🔗
+ca-row-icon-hint: Open Linear ticket
+ca-row-icon-applies: [<currentTiddler>has[linear-ticket]]
+ca-row-icon-payload: [<currentTiddler>get[linear-ticket]addprefix[https://linear.app/team/issue/]]
+ca-row-icon-message: open-url
+ca-row-icon-order: 20
+```
+
+Same shape works for Jira, GitHub PRs, Confluence pages — anything where a tiddler-side field can be transformed into a URL.
+
+! 15. Row icon — fire wikitext actions instead of opening a URL
+
+Row-icon actions aren't limited to URLs. The `ca-row-icon-action` field is plain wikitext fired through the page navigator — same context as `ca-actions`. Use it to mutate state, open tiddlers in the story river, send custom messages, etc.:
+
+```
+title: $:/plugins/example/row-icons/edit-raw
+tags: $:/tags/rimir/cascade-palette/row-icon
+ca-row-icon-key: edit-raw
+ca-row-icon-glyph: ✎
+ca-row-icon-hint: Open the raw editor
+ca-row-icon-applies: [<currentTiddler>!is[system]]
+ca-row-icon-action: <$action-sendmessage $message="tm-edit-tiddler" $param=<<currentTiddler>>/>
+```
+
+Every non-system tiddler gets a ✎ in its row-icon strip. Alt-↵ fires `tm-edit-tiddler` via the navigator — same effect as clicking the pencil in TW's storyline.
+
 ! What's NOT recommended
 
 * ''Heavy filters in `ca-next-scope`'' — re-runs on every keystroke. If you can't avoid an expensive filter, cache the result in a state tiddler at palette-open time and have the scope read from the cache.

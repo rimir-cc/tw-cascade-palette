@@ -880,6 +880,69 @@ The pane joins the Tab cycle as a new focus section ''`preview`'' (only when vis
 * ''Compose presets'' — applying a preset always ''replaces'' both constraint lists. There's no "apply on top of existing state".
 * ''Side-preview tabs'' — only a single preview template per entry/action right now. Tag-based discovery (à la detail templates) is a possible follow-up if multiple plugins want to register competing previews on the same drill.
 
+! Row icons (`$:/tags/rimir/cascade-palette/row-icon`)
+
+A row-icon is a small glyph rendered in a footer strip below the main line of any tiddler-bearing row. Use it to surface affordances on the row's backing tiddler — opening an external URL, jumping to an attachment, copying a value, etc. — without crowding the name / value slots. The strip renders only when at least one icon resolves for the row; rows with no applicable icons look identical to before.
+
+! ! Built-in: URL icon
+
+The plugin ships ''`row-icons/url.tid`'' (key `url`) that surfaces a ''🌐'' glyph on any row whose backing tiddler carries a URL value in one of the configured fields. The scanned field list lives at ''`$:/config/rimir/cascade-palette/url-fields`'' — default `url`, space-separated for multiple (e.g. `url website homepage`). The first field whose value matches ''`/^(?:https?|ftp|ftps|mailto|tel):/i`'' wins; trailing whitespace is trimmed.
+
+''Alt-↵'' on a row with the 🌐 glyph (or clicking the glyph directly) opens the URL in a new browser tab — `window.open(url, "_blank", "noopener,noreferrer")`. The row's normal Enter / Ctrl-Enter behaviour is unchanged.
+
+! ! Author your own
+
+Tag a tiddler with `$:/tags/rimir/cascade-palette/row-icon` and declare:
+
+;`ca-row-icon-key`
+:Symbolic id (`url`, `attachment`, `linear-ticket`, ...). The key `url` triggers the built-in field-scanning resolver. Other keys must declare `ca-row-icon-applies` (the gate) + optionally `ca-row-icon-payload` (the value bound to `<<payload>>` when the icon fires).
+;`ca-row-icon-glyph`
+:Display character / emoji. Default `•`.
+;`ca-row-icon-hint`
+:Tooltip on hover. The runtime appends ` · Alt-↵ or click` so the gesture is discoverable.
+;`ca-row-icon-applies`
+:Filter — `<currentTiddler>` is the row's tiddler title. Non-empty result = the icon shows. Required for non-`url` keys.
+;`ca-row-icon-payload`
+:Optional filter — first result is bound to `<<payload>>` when the icon fires. Use this when your action wants to act on a specific field's value rather than the tiddler title.
+;`ca-row-icon-action`
+:Optional wikitext actions. Fired with `<<payload>>` + `<<row-icon-key>>` + the standard stage variables (`<<picked>>`, `<<parent-picked>>`, `<<currentTiddler>>` bound to the row).
+;`ca-row-icon-message`
+:Optional built-in JS dispatch key. Currently recognised: `open-url` — opens `<<payload>>` in a new browser tab. May coexist with `ca-row-icon-action` (both fire).
+;`ca-row-icon-primary`
+:`yes` = preferred target for the row-level ''Alt-↵'' keyboard gesture when multiple icons apply. If no icon is `primary`, the first applicable icon (by `ca-row-icon-order`) wins.
+;`ca-row-icon-order`
+:Display order in the strip (lower first, default `100`).
+
+! ! Worked example — Linear ticket link
+
+```
+title: $:/plugins/example/row-icons/linear
+tags: $:/tags/rimir/cascade-palette/row-icon
+ca-row-icon-key: linear
+ca-row-icon-glyph: 🔗
+ca-row-icon-hint: Open Linear ticket
+ca-row-icon-applies: [<currentTiddler>has[linear-ticket]]
+ca-row-icon-payload: [<currentTiddler>get[linear-ticket]addprefix[https://linear.app/team/issue/]]
+ca-row-icon-message: open-url
+ca-row-icon-order: 20
+```
+
+Any tiddler carrying a `linear-ticket` field gets a 🔗 in its row-icon strip. Alt-↵ (or clicking the glyph) constructs the URL and opens it in a new tab.
+
+! ! Worked example — Wiki-internal action
+
+```
+title: $:/plugins/example/row-icons/edit-raw
+tags: $:/tags/rimir/cascade-palette/row-icon
+ca-row-icon-key: edit-raw
+ca-row-icon-glyph: ✎
+ca-row-icon-hint: Open the raw editor
+ca-row-icon-applies: [<currentTiddler>!is[system]]
+ca-row-icon-action: <$action-sendmessage $message="tm-edit-tiddler" $param=<<currentTiddler>>/>
+```
+
+Surfaces a ✎ on every non-system tiddler; Alt-↵ fires `tm-edit-tiddler` via the navigator.
+
 ! Reach pills (`$:/tags/rimir/cascade-palette/reach`)
 
 Reach pills configure WHERE the search input walks. Same push / remove / DEL grammar as filter and visibility pills, just a separate strip with its own tag family and a teal accent. A reach-tagged tiddler declares:

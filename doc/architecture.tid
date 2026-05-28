@@ -129,6 +129,20 @@ Right-column wikitext renderer that opens when the user drills into a row carryi
 
 ''Caching'' — the rendered widget tree is cached by `(depth, contextTitle, templateTitle)`. Selection-tracking re-renders inside the same preview reuse the DOM; switching pills re-renders (template changes); per-row context change re-renders. The wiki change hook dispatches `refresh(changes)` into the cached widget tree for non-invalidating changes (so form inputs inside the preview's template stay reactive without rebuild), and drops the cache entirely when either the active template tiddler, the context tiddler, OR any side-preview-tagged tiddler is created/modified/deleted.
 
+! Row icons
+
+A row-icon is a small glyph rendered in a footer strip below the main row line, surfacing affordances on the row's backing tiddler — opening an external URL, jumping to an attachment, etc. — without cluttering the name column. Lives in `widgets/cp-row-icons.js`; the strip renders only when at least one icon resolves so quiet rows look untouched.
+
+''Registration'' — any tiddler tagged ''`$:/tags/rimir/cascade-palette/row-icon`'' is an icon candidate. The shipped ''`row-icons/url.tid`'' is the only one out of the box: it carries `ca-row-icon-key: url` (the built-in field-scanning resolver), `ca-row-icon-glyph: 🌐`, and `ca-row-icon-message: open-url`. Authors ship their own by declaring `ca-row-icon-applies` (filter that gates the icon — `<currentTiddler>` is the row's title) + either `ca-row-icon-action` (wikitext actions with `<<payload>>` bound to the resolved value) or `ca-row-icon-message` (built-in JS dispatch — currently only `open-url` is recognised).
+
+''URL resolution'' — the `url` key is hard-coded in cp-row-icons.js's `_resolveUrlForTitle`. It reads ''`$:/config/rimir/cascade-palette/url-fields`'' (default `url`, space-separated for multiple), walks the configured fields on the row's tiddler in order, and returns the first value matching ''`/^(?:https?|ftp|ftps|mailto|tel):/i`''. Other URL prefixes (`magnet:`, `vscode:`, etc.) can be added by editing the regex; for now the strict allowlist keeps `tiddler-bearing` config text from leaking into the strip as an icon.
+
+''Resolution per render'' — `_appendResultRow` calls `_renderRowIcons(rowEl, item)` after match snippets but before the row's mousedown handler. The helper invokes `computeRowIconsForItem(item)` which resolves each registered icon against the row's title, stamps `item._rowIcons` with the live list, and appends `<div class="rcp-row-icons">` only when at least one icon survived. The Alt-↵ keyboard branch reads `item._rowIcons` directly — no recomputation. The footer hint switches from `HINT_MENU` to `HINT_MENU_ROW_ICON` when the selected row's `_rowIcons` is non-empty, so the Alt-↵ affordance is discoverable.
+
+''Caching'' — `_loadRowIcons` caches the icon registry by `wiki.getChangeCount()`. The change-hook (cascade-palette-widget.js) drops the cache when any row-icon-tagged tiddler is created/modified/deleted ''OR'' when the URL_FIELDS_CONFIG tiddler changes. Per-item icon resolution is NOT cached — it runs every render — but the per-icon JS path is a tiny field read on the row's tiddler, so 30 rows × 1 icon ≈ 30 cheap lookups per keystroke. Generic filter-based icons cost one `wiki.filterTiddlers` per row per icon; ship a `ca-row-icon-applies` that returns fast (e.g. `[<currentTiddler>has[some-field]]`) rather than a full graph walk.
+
+''Firing'' — `fireRowIcon(item, icon)` is the single dispatch point. If `icon.message === "open-url"`, it calls `window.open(icon.payload, "_blank", "noopener,noreferrer")` via the document's `defaultView`. If `icon.action` is set, it's run through `invokeViaNavigator` with `<<payload>>`, `<<row-icon-key>>`, and the standard stage variables. Both fire when both are set. Alt-↵ on the row routes to `primaryRowIcon(item)` (honours `ca-row-icon-primary: yes`, falls back to the first applicable icon); clicking an individual glyph fires that specific icon and `stopPropagation`s so the row's main selection / fire handler doesn't also run.
+
 ! Session stack persistence
 
 `close()` paths split into two camps: ''preserve'' (Shift-Esc, action-fire close — including the default close-on-fire via `afterAction`) write the current stack to `$:/temp/rimir/cascade-palette/saved-stack`, and ''reset'' (plain Esc at root, backdrop click, `popStage` past root) clear it. `openPalette()` reads that tiddler on each open; if present, the stack is restored (with `items`/`results` left empty for `recomputeStage` to repopulate); else a fresh root is built. `confirm` and `actions` stages are dropped on serialize — they reference closure-captured strings or a parent-picked tiddler that may be gone — so the saved chain truncates at the first such stage. `openPaletteAtEntry` (and the `OPEN_ENTRY_MESSAGE` handler) pass `{ fresh: true }` to skip restore, since the caller is explicitly pointing at one entry. Filters / visibilities / reaches / fields persist independently across open/close — this layers stack-resume on top.
@@ -175,6 +189,7 @@ $:/plugins/rimir/cascade-palette/
 │   └── shortcut-info.tid              # help text for the shortcut listing
 ├── entries/                            # demo entries (Control Panel, Save Wiki, ...)
 ├── actions/global/                     # demo globals (Edit raw, Copy title)
+├── row-icons/                          # built-in row-icons (e.g. 🌐 url)
 ├── styles.tid                          # popup CSS
 └── doc/                                # doc-template doc tiddlers (overview, protocol, examples, ...)
 ```

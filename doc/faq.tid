@@ -62,5 +62,11 @@ type: text/vnd.tiddlywiki
 ;Can a structure-layer have ''multiple parallel'' axis chains, like Hybrid has parallel layers?
 :Not on a single layer — `ca-layer-axes` is one chain per layer. But Hybrid-style composition still works: put two structure-layers in a view via `ca-view-layers`, give each its own `ca-layer-axes` chain. Each layer's rows interleave at every node; the chain belongs to its emitting layer.
 
+;How do I add 🌐 row-icons for non-`url` field names?
+:Edit `$:/config/rimir/cascade-palette/url-fields` — space-separated, in scan order. For e.g. `url website homepage source`, the resolver checks each field in turn and surfaces the icon for the first value matching `^(?:https?|ftp|ftps|mailto|tel):`. Trailing whitespace is trimmed. To add a new URL protocol prefix (`magnet:`, `vscode:`, etc.) you'd have to edit the regex in `widgets/cp-row-icons.js`'s `URL_PROTOCOL_RE`; the strict allowlist is deliberate so config text doesn't leak into the strip.
+
+;Why doesn't Shift-↵ open the URL like in some other tools?
+:Shift-↵ is already taken by cascade-palette as a silent back-compat alias for ''fire-and-keep-open'' (it's been bound that way since pre-0.0.50). Re-purposing it would break muscle memory for users who rely on it. ''Alt-↵'' is unused and maps mentally to "alternate action on this row" — that's the row-icon gesture. Single-icon rows fire that icon; multi-icon rows fire the `ca-row-icon-primary: yes` one (or the first applicable in display order). Clicking a specific glyph fires just that one.
+
 ;What's coming in future versions?
 :The next milestone is ''context-driven actions'' — actions that operate on the entity currently selected in the running orga app (no need to re-pick). Also ''form stages'' for multi-field input (e.g. ''New Project'' with name + description + due-date inline). And eventually a builder UI so users can author action tiddlers without editing wikitext.

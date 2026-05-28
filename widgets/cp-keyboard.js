@@ -111,7 +111,26 @@ module.exports = function (proto) {
             this.focus !== "visibility" && this.focus !== "view" &&
             this.focus !== "preset" &&
             this.focus !== "reach" && this.focus !== "field") {
-            if (this.focus === "input" && !e.ctrlKey && !e.shiftKey) {
+            // Alt-Enter — fire the selected row's primary row-icon
+            // (e.g. open external URL in a new tab). Falls through to
+            // the regular fire path when the row has no icons, so users
+            // who hit Alt-↵ on a regular row still get the default
+            // behaviour rather than a silent no-op.
+            if (e.altKey && !e.ctrlKey && !e.shiftKey &&
+                (this.focus === "input" || this.focus === "menu" ||
+                 this.focus === "details")) {
+                var stageAlt = this.topStage();
+                var pickedAlt = stageAlt &&
+                    stageAlt.results &&
+                    stageAlt.results[stageAlt.selectedIndex];
+                var iconAlt = pickedAlt && this.primaryRowIcon(pickedAlt);
+                if (iconAlt) {
+                    e.preventDefault();
+                    this.fireRowIcon(pickedAlt, iconAlt, e);
+                    return;
+                }
+            }
+            if (this.focus === "input" && !e.ctrlKey && !e.shiftKey && !e.altKey) {
                 if (this._commitConstraintFromInput()) {
                     e.preventDefault();
                     return;

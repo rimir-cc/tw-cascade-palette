@@ -1,0 +1,21 @@
+title: $:/plugins/rimir/cascade-palette/row-icons/url
+tags: $:/tags/rimir/cascade-palette/row-icon
+ca-row-icon-key: url
+ca-row-icon-glyph: 🌐
+ca-row-icon-hint: Open external URL in a new tab
+ca-row-icon-message: open-url
+ca-row-icon-primary: yes
+ca-row-icon-order: 10
+type: text/vnd.tiddlywiki
+
+Built-in row-icon that surfaces when a tiddler's URL fields carry an
+http/https/ftp/mailto/tel value. The scanned field list is configurable
+via [[$:/config/rimir/cascade-palette/url-fields]] (default: `url`).
+
+Alt-↵ on a row showing this glyph (or clicking it) opens the URL in a
+new browser tab via `window.open(url, "_blank", "noopener,noreferrer")`.
+
+The key `url` is a JS built-in handler — `ca-row-icon-applies` is
+ignored on this tiddler. Author your own row-icons by tagging tiddlers
+with `$:/tags/rimir/cascade-palette/row-icon` and providing an
+`ca-row-icon-applies` filter + `ca-row-icon-action` / `ca-row-icon-message`.

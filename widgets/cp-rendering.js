@@ -271,6 +271,14 @@ module.exports = function (proto) {
             }
         }
 
+        // Row-icon footer strip — small glyphs surfacing affordances on
+        // the row's backing tiddler (URLs etc.). Appended last so it
+        // sits below match snippets when both are present. The helper
+        // is a no-op when no icons resolve, and stamps `item._rowIcons`
+        // either way so the Alt-↵ keyboard branch can read the resolved
+        // list without recomputing.
+        this._renderRowIcons(rowEl, item);
+
         rowEl.addEventListener("mousedown", function (e) {
             e.preventDefault();
             stage.selectedIndex = i;
