@@ -128,7 +128,19 @@ module.exports = function (proto) {
         }
         // 2. Drill entry/action item — push the next stage.
         //    (Shift modifier has no effect — drilling doesn't close anyway.)
+        //
+        // Exception: drill rows whose `ca-actions` came from a
+        // `ca-(view|layer)-row-actions` template (tree-view rows in
+        // ''By Namespace'', ''By Date'', ''Hybrid'', etc.) treat Enter
+        // as a fire-and-close gesture (typically navigates to the row's
+        // tiddler), and Right-arrow as the structural drill — see
+        // `drillSelected` which gates the preflight on the same flag.
+        // Ctrl-Enter keeps the palette open so the user can chain picks.
         if (picked.kind === "drill") {
+            if (picked.actions && picked._actionsFromRowTemplate) {
+                this.fireLeafAction(stage, picked, keepOpen);
+                return;
+            }
             this.drillSelected();
             return;
         }
