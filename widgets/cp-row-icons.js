@@ -131,15 +131,26 @@ module.exports = function (proto) {
     /* ---------- per-item icon list ---------- */
 
     // Compute the visible row-icon list for an item. Returns [] when the
-    // item has no backing tiddler (synthetic rows, root entries, etc.).
-    // Result is shaped { key, glyph, hint, payload, action, message,
-    // primary, source } per icon — payload pre-resolved so click /
-    // keyboard dispatch is variable-free.
+    // item has no backing tiddler (synthetic rows like ca-items-from JSON
+    // items, confirm-stage rows, the axis-picker rows that wrap an axis
+    // title but have no domain tiddler behind them). Result is shaped
+    // { key, glyph, hint, payload, action, message, primary, source }
+    // per icon — payload pre-resolved so click / keyboard dispatch is
+    // variable-free.
+    //
+    // Row-resolution: `item.title` is the canonical backing-tiddler title
+    // for every row that has one — set by `_buildCascadeItem(f, title)`
+    // for entries / actions / tree rows AND by `evaluateFilterStage` for
+    // dynamic filter-stage items (which additionally stamp `rawTitle`).
+    // We deliberately accept ALL kinds (drill / leaf / tree containers /
+    // dynamic items) — if the row's tiddler matches an icon, it shows.
     proto.computeRowIconsForItem = function (item) {
-        if (!item || !item.isItem || !item.rawTitle) return [];
+        if (!item) return [];
+        if (item.isSynthetic) return [];
+        var title = item.rawTitle || item.title || "";
+        if (!title) return [];
         var defs = this._loadRowIcons();
         if (!defs.length) return [];
-        var title = item.rawTitle;
         var out = [];
         for (var i = 0; i < defs.length; i++) {
             var def = defs[i];
@@ -221,12 +232,13 @@ module.exports = function (proto) {
         }
         if (icon.action) {
             var stage = this.topStage();
+            var rowTitle = (item && (item.rawTitle || item.title)) || "";
             var vars = stage
-                ? this.buildStageVariables(stage, item && item.rawTitle)
+                ? this.buildStageVariables(stage, rowTitle)
                 : { "query": "", "picked": "", "parent-picked": "", "context-tiddler": "" };
             vars["payload"] = icon.payload || "";
             vars["row-icon-key"] = icon.key || "";
-            vars["currentTiddler"] = item && item.rawTitle ? item.rawTitle : "";
+            vars["currentTiddler"] = rowTitle;
             this.invokeViaNavigator(icon.action, vars);
             fired = true;
         }

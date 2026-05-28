@@ -1389,10 +1389,13 @@ type: text/css
 .rcp-row-icons {
     flex: 0 0 100%;
     display: flex;
-    gap: 6px;
-    margin-top: 2px;
+    gap: 3px;
+    /* Row uses flex `gap: 10px` between items, which applies between the
+       wrapped name line and this strip too — pull the strip up to cancel
+       the gap and tuck it under the title. */
+    margin-top: -8px;
     margin-left: calc(1.4em + 10px);  /* align with row name (icon + gap) */
-    font-size: 12px;
+    font-size: 6px;
     line-height: 1;
 }
 
@@ -1401,8 +1404,8 @@ type: text/css
     align-items: center;
     justify-content: center;
     min-width: 1.2em;
-    padding: 1px 3px;
-    border-radius: 3px;
+    padding: 0 1px;
+    border-radius: 2px;
     color: #6b7280;
     cursor: pointer;
     user-select: none;
