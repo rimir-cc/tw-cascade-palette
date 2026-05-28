@@ -303,11 +303,22 @@ module.exports = function (proto) {
     // both the modern Clipboard API and the legacy execCommand fallback
     // and emits a tm-notify on success/failure (uses TW's standard
     // notification mechanism).
+    //
+    // Focus restore: copyToClipboard internally creates a transient
+    // <textarea>, appends it to body, calls .select() / .focus(), runs
+    // execCommand("copy"), then removes the node. The .select() step
+    // steals focus from whichever palette element (typically the
+    // search input) currently had it — when the textarea is removed
+    // afterwards, focus lands on document.body, not back on the input.
+    // We re-call `setFocus(this.focus)` after the copy so the user can
+    // keep typing without having to click back into the palette.
     proto._copyPayloadToClipboard = function (text) {
         if (!text) return;
         if (!$tw.utils || typeof $tw.utils.copyToClipboard !== "function") {
             return;
         }
+        var self = this;
+        var section = this.focus;
         try {
             $tw.utils.copyToClipboard(String(text));
         } catch (err) {
@@ -315,6 +326,13 @@ module.exports = function (proto) {
                 console.warn("[cascade-palette] row-icon copy-payload failed —",
                     err && err.message);
             }
+        }
+        // Restore focus on the next tick so the textarea's removal
+        // settles first. setFocus is a no-op when the popup isn't open,
+        // so this is safe even if the palette closed somehow during
+        // the copy (it won't — the gesture doesn't trigger any close).
+        if (typeof this.setFocus === "function" && section) {
+            setTimeout(function () { self.setFocus(section); }, 0);
         }
     };
 
