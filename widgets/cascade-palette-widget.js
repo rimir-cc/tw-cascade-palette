@@ -336,10 +336,16 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.sidePreviewEl = this.document.createElement("div");
         this.sidePreviewEl.className = "rcp-preview-pane";
         this.sidePreviewEl.setAttribute("tabindex", "-1");
+        // Pill row — hidden when ≤1 candidate applies (the :empty CSS
+        // selector elides the row). When ≥2 candidates apply, each pill
+        // becomes a clickable tab; ←/→ on the preview pane cycles them.
+        this.sidePreviewPillsEl = this.document.createElement("div");
+        this.sidePreviewPillsEl.className = "rcp-preview-pane-pills";
         this.sidePreviewTitleEl = this.document.createElement("div");
         this.sidePreviewTitleEl.className = "rcp-preview-pane-title";
         this.sidePreviewBodyEl = this.document.createElement("div");
         this.sidePreviewBodyEl.className = "rcp-preview-pane-body";
+        this.sidePreviewEl.appendChild(this.sidePreviewPillsEl);
         this.sidePreviewEl.appendChild(this.sidePreviewTitleEl);
         this.sidePreviewEl.appendChild(this.sidePreviewBodyEl);
         popup.appendChild(this.sidePreviewEl);
@@ -607,6 +613,32 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                         self._invalidateSidePreviewCache();
                     } else {
                         self._refreshSidePreviewOnChange(changes);
+                    }
+                }
+                // If any side-preview-tagged tiddler was created/modified/
+                // deleted, the candidate list may differ — drop the
+                // tagged-previews cache so the next render re-scans.
+                // Cheap probe: check cached candidates' source titles,
+                // and any changed tiddler that currently carries the tag.
+                if (self._taggedPreviewsCache) {
+                    var taggedDirty = false;
+                    var cachedEntries = self._taggedPreviewsCache.entries || [];
+                    for (var ti = 0; ti < cachedEntries.length && !taggedDirty; ti++) {
+                        if (changes[cachedEntries[ti].source]) taggedDirty = true;
+                    }
+                    if (!taggedDirty) {
+                        Object.keys(changes).forEach(function (title) {
+                            if (taggedDirty) return;
+                            var t = self.wiki.getTiddler(title);
+                            var tags = (t && t.fields && t.fields.tags) || [];
+                            if (tags.indexOf(C.SIDE_PREVIEW_TAG) >= 0) {
+                                taggedDirty = true;
+                            }
+                        });
+                    }
+                    if (taggedDirty) {
+                        self._taggedPreviewsCache = null;
+                        self._invalidateSidePreviewCache();
                     }
                 }
                 // Invalidate preset pills if any preset-tagged tiddler
@@ -1237,7 +1269,8 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         }
         if (this.focus === "menu")            this.hintEl.textContent = C.HINT_MENU;
         else if (this.focus === "details")    this.hintEl.textContent = C.HINT_DETAILS;
-        else if (this.focus === "preview")    this.hintEl.textContent = C.HINT_PREVIEW;
+        else if (this.focus === "preview")    this.hintEl.textContent =
+            this._previewHasMultipleCandidates() ? C.HINT_PREVIEW_PILLS : C.HINT_PREVIEW;
         else if (this.focus === "filter")     this.hintEl.textContent = C.HINT_FILTER;
         else if (this.focus === "visibility") this.hintEl.textContent = C.HINT_VISIBILITY;
         else if (this.focus === "reach")      this.hintEl.textContent = C.HINT_REACH;

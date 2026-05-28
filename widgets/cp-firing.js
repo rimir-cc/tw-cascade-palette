@@ -796,47 +796,89 @@ module.exports = function (proto) {
     // context is the row's title — common for actions where `<<picked>>`
     // is the entity being acted upon. Called at every drill site so the
     // preview pane stays in sync with stack pushes.
+    //
+    // Three activation paths feed the side-preview pane:
+    //
+    //  (a) Per-menu template: item has `ca-preview-template`. Stamp it
+    //      as the explicit primary candidate. Tag-based candidates
+    //      whose `ca-preview-applies` filter matches the active
+    //      context get added as additional pills at render time.
+    //
+    //  (b) Tag-only opt-in: item has `ca-preview-context` or
+    //      `ca-preview-per-row` but NO template. Enable the pane and
+    //      populate candidates purely from tagged side-previews. Use
+    //      this when the menu has no preferred preview but the rows
+    //      are previewable entities (e.g. browse lists where the
+    //      tag-based kind-instance preview should auto-attach).
+    //
+    //  (c) Inheritance: neither set, but the parent stage carries
+    //      `_previewPerRow` + `_previewTemplate`. The sub-drill keeps
+    //      the parent's preview but locks the context to the row that
+    //      was just drilled into (the parent's selected row). For
+    //      action-menu sub-stages this is critical — without the lock,
+    //      navigating actions would re-resolve the context to action
+    //      titles instead of the entity being acted upon.
     proto._attachPreviewToStage = function (newStage, item, parentStage) {
-        // Per-row inheritance: when the parent stage carries
-        // `_previewPerRow`, sub-drills inherit the same preview template
-        // AND the per-row tracking. Lets a browse-list drill (e.g.
-        // cascade-palette's Help → Plugins) keep its side-preview behaviour
-        // through sub-drills without requiring every level to re-declare
-        // ca-preview-template. The row's own preview-template still wins
-        // when it sets one — inheritance is only the fallback.
-        if (!item || !item.previewTemplate) {
-            if (parentStage && parentStage._previewPerRow &&
-                parentStage._previewTemplate) {
-                newStage._previewTemplate = parentStage._previewTemplate;
-                newStage._previewContext = parentStage._previewContext || "";
-                newStage._previewTitle = parentStage._previewTitle || "";
-                newStage._previewPerRow = true;
+        var rowTitle = (item && item.title) || "";
+        var ctx = "";
+        var hasMenu = !!(item && item.previewTemplate);
+        var hasOptIn = !!(item && (item.previewContext || item.previewPerRow));
+        if (hasMenu || hasOptIn) {
+            ctx = rowTitle;
+            if (item.previewContext) {
+                try {
+                    var vars = this.buildStageVariables(parentStage, rowTitle);
+                    var titles = this.wiki.filterTiddlers(
+                        item.previewContext,
+                        this.makeFakeWidget(vars)
+                    );
+                    ctx = (titles && titles.length) ? titles[0] : "";
+                } catch (err) {
+                    if (console && console.warn) {
+                        console.warn(
+                            "[cascade-palette] ca-preview-context filter error on",
+                            rowTitle, "—", err && err.message
+                        );
+                    }
+                    ctx = "";
+                }
+            }
+            newStage._previewContext = ctx;
+            newStage._previewPerRow = !!item.previewPerRow;
+            newStage._previewActiveIdx = 0;
+            if (hasMenu) {
+                newStage._previewTemplate = item.previewTemplate;
+                newStage._previewTitle = item.previewTitle || "";
+                newStage._previewMenuName = item.previewName || "";
             }
             return;
         }
-        var ctx = item.title || "";
-        if (item.previewContext) {
-            try {
-                var vars = this.buildStageVariables(parentStage, item.title || "");
-                var titles = this.wiki.filterTiddlers(
-                    item.previewContext,
-                    this.makeFakeWidget(vars)
-                );
-                ctx = (titles && titles.length) ? titles[0] : "";
-            } catch (err) {
-                if (console && console.warn) {
-                    console.warn(
-                        "[cascade-palette] ca-preview-context filter error on",
-                        item.title, "—", err && err.message
-                    );
-                }
-                ctx = "";
+        if (parentStage && parentStage._previewPerRow &&
+            (parentStage._previewTemplate || parentStage._previewContext)) {
+            // Inherit. Two flavours depending on the new stage's kind:
+            //   - "actions": rows are actions (NOT entities) → LOCK the
+            //     context to the parent's drilled-into row (the entity)
+            //     so action-menu navigation doesn't shift the preview
+            //     anchor.
+            //   - everything else (filter / tree / leaf): rows could be
+            //     entities themselves (e.g. Help → Plugins → list of
+            //     plugin help sections) → KEEP per-row so the preview
+            //     tracks the sub-stage's selected row.
+            if (parentStage._previewTemplate) {
+                newStage._previewTemplate = parentStage._previewTemplate;
+                newStage._previewTitle = parentStage._previewTitle || "";
+                newStage._previewMenuName = parentStage._previewMenuName || "";
             }
+            if (newStage.kind === "actions") {
+                newStage._previewContext = rowTitle ||
+                    parentStage._previewContext || "";
+                newStage._previewPerRow = false;
+            } else {
+                newStage._previewContext = parentStage._previewContext || "";
+                newStage._previewPerRow = true;
+            }
+            newStage._previewActiveIdx = 0;
         }
-        newStage._previewTemplate = item.previewTemplate;
-        newStage._previewContext = ctx;
-        newStage._previewTitle = item.previewTitle || "";
-        newStage._previewPerRow = !!item.previewPerRow;
     };
 
 };

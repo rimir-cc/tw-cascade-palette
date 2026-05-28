@@ -166,6 +166,10 @@ module.exports = function (proto) {
             previewTemplate: f["ca-preview-template"] || "",
             previewContext: f["ca-preview-context"] || "",
             previewTitle: f["ca-preview-title"] || "",
+            // Pill label shown when multiple preview candidates apply
+            // at the same time. Defaults to a derivation of the
+            // template title (or the row title for tag-only opt-ins).
+            previewName: f["ca-preview-name"] || "",
             // When `yes`, the preview pane re-resolves its context to the
             // CURRENTLY-SELECTED ROW's title on every selection change —
             // i.e. ↑/↓ inside the drill stage updates the preview live,

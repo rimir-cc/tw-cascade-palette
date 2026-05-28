@@ -66,6 +66,53 @@ type: text/css
     display: flex;
 }
 
+.rcp-preview-pane-pills {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 4px;
+    padding: 6px 10px;
+    background: #fbfaf7;
+    border-bottom: 1px solid #ececec;
+    overflow-x: auto;
+    user-select: none;
+}
+
+.rcp-preview-pane-pills:empty {
+    display: none;
+    padding: 0;
+    border-bottom: none;
+}
+
+.rcp-preview-pill {
+    flex: 0 0 auto;
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid #d8d8d8;
+    background: #ffffff;
+    color: #555;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.4;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+}
+
+.rcp-preview-pill:hover {
+    border-color: #d97706;
+    color: #92400e;
+}
+
+.rcp-preview-pill-active {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fde68a;
+}
+
+.rcp-popup[data-focus="preview"] .rcp-preview-pill-active {
+    box-shadow: 0 0 0 2px #d97706;
+}
+
 .rcp-preview-pane-title {
     flex: 0 0 auto;
     padding: 8px 14px;
@@ -1747,6 +1794,24 @@ type: text/css
     .rcp-preview-pane {
         background: #0f172a;
         border-left-color: #374151;
+    }
+    .rcp-preview-pane-pills {
+        background: #0f172a;
+        border-bottom-color: #1f2937;
+    }
+    .rcp-preview-pill {
+        background: #1f2937;
+        color: #9ca3af;
+        border-color: #374151;
+    }
+    .rcp-preview-pill:hover {
+        border-color: #d97706;
+        color: #fde68a;
+    }
+    .rcp-preview-pill-active {
+        background: #422006;
+        color: #fde68a;
+        border-color: #78350f;
     }
     .rcp-preview-pane-title {
         background: #422006;

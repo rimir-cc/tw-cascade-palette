@@ -44,6 +44,14 @@ exports.AXIS_TAG = "$:/tags/rimir/cascade-palette/axis";
 exports.LEADER_TAG = "$:/tags/rimir/cascade-palette/leader";
 exports.PRESET_TAG = "$:/tags/rimir/cascade-palette/preset";
 exports.HELP_TAG = "$:/tags/rimir/cascade-palette/help";
+// Side-preview registration. Tiddlers tagged with this declare an extra
+// preview candidate that auto-attaches whenever the row's resolved context
+// matches `ca-preview-applies` (filter evaluated with `<currentTiddler>`
+// bound to the context). Per-menu `ca-preview-template` on entries/actions
+// still works in parallel — both contribute to the candidate list, and the
+// user navigates between alternatives via ←/→ pills inside the preview
+// pane. See `widgets/cp-side-preview.js` for the resolution algorithm.
+exports.SIDE_PREVIEW_TAG = "$:/tags/rimir/cascade-palette/side-preview";
 
 // ---- Config tiddler titles ----
 exports.SOFT_DEPTH_CONFIG = "$:/config/rimir/cascade-palette/soft-depth-warning";
@@ -88,6 +96,7 @@ exports.HINT_INPUT   = "Tab section · ↓ menu · ↵ fire · Ctrl-↵ fire+sta
 exports.HINT_MENU    = "Tab section · ↑↓ select · → drill · ← back · Space actions/toggle/edit · +/- adjust · ↵ fire · Esc input · hold Ctrl detail";
 exports.HINT_DETAILS = "Tab section · ↑↓ scroll · Esc input · ↵ fire";
 exports.HINT_PREVIEW = "Tab section · ↑↓ scroll · Esc input";
+exports.HINT_PREVIEW_PILLS = "Tab section · ←→ switch preview · ↑↓ scroll · Esc input";
 exports.HINT_FILTER     = "Tab section · ←→ select · DEL remove · Ctrl-DEL clear all · Esc input";
 exports.HINT_VISIBILITY = "Tab section · ←→ select · DEL remove · Ctrl-DEL clear all · Esc input";
 exports.HINT_REACH      = "Tab section · ←→ select · DEL remove · Esc input";

@@ -799,14 +799,39 @@ An entry/action can register a ''side preview'' that opens a right-column pane w
 
 Distinct from the ''detail'' drawer (Ctrl-hold or `details-always-on`): the detail drawer is bound to the currently-selected row and renders templates tagged ''`$:/tags/rimir/cascade-palette/template`''. The side preview is bound to ''what the user is editing'' — pinned at drill-time and kept stable as the user navigates inside.
 
-! Side-preview fields (on the drilling entry/action)
+! Two registration mechanisms (use either, or both)
+
+! ! (a) Per-menu — declare on the entry/action
 
 ;`ca-preview-template`
-:Title of a wikitext tiddler whose body is rendered in the right pane. Required to enable the preview.
+:Title of a wikitext tiddler whose body is rendered in the right pane. Required to enable an explicit candidate.
 ;`ca-preview-context`
 :Filter evaluated at drill-time in the parent stage's substitution scope (`<<picked>>`, `<<parent-picked>>`, `<<query>>`, `<<context-tiddler>>`, etc.). The first result becomes `<<currentTiddler>>` inside the preview template AND is exposed to deeper stages' substitution scope as `<<stage-preview-context>>`. Defaults to `<<picked>>` (the row being drilled into) — typical for actions where `<<picked>>` is the entity being acted upon.
 ;`ca-preview-title`
 :Optional caption shown in the colored title strip above the preview body. Empty value keeps the strip hidden.
+;`ca-preview-name`
+:Optional pill label when multiple candidates are visible at once. Default derived from the template title.
+;`ca-preview-per-row`
+:When `yes`, the active context tracks the currently-selected row's title — live ↑/↓ updates. Used by browse lists.
+
+''Tag-only opt-in.'' If you want the side-preview pane to activate but don't have a specific template in mind, omit `ca-preview-template` and set just `ca-preview-context` (or `ca-preview-per-row: yes`). The pane will populate purely from ''tag-based candidates'' (below) that match the resolved context. Useful for entity-browsing entries that want auto-attached previews.
+
+! ! (b) Tag-based — declare a self-contained template + applicability filter
+
+Any tiddler tagged ''`$:/tags/rimir/cascade-palette/side-preview`'' is a candidate that auto-attaches to the preview pane whenever the active context matches its `ca-preview-applies` filter. The tagged tiddler is BOTH the registration AND (by default) the template body — no separate template tiddler needed.
+
+;`ca-preview-applies`
+:Filter evaluated with `<currentTiddler>` bound to the active context. Returns non-empty → this candidate applies. Empty / missing = always applies (rarely what you want).
+;`ca-preview-template`
+:Optional override pointing at a separate template tiddler. Defaults to the tagged tiddler's own title.
+;`ca-preview-name`
+:Pill label. Default derived from the template title.
+;`ca-preview-title`
+:Optional caption shown in the colored title strip above the body.
+;`ca-preview-order`
+:Sort key among tag candidates. Default `100`. Lower = earlier.
+
+When per-menu and tag-based mechanisms BOTH contribute candidates against the same context, all candidates show as pills in a horizontal row at the top of the pane (per-menu first, then tag candidates by `ca-preview-order`). The active pill is highlighted. ←/→ when focus is on the preview cycles between them (also click). With a single candidate the pill row is suppressed entirely.
 
 ! Worked example — Edit kind's fields with a live form preview
 
