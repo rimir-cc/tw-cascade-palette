@@ -704,7 +704,16 @@ module.exports = function (proto) {
         // Used e.g. by kind to seed a fresh draft with field defaults before
         // the create-fields drill renders. Backward-compatible — drill items
         // without ca-actions behave exactly as before.
-        if (picked && picked.kind === "drill" && picked.actions) {
+        //
+        // Exception: skip when `_actionsFromRowTemplate` is set — the
+        // ca-actions came from a `ca-(view|layer)-row-actions` template
+        // (typically a $action-navigate intended for Enter), NOT from the
+        // row tiddler's own intentional ca-actions. Right-arrow on a tree
+        // container should be purely structural; firing the template's
+        // navigate as a side-effect was a regression introduced when
+        // 0.0.66 added the drill-preflight feature.
+        if (picked && picked.kind === "drill" && picked.actions &&
+            !picked._actionsFromRowTemplate) {
             var preVars = this.buildStageVariables(stage, picked.title || "");
             this.invokeViaNavigator(picked.actions, preVars);
         }

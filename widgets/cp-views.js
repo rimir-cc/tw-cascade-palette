@@ -387,6 +387,16 @@ module.exports = function (proto) {
             }
             var item = self._buildCascadeItem(fieldsObj, title);
             item._layerIdx = layerIdx;
+            // When `ca-actions` was synthesised from this layer's
+            // `ca-(view|layer)-row-actions` template (rather than from
+            // the row's own tiddler), mark it as "fire on Enter only".
+            // drillSelected reads this flag to skip its drill-preflight
+            // action-fire — Right-arrow on a tree container should be
+            // purely structural (descend into children), not fire the
+            // template's $action-navigate as a side-effect.
+            if (layer.rowActions) {
+                item._actionsFromRowTemplate = true;
+            }
             // Entity-type per layer — used by drillSelected to push an
             // action-menu stage on Right-arrow.
             if (layer.rowEntityType) {
