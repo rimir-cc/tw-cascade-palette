@@ -340,6 +340,25 @@ module.exports = function (proto) {
         ));
     };
 
+    // Clear a bound field — used by DEL on a text/leaf row carrying
+    // ca-bind-tiddler + ca-bind-field. Whole-field bindings unset the
+    // field via the action-deletefield idiom (Tiddler constructor drops
+    // keys with `undefined` values); sub-path (bindPath) bindings write
+    // "" into the JSON node since omitting a JSON key isn't always
+    // semantically what the schema expects.
+    proto.clearBoundField = function (item) {
+        if (!item || !item.bindTiddler || !item.bindField) return;
+        if (item.bindPath) {
+            this.writeBoundValue(item, "");
+            return;
+        }
+        var t = this.wiki.getTiddler(item.bindTiddler);
+        if (!t || !(item.bindField in t.fields)) return;
+        var removeFields = {};
+        removeFields[item.bindField] = undefined;
+        this.wiki.addTiddler(new $tw.Tiddler(t, removeFields));
+    };
+
     // An item is "overridden" when its bound tiddler exists in the wiki
     // store AND is also defined as a shadow — meaning the user has saved
     // a real tiddler over the plugin's shadow. Pure shadows (untouched

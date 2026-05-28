@@ -384,6 +384,18 @@ module.exports = function (proto) {
                 this._pushRestoreDefaultConfirm(pickedDel);
                 return;
             }
+            // Bound field row with no shadow source (typical create/edit
+            // flow, e.g. kind's "+ New <kind>" field rows) — DEL clears
+            // the field's value. Cleared = field absent (whole-field
+            // bindings) or "" (sub-path bindings). No confirm — Esc-to-
+            // undo would be nice but TW has no field-level history.
+            if (pickedDel.bindTiddler && pickedDel.bindField && !pickedDel.isItem) {
+                e.preventDefault();
+                this.clearBoundField(pickedDel);
+                this.recomputeStage(stage);
+                this.renderStage();
+                return;
+            }
             if (pickedDel.isItem &&
                 this.wiki.tiddlerExists(pickedDel.title) &&
                 !this.wiki.isShadowTiddler(pickedDel.title)) {

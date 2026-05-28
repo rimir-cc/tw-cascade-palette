@@ -86,7 +86,17 @@ module.exports = function (proto) {
             return;
         }
 
-        // 1. Leaf entry/action item — fire ca-actions.
+        // 1. Pure-display leaf — no `ca-actions`, but `ca-after-fire: keep`
+        //    signals "this row exists to show a message; Enter should be a
+        //    no-op". Used by warning rows (kind's title-collision / constraint-
+        //    violation / title-formula-empty leaves). Without this guard those
+        //    rows fall through to the close-on-fire path at the bottom of
+        //    fireSelected and dismiss the palette, even though they should
+        //    just sit there until the user fixes the underlying problem.
+        if (picked.kind === "leaf" && !picked.actions && picked.afterFire === "keep") {
+            return;
+        }
+        // 2. Leaf entry/action item — fire ca-actions.
         if (picked.kind === "leaf" && picked.actions) {
             // ca-confirm: wrap the leaf's actions in a confirm-drill rather
             // than firing immediately. The confirm stage's Confirm leaf
@@ -148,6 +158,7 @@ module.exports = function (proto) {
             // navigate to "". Bind parent-picked to the picked instance so
             // both paths invoke the action against the same target.
             vars["parent-picked"] = picked.title;
+            vars["keep-open"] = keepOpen ? "yes" : "";
             // 3a. Stage has a default action declared by the parent drill.
             if (stage.stageDefaultAction) {
                 this.afterAction(stage, keepOpen, function () {
@@ -448,6 +459,11 @@ module.exports = function (proto) {
         this.popupEl.classList.remove("rcp-editing");
         this._renderHint();
         this.renderStage();
+        // Edit was entered from the menu (Enter / Space on a text/number/
+        // date row), so return focus there. The row is still selected (we
+        // restored `selectedIndex` above) — arrow keys, DEL, Ctrl-↑/↓,
+        // Enter to re-edit all work immediately without re-grabbing focus.
+        this.setFocus("menu");
     };
 
     /* ---------- post-fire dispatch ---------- */
@@ -460,7 +476,19 @@ module.exports = function (proto) {
         var pickedTitle = stage.kind === "actions"
             ? (stage.parentPicked || "")
             : action.title;
+        // ca-after-fire="keep" forces keep-open regardless of Enter vs
+        // Ctrl-Enter. Used by leaves whose action mutates palette state
+        // (preset apply, view switch) — closing immediately after would
+        // hide the result. Applied before var-build so the action sees
+        // the effective keep-open value.
+        if (action.afterFire === "keep") keepOpen = true;
         var vars = this.buildStageVariables(stage, pickedTitle);
+        // Expose Ctrl-Enter (or ca-after-fire="keep") to action wikitext
+        // as `<<keep-open>>` = "yes" | "". Lets a single save-leaf branch
+        // on "mass-create" vs "single create + navigate" without needing
+        // two distinct rows. The cascade-palette docs the protocol; kind
+        // plugin's save-leaf is the first consumer.
+        vars["keep-open"] = keepOpen ? "yes" : "";
         // ca-after-fire="pop" overrides the default close-on-fire: invoke
         // the action, pop this stage, and keep the palette open on the
         // previous stage. Used by single-select sub-drills (ref / enum
@@ -475,11 +503,6 @@ module.exports = function (proto) {
             }, 0);
             return;
         }
-        // ca-after-fire="keep" forces keep-open regardless of Enter vs
-        // Ctrl-Enter. Used by leaves whose action mutates palette state
-        // (preset apply, view switch) — closing immediately after would
-        // hide the result.
-        if (action.afterFire === "keep") keepOpen = true;
         this.afterAction(stage, keepOpen, function () {
             this.invokeViaNavigator(action.actions, vars);
         });
