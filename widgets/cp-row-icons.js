@@ -78,16 +78,23 @@ module.exports = function (proto) {
             var order = parseFloat(f["ca-row-icon-order"]);
             if (isNaN(order)) order = 100;
             entries.push({
-                title:   titles[i],
-                key:     f["ca-row-icon-key"]     || "",
-                glyph:   f["ca-row-icon-glyph"]   || "•",
-                hint:    f["ca-row-icon-hint"]    || "",
-                applies: f["ca-row-icon-applies"] || "",
-                payload: f["ca-row-icon-payload"] || "",
-                action:  f["ca-row-icon-action"]  || "",
-                message: f["ca-row-icon-message"] || "",
-                primary: (f["ca-row-icon-primary"] || "").toLowerCase() === "yes",
-                order:   order
+                title:      titles[i],
+                key:        f["ca-row-icon-key"]         || "",
+                glyph:      f["ca-row-icon-glyph"]       || "•",
+                hint:       f["ca-row-icon-hint"]        || "",
+                applies:    f["ca-row-icon-applies"]     || "",
+                payload:    f["ca-row-icon-payload"]     || "",
+                action:     f["ca-row-icon-action"]      || "",
+                message:    f["ca-row-icon-message"]     || "",
+                // Optional ''secondary'' action fired by Ctrl-Alt-↵ (in
+                // addition to Alt-↵'s primary action). The shipped `url`
+                // icon uses this to copy the URL to clipboard alongside
+                // its primary "open in new tab" action.
+                altAction:  f["ca-row-icon-alt-action"]  || "",
+                altMessage: f["ca-row-icon-alt-message"] || "",
+                altHint:    f["ca-row-icon-alt-hint"]    || "",
+                primary:    (f["ca-row-icon-primary"] || "").toLowerCase() === "yes",
+                order:      order
             });
         }
         entries.sort(function (a, b) {
@@ -196,14 +203,17 @@ module.exports = function (proto) {
                 continue;
             }
             out.push({
-                key:     def.key,
-                glyph:   def.glyph,
-                hint:    def.hint,
-                payload: payload,
-                action:  def.action,
-                message: def.message,
-                primary: def.primary,
-                source:  def.title
+                key:        def.key,
+                glyph:      def.glyph,
+                hint:       def.hint,
+                payload:    payload,
+                action:     def.action,
+                message:    def.message,
+                altAction:  def.altAction,
+                altMessage: def.altMessage,
+                altHint:    def.altHint,
+                primary:    def.primary,
+                source:     def.title
             });
         }
         return out;
@@ -223,14 +233,34 @@ module.exports = function (proto) {
 
     /* ---------- firing ---------- */
 
-    proto.fireRowIcon = function (item, icon, e) {
+    // Fire a row-icon's action / message. `mode` is:
+    //   "primary" (default) — bound to Alt-↵ and to clicking the glyph
+    //                         (icon.message / icon.action)
+    //   "alt"               — bound to Ctrl-Alt-↵
+    //                         (icon.altMessage / icon.altAction)
+    // The alt mode lets a single icon expose two gestures: e.g. the
+    // shipped URL icon opens the link on Alt-↵ AND copies it to the
+    // clipboard on Ctrl-Alt-↵. Built-in messages currently recognised:
+    //   open-url       → window.open(payload, "_blank", ...)
+    //   copy-payload   → $tw.utils.copyToClipboard(payload, ...)
+    proto.fireRowIcon = function (item, icon, e, mode) {
         if (!icon) return false;
+        var isAlt = mode === "alt";
+        var message = isAlt ? icon.altMessage : icon.message;
+        var action  = isAlt ? icon.altAction  : icon.action;
+        // No gesture wired up for this mode — silent no-op so users
+        // pressing Ctrl-Alt-↵ on a row whose icon only has a primary
+        // action don't see a surprise close / nav.
+        if (!message && !action) return false;
         var fired = false;
-        if (icon.message === "open-url") {
+        if (message === "open-url") {
             this._openUrlInNewTab(icon.payload);
             fired = true;
+        } else if (message === "copy-payload") {
+            this._copyPayloadToClipboard(icon.payload);
+            fired = true;
         }
-        if (icon.action) {
+        if (action) {
             var stage = this.topStage();
             var rowTitle = (item && (item.rawTitle || item.title)) || "";
             var vars = stage
@@ -238,8 +268,9 @@ module.exports = function (proto) {
                 : { "query": "", "picked": "", "parent-picked": "", "context-tiddler": "" };
             vars["payload"] = icon.payload || "";
             vars["row-icon-key"] = icon.key || "";
+            vars["row-icon-mode"] = isAlt ? "alt" : "primary";
             vars["currentTiddler"] = rowTitle;
-            this.invokeViaNavigator(icon.action, vars);
+            this.invokeViaNavigator(action, vars);
             fired = true;
         }
         if (fired && e && typeof e.stopPropagation === "function") {
@@ -268,6 +299,25 @@ module.exports = function (proto) {
         }
     };
 
+    // Delegates to TW core's `$tw.utils.copyToClipboard`, which handles
+    // both the modern Clipboard API and the legacy execCommand fallback
+    // and emits a tm-notify on success/failure (uses TW's standard
+    // notification mechanism).
+    proto._copyPayloadToClipboard = function (text) {
+        if (!text) return;
+        if (!$tw.utils || typeof $tw.utils.copyToClipboard !== "function") {
+            return;
+        }
+        try {
+            $tw.utils.copyToClipboard(String(text));
+        } catch (err) {
+            if (console && console.warn) {
+                console.warn("[cascade-palette] row-icon copy-payload failed —",
+                    err && err.message);
+            }
+        }
+    };
+
     /* ---------- DOM rendering ---------- */
 
     // Appends a footer strip to `rowEl` with one glyph per applicable
@@ -291,9 +341,16 @@ module.exports = function (proto) {
                 btn.className = "rcp-row-icon-glyph";
                 if (icon.primary) btn.classList.add("rcp-row-icon-glyph-primary");
                 btn.textContent = icon.glyph;
-                btn.title = icon.hint
-                    ? icon.hint + " · Alt-↵ or click"
-                    : "Alt-↵ or click";
+                var titleParts = [];
+                if (icon.hint) titleParts.push(icon.hint + " · Alt-↵ or click");
+                else titleParts.push("Alt-↵ or click");
+                if (icon.altMessage || icon.altAction) {
+                    titleParts.push(
+                        (icon.altHint ? icon.altHint : "Secondary action") +
+                            " · Ctrl-Alt-↵"
+                    );
+                }
+                btn.title = titleParts.join("\n");
                 btn.setAttribute("role", "button");
                 btn.setAttribute("tabindex", "-1");
                 btn.addEventListener("mousedown", function (e) {

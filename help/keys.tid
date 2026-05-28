@@ -20,6 +20,8 @@ type: text/vnd.tiddlywiki
 |`←` |Pop one stage |
 |`↵` |Fire selected row |
 |`Ctrl-↵` |Fire + keep palette open |
+|`Alt-↵` |Fire row's primary icon (e.g. 🌐 opens URL in new tab) |
+|`Ctrl-Alt-↵` |Fire row icon's secondary action (e.g. 🌐 copies URL) |
 |`Space` |Toggle / edit / open action menu on row |
 |`Esc` |Pop stage; from root, close |
 |`Shift-Esc` |Close palette outright |

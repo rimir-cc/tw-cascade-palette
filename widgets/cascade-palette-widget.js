@@ -1296,14 +1296,23 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (this.focus === "menu") {
             // Swap in the row-icon hint variant when the selected row has
             // at least one icon resolved, so the Alt-↵ gesture is
-            // discoverable.
+            // discoverable. If the primary icon also declares an alt
+            // gesture (e.g. the shipped url icon's Ctrl-Alt-↵ copy),
+            // surface that one too.
             var stageMenu = this.topStage();
             var pickedMenu = stageMenu && stageMenu.results &&
                 stageMenu.results[stageMenu.selectedIndex];
             var iconsMenu = pickedMenu && pickedMenu._rowIcons;
-            this.hintEl.textContent = (iconsMenu && iconsMenu.length)
-                ? C.HINT_MENU_ROW_ICON
-                : C.HINT_MENU;
+            if (iconsMenu && iconsMenu.length) {
+                var primary = (typeof this.primaryRowIcon === "function")
+                    ? this.primaryRowIcon(pickedMenu) : null;
+                var hasAlt = primary && (primary.altMessage || primary.altAction);
+                this.hintEl.textContent = hasAlt
+                    ? C.HINT_MENU_ROW_ICON_ALT
+                    : C.HINT_MENU_ROW_ICON;
+            } else {
+                this.hintEl.textContent = C.HINT_MENU;
+            }
         }
         else if (this.focus === "details")    this.hintEl.textContent = C.HINT_DETAILS;
         else if (this.focus === "preview")    this.hintEl.textContent =

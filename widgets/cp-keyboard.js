@@ -112,11 +112,14 @@ module.exports = function (proto) {
             this.focus !== "preset" &&
             this.focus !== "reach" && this.focus !== "field") {
             // Alt-Enter — fire the selected row's primary row-icon
-            // (e.g. open external URL in a new tab). Falls through to
-            // the regular fire path when the row has no icons, so users
-            // who hit Alt-↵ on a regular row still get the default
-            // behaviour rather than a silent no-op.
-            if (e.altKey && !e.ctrlKey && !e.shiftKey &&
+            // (e.g. open external URL in a new tab). Ctrl-Alt-Enter
+            // fires the same icon's ''secondary'' action (`alt`
+            // mode): the shipped URL icon copies the URL to the
+            // clipboard. Both gestures fall through to the regular
+            // fire path when the row has no icons, so users who
+            // reflex-press them on a regular row still get the
+            // default behaviour rather than a silent no-op.
+            if (e.altKey && !e.shiftKey &&
                 (this.focus === "input" || this.focus === "menu" ||
                  this.focus === "details")) {
                 var stageAlt = this.topStage();
@@ -125,9 +128,19 @@ module.exports = function (proto) {
                     stageAlt.results[stageAlt.selectedIndex];
                 var iconAlt = pickedAlt && this.primaryRowIcon(pickedAlt);
                 if (iconAlt) {
-                    e.preventDefault();
-                    this.fireRowIcon(pickedAlt, iconAlt, e);
-                    return;
+                    var mode = e.ctrlKey ? "alt" : "primary";
+                    // Silent no-op if the icon has no action for the
+                    // requested mode (e.g. Ctrl-Alt-↵ on an icon that
+                    // only declares a primary action) — better than
+                    // closing the palette unexpectedly.
+                    var hasGesture = mode === "alt"
+                        ? (iconAlt.altMessage || iconAlt.altAction)
+                        : (iconAlt.message || iconAlt.action);
+                    if (hasGesture) {
+                        e.preventDefault();
+                        this.fireRowIcon(pickedAlt, iconAlt, e, mode);
+                        return;
+                    }
                 }
             }
             if (this.focus === "input" && !e.ctrlKey && !e.shiftKey && !e.altKey) {

@@ -68,5 +68,8 @@ type: text/vnd.tiddlywiki
 ;Why doesn't Shift-↵ open the URL like in some other tools?
 :Shift-↵ is already taken by cascade-palette as a silent back-compat alias for ''fire-and-keep-open'' (it's been bound that way since pre-0.0.50). Re-purposing it would break muscle memory for users who rely on it. ''Alt-↵'' is unused and maps mentally to "alternate action on this row" — that's the row-icon gesture. Single-icon rows fire that icon; multi-icon rows fire the `ca-row-icon-primary: yes` one (or the first applicable in display order). Clicking a specific glyph fires just that one.
 
+;How do I copy a URL to the clipboard from a search result?
+:''Ctrl-Alt-↵'' on a row with the 🌐 glyph. The shipped URL icon declares `ca-row-icon-alt-message: copy-payload`, which invokes `$tw.utils.copyToClipboard(url)` — TW core's clipboard helper (modern Clipboard API + execCommand fallback) — and emits a tm-notify so you see a brief confirmation. Author your own icons with secondary gestures via `ca-row-icon-alt-message` / `ca-row-icon-alt-action` / `ca-row-icon-alt-hint`. The footer hint switches to surface ''Ctrl-Alt-↵ copy'' whenever the focused row's primary icon has an alt action wired up.
+
 ;What's coming in future versions?
 :The next milestone is ''context-driven actions'' — actions that operate on the entity currently selected in the running orga app (no need to re-pick). Also ''form stages'' for multi-field input (e.g. ''New Project'' with name + description + due-date inline). And eventually a builder UI so users can author action tiddlers without editing wikitext.

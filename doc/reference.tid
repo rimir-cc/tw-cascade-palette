@@ -24,6 +24,7 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''Enter'' |input / menu / details |Fire the selected item and close the palette. ''Exception:'' in input focus, if the current text matches a known filter or visibility prefix with a non-empty argument, Enter commits that pill instead. |
 |''Ctrl-Enter'' |any |Fire the selected item but keep the palette open. Shift-Enter is a silent alias for back-compat (removed in v0.3). |
 |''Alt-Enter'' |input / menu / details |Fire the selected row's ''primary row-icon'' (e.g. the 🌐 glyph opens an external URL in a new tab). No-op when the row has no icons resolved. |
+|''Ctrl-Alt-Enter'' |input / menu / details |Fire the row's primary icon's ''secondary'' action — e.g. the 🌐 glyph copies the URL to the clipboard. No-op when the icon declares no `ca-row-icon-alt-*` gesture. |
 |''Ctrl-DEL / Ctrl-Backspace'' |any |Clear ''both'' constraint strips (filters + visibility) AND the active-preset marker in one step. |
 |''Esc'' |input |Pop one stage (back). At root depth (nothing to pop), closes the palette. |
 |''Shift-Esc'' |any |Close the palette directly from any focus and any depth, in one keystroke. |
@@ -213,7 +214,10 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-row-icon-applies` |filter |row-icon |Per-row applicability — `<currentTiddler>` is the row's tiddler title; non-empty result = icon shows. Ignored for the built-in `ca-row-icon-key: url`. |
 |`ca-row-icon-payload` |filter |row-icon |Optional per-row filter producing a value bound to `<<payload>>` when the icon fires. First result wins. The `url` key sets payload from the URL_FIELDS scan automatically. |
 |`ca-row-icon-action` |wikitext |row-icon |Fired on Alt-↵ / click with `<<payload>>` + `<<row-icon-key>>` + standard stage variables. |
-|`ca-row-icon-message` |string |row-icon |Built-in JS dispatch key. Currently recognised: `open-url` — opens `<<payload>>` in a new browser tab. May coexist with `ca-row-icon-action` (both fire). |
+|`ca-row-icon-message` |string |row-icon |Built-in JS dispatch key. Currently recognised: `open-url` — opens `<<payload>>` in a new browser tab; `copy-payload` — copies `<<payload>>` to the clipboard via `$tw.utils.copyToClipboard`. May coexist with `ca-row-icon-action` (both fire). |
+|`ca-row-icon-alt-action` |wikitext |row-icon |Optional ''secondary'' action fired by Ctrl-Alt-↵ on the row (in addition to Alt-↵'s primary action). Same variables: `<<payload>>` + `<<row-icon-key>>` + `<<row-icon-mode>>` (= `"alt"` when fired via Ctrl-Alt-↵) + standard stage vars. |
+|`ca-row-icon-alt-message` |string |row-icon |Built-in JS dispatch key for the secondary gesture. Same vocabulary as `ca-row-icon-message`. The shipped 🌐 icon uses `copy-payload` here to put the URL on the clipboard. |
+|`ca-row-icon-alt-hint` |string |row-icon |Tooltip text for the secondary gesture. Shown on hover beneath the primary hint, suffixed with `· Ctrl-Alt-↵`. |
 |`ca-row-icon-primary` |`yes`\|empty |row-icon |When `yes`, this icon is the Alt-↵ target on rows where multiple icons apply. First-seen wins ties; if no icon is `primary`, the first applicable icon (by `ca-row-icon-order`) wins. |
 |`ca-row-icon-order` |number |row-icon |Display order in the strip (lower first, default `100`). |
 |`ca-view-sort` |`alphabetical`\|`natural`\|`by-field`\|`custom` |view |Row sort policy; default `alphabetical` |

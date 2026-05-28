@@ -888,7 +888,12 @@ A row-icon is a small glyph rendered in a footer strip below the main line of an
 
 The plugin ships ''`row-icons/url.tid`'' (key `url`) that surfaces a ''🌐'' glyph on any row whose backing tiddler carries a URL value in one of the configured fields. The scanned field list lives at ''`$:/config/rimir/cascade-palette/url-fields`'' — default `url`, space-separated for multiple (e.g. `url website homepage`). The first field whose value matches ''`/^(?:https?|ftp|ftps|mailto|tel):/i`'' wins; trailing whitespace is trimmed.
 
-''Alt-↵'' on a row with the 🌐 glyph (or clicking the glyph directly) opens the URL in a new browser tab — `window.open(url, "_blank", "noopener,noreferrer")`. The row's normal Enter / Ctrl-Enter behaviour is unchanged.
+Two gestures on the same row:
+
+* ''Alt-↵'' (or click the glyph) opens the URL in a new browser tab — `window.open(url, "_blank", "noopener,noreferrer")`.
+* ''Ctrl-Alt-↵'' copies the URL to the clipboard via `$tw.utils.copyToClipboard(url)` (TW core helper — handles both the modern Clipboard API and the legacy `execCommand` fallback, emits a tm-notify on success / failure).
+
+The row's normal Enter / Ctrl-Enter behaviour is unchanged.
 
 ! ! Author your own
 
@@ -907,7 +912,13 @@ Tag a tiddler with `$:/tags/rimir/cascade-palette/row-icon` and declare:
 ;`ca-row-icon-action`
 :Optional wikitext actions. Fired with `<<payload>>` + `<<row-icon-key>>` + the standard stage variables (`<<picked>>`, `<<parent-picked>>`, `<<currentTiddler>>` bound to the row).
 ;`ca-row-icon-message`
-:Optional built-in JS dispatch key. Currently recognised: `open-url` — opens `<<payload>>` in a new browser tab. May coexist with `ca-row-icon-action` (both fire).
+:Optional built-in JS dispatch key for the ''primary'' gesture (Alt-↵ / click). Currently recognised: `open-url` (`window.open(payload, "_blank", "noopener,noreferrer")`), `copy-payload` (`$tw.utils.copyToClipboard(payload)`). May coexist with `ca-row-icon-action` (both fire).
+;`ca-row-icon-alt-action`
+:Optional wikitext actions fired by the ''secondary'' gesture — ''Ctrl-Alt-↵'' on the row. Receives the same variables as `ca-row-icon-action` plus `<<row-icon-mode>>: "alt"` (so a single action can branch on which gesture fired it).
+;`ca-row-icon-alt-message`
+:Optional built-in JS dispatch key for the secondary gesture. Same vocabulary as `ca-row-icon-message`. The shipped 🌐 icon uses `copy-payload` here to put the URL on the clipboard.
+;`ca-row-icon-alt-hint`
+:Tooltip text for the secondary gesture. Shown on a second line of the glyph's hover tooltip suffixed with `· Ctrl-Alt-↵`.
 ;`ca-row-icon-primary`
 :`yes` = preferred target for the row-level ''Alt-↵'' keyboard gesture when multiple icons apply. If no icon is `primary`, the first applicable icon (by `ca-row-icon-order`) wins.
 ;`ca-row-icon-order`
