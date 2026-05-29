@@ -53,15 +53,12 @@ module.exports = function (proto) {
         }
         if (!stage.filter) return [];
         var variables = this.buildStageVariables(stage, null);
-        // Active filter pills contribute additional filter runs that
-        // intersect with the stage's own filter. Concatenating
-        // `+[...]+[...]` after the base filter narrows results without
-        // disturbing the stage's own logic; empty suffix means no filters
-        // active.
-        var fullFilter = stage.filter + this._composeFilterSuffix();
+        // Active filter pills are applied via the shared helper so virtual
+        // menu entries are exempted from narrowing. When no pills are
+        // active the helper falls through to a plain `_filterInScope`.
         var titles;
         try {
-            titles = this._filterInScope(fullFilter, variables);
+            titles = this._applyFilterSuffix(stage.filter, variables);
         } catch (err) {
             if (console && console.error) {
                 console.error(

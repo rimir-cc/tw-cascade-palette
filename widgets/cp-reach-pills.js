@@ -142,35 +142,14 @@ module.exports = function (proto) {
         if (!this.reachPills.length) return;
         var item = this.reachPills[this.reachFocusIdx];
         if (!item) return;
-        while (this.detailEl.firstChild) {
-            this.detailEl.removeChild(this.detailEl.firstChild);
-        }
-        var titleEl = this.document.createElement("div");
-        titleEl.className = "rcp-detail-title";
-        titleEl.textContent = item.name;
-        this.detailEl.appendChild(titleEl);
-
-        var helpEl = this.document.createElement("div");
-        helpEl.className = "rcp-details-help";
-        helpEl.textContent = item.help || item.hint || item.name;
-        this.detailEl.appendChild(helpEl);
-
-        var rows = [
-            ["Mode", item.mode || "—"],
-            ["Tiddler", item.constraintTiddler]
-        ];
-        var dl = this.document.createElement("dl");
-        dl.className = "rcp-detail-fields";
-        rows.forEach(function (row) {
-            var dt = this.document.createElement("dt");
-            dt.textContent = row[0];
-            var dd = this.document.createElement("dd");
-            dd.textContent = row[1];
-            dl.appendChild(dt);
-            dl.appendChild(dd);
-        }, this);
-        this.detailEl.appendChild(dl);
-        this.popupEl.classList.add("rcp-showing-detail");
+        pillstrip.renderConstraintHelp(this, {
+            title: item.name,
+            help:  item.help || item.hint || item.name,
+            rows: [
+                ["Mode", item.mode || "—"],
+                ["Tiddler", item.constraintTiddler]
+            ]
+        });
     };
 
     // Active reach mode — read from the (at most one) currently-pushed

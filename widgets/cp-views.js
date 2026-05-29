@@ -41,6 +41,7 @@ type.
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
 var cpAxes = require("$:/plugins/rimir/cascade-palette/widgets/cp-axes");
 var utils = require("$:/plugins/rimir/cascade-palette/widgets/cp-utils");
+var pillstrip = require("$:/plugins/rimir/cascade-palette/widgets/cp-pillstrip");
 var VIEW_TAG = C.VIEW_TAG;
 var STRUCTURE_LAYER_TAG = C.STRUCTURE_LAYER_TAG;
 var ENTRY_TAG = C.ENTRY_TAG;
@@ -388,8 +389,8 @@ function setup(proto) {
             candidates = [];
             if (filterExpr) {
                 try {
-                    candidates = this._filterInScope(
-                        filterExpr + this._composeFilterSuffix(),
+                    candidates = this._applyFilterSuffix(
+                        filterExpr,
                         rootsVars
                     );
                 } catch (err) {
@@ -464,7 +465,14 @@ function setup(proto) {
                 !item.nextScope && !item.itemsFrom) {
                 item._treeContainer = true;
                 item._treeParent = title;
-                item._childCount = self._childCountForLayer(layer, title);
+                // Child count is only computed when the view opted-in via
+                // `ca-view-show-count` AND no filters are active. With
+                // filters active the bucket's mere existence is the
+                // "drillable" signal — see cp-axes.js comment. This skip
+                // keeps filtered renders O(rows) instead of O(rows × children).
+                if (view.showCount && !self.filters.length) {
+                    item._childCount = self._childCountForLayer(layer, title);
+                }
             }
             rows.push(item);
         });
@@ -554,22 +562,29 @@ function setup(proto) {
             } catch (err) { return true; }
         }
         if (!layer.children) return true;
+        // Filter pills narrow the child set first (so a node with children
+        // that all fail the active filter renders as a leaf). Visibility is
+        // a per-row predicate so we still have to walk until the first
+        // visible match — but the suffix-narrowed result is usually short.
         try {
-            var children = this._filterInScope(
+            var children = this._applyFilterSuffix(
                 layer.children,
                 { currentTiddler: candidateTitle }
             );
-            var self = this;
-            return children.filter(function (t) {
-                return self.isEntryVisible(t);
-            }).length === 0;
+            for (var i = 0; i < children.length; i++) {
+                if (this.isEntryVisible(children[i])) return false;
+            }
+            return true;
         } catch (err) { return true; }
     };
 
     proto._childCountForLayer = function (layer, parentTitle) {
         if (!layer.children) return 0;
         try {
-            var r = this._filterInScope(layer.children, { currentTiddler: parentTitle });
+            var r = this._applyFilterSuffix(
+                layer.children,
+                { currentTiddler: parentTitle }
+            );
             var self = this;
             return r.filter(function (t) {
                 return self.isEntryVisible(t);
@@ -991,17 +1006,11 @@ function setup(proto) {
 
     proto._maybeRenderViewConfigHelp = function () {
         if (this.focus !== "viewconfig") return;
-        if (!this.detailEl) return;
-        while (this.detailEl.firstChild) {
-            this.detailEl.removeChild(this.detailEl.firstChild);
-        }
         var view = this._getViewByTitle(this.activeView);
         if (!view) return;
-        var titleEl = this.document.createElement("div");
-        titleEl.className = "rcp-detail-title";
-        var helpText, fields = [];
+        var title, helpText, fields = [];
         if (!this.viewConfigExpanded) {
-            titleEl.textContent = "Structure — " + view.name;
+            title = "Structure — " + view.name;
             helpText = "Structure of the active view. Press ↵, Space, or → " +
                 "to expand and inspect each layer's filters individually. " +
                 "Each layer contributes rows to the menu via its own " +
@@ -1016,31 +1025,17 @@ function setup(proto) {
             var entry = (this._viewConfigPillList || [])[this.viewConfigFocusIdx];
             if (!entry) return;
             var pill = entry.pill;
-            titleEl.textContent = (pill._layerName ? pill._layerName + " · " : "") +
-                pill.label;
+            title = (pill._layerName ? pill._layerName + " · " : "") + pill.label;
             helpText = this._viewConfigPillHelp(pill);
             fields.push(["Kind", pill.kind]);
             if (pill.value) fields.push(["Value", pill.value]);
             if (pill._layerName) fields.push(["Layer", pill._layerName]);
         }
-        this.detailEl.appendChild(titleEl);
-        var helpEl = this.document.createElement("div");
-        helpEl.className = "rcp-details-help";
-        helpEl.textContent = helpText;
-        this.detailEl.appendChild(helpEl);
-        var dl = this.document.createElement("dl");
-        dl.className = "rcp-detail-fields";
-        var doc = this.document;
-        fields.forEach(function (row) {
-            var dt = doc.createElement("dt");
-            dt.textContent = row[0];
-            var dd = doc.createElement("dd");
-            dd.textContent = row[1];
-            dl.appendChild(dt);
-            dl.appendChild(dd);
+        pillstrip.renderConstraintHelp(this, {
+            title: title,
+            help:  helpText,
+            rows:  fields
         });
-        this.detailEl.appendChild(dl);
-        if (this.popupEl) this.popupEl.classList.add("rcp-showing-detail");
     };
 
     // Per-pill-kind help text. Pills carrying a pre-baked `help` field
@@ -1390,18 +1385,6 @@ function setup(proto) {
         var visible = this._visibleViews();
         var view = visible[this.viewFocusIdx];
         if (!view) return;
-        while (this.detailEl.firstChild) {
-            this.detailEl.removeChild(this.detailEl.firstChild);
-        }
-        var titleEl = this.document.createElement("div");
-        titleEl.className = "rcp-detail-title";
-        titleEl.textContent = view.name +
-            (view.title === this.activeView ? " (active)" : "");
-        this.detailEl.appendChild(titleEl);
-        var helpEl = this.document.createElement("div");
-        helpEl.className = "rcp-details-help";
-        helpEl.textContent = view.hint || view.name;
-        this.detailEl.appendChild(helpEl);
         var rows = [];
         rows.push(["Layers", view.layers.map(function (l) {
             return l.name || (l.isImplicit ? "(implicit)" : l.title);
@@ -1414,18 +1397,11 @@ function setup(proto) {
         }
         rows.push(["Include entries", view.includeEntries]);
         rows.push(["View tiddler", view.title]);
-        var dl = this.document.createElement("dl");
-        dl.className = "rcp-detail-fields";
-        rows.forEach(function (row) {
-            var dt = this.document.createElement("dt");
-            dt.textContent = row[0];
-            var dd = this.document.createElement("dd");
-            dd.textContent = row[1];
-            dl.appendChild(dt);
-            dl.appendChild(dd);
-        }, this);
-        this.detailEl.appendChild(dl);
-        this.popupEl.classList.add("rcp-showing-detail");
+        pillstrip.renderConstraintHelp(this, {
+            title: view.name + (view.title === this.activeView ? " (active)" : ""),
+            help:  view.hint || view.name,
+            rows:  rows
+        });
     };
 
     proto._setActiveView = function (viewTitle) {

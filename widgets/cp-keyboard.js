@@ -205,10 +205,8 @@ module.exports = function (proto) {
                 }
             }
             e.preventDefault();
-            // Ctrl-Enter keeps palette open after firing. Shift-Enter kept
-            // as a silent alias for back-compat (deprecated; remove in
-            // v0.3).
-            this.fireSelected(e.ctrlKey || e.shiftKey);
+            // Ctrl-Enter keeps palette open after firing.
+            this.fireSelected(e.ctrlKey);
             return;
         }
 

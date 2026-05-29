@@ -31,6 +31,7 @@ rendered when a pill is focused or a leader is pending), composable
 "use strict";
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
+var pillstrip = require("$:/plugins/rimir/cascade-palette/widgets/cp-pillstrip");
 var LEADER_TAG = C.LEADER_TAG;
 var DEFAULT_LEADER_IDLE_MS = C.DEFAULT_LEADER_IDLE_MS;
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
@@ -159,18 +160,7 @@ module.exports = function (proto) {
     // typed-gesture pending state and the pill-row focus state — same
     // payload either way (the leader IS the thing being previewed).
     proto._renderLeaderHelp = function (leader) {
-        if (!leader || !this.detailEl) return;
-        while (this.detailEl.firstChild) {
-            this.detailEl.removeChild(this.detailEl.firstChild);
-        }
-        var titleEl = this.document.createElement("div");
-        titleEl.className = "rcp-detail-title";
-        titleEl.textContent = leader.name + " (leader " + leader.key + ")";
-        this.detailEl.appendChild(titleEl);
-        var helpEl = this.document.createElement("div");
-        helpEl.className = "rcp-details-help";
-        helpEl.textContent = leader.help || leader.hint || leader.name;
-        this.detailEl.appendChild(helpEl);
+        if (!leader) return;
         var rows = [
             ["Key", leader.key],
             ["Idle", leader.idleMs + "ms"]
@@ -178,18 +168,11 @@ module.exports = function (proto) {
         if (leader.viewsFilter) rows.push(["Views", leader.viewsFilter]);
         if (leader.actions) rows.push(["Actions", leader.actions]);
         rows.push(["Leader tiddler", leader.title]);
-        var dl = this.document.createElement("dl");
-        dl.className = "rcp-detail-fields";
-        rows.forEach(function (row) {
-            var dt = this.document.createElement("dt");
-            dt.textContent = row[0];
-            var dd = this.document.createElement("dd");
-            dd.textContent = row[1];
-            dl.appendChild(dt);
-            dl.appendChild(dd);
-        }, this);
-        this.detailEl.appendChild(dl);
-        this.popupEl.classList.add("rcp-showing-detail");
+        pillstrip.renderConstraintHelp(this, {
+            title: leader.name + " (leader " + leader.key + ")",
+            help:  leader.help || leader.hint || leader.name,
+            rows:  rows
+        });
     };
 
     // Render the leader pill strip. One pill per visible leader, label

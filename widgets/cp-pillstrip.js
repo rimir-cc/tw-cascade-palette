@@ -88,4 +88,43 @@ function renderPillStripSection(descriptor) {
     });
 }
 
+// Shared help-pane renderer for every pill strip (filter, visibility,
+// reach, field, view, viewconfig, preset, leader). Each caller computes
+// the title / help text / fields array from its own pill object and
+// delegates the DOM work here. Pass `help: ""` to skip the help div;
+// pass an empty `rows` array to skip the <dl>.
+function renderConstraintHelp(widget, opts) {
+    if (!widget.detailEl) return;
+    while (widget.detailEl.firstChild) {
+        widget.detailEl.removeChild(widget.detailEl.firstChild);
+    }
+    var doc = widget.document;
+    var titleEl = doc.createElement("div");
+    titleEl.className = "rcp-detail-title";
+    titleEl.textContent = opts.title || "";
+    widget.detailEl.appendChild(titleEl);
+    if (opts.help) {
+        var helpEl = doc.createElement("div");
+        helpEl.className = "rcp-details-help";
+        helpEl.textContent = opts.help;
+        widget.detailEl.appendChild(helpEl);
+    }
+    var rows = opts.rows || [];
+    if (rows.length) {
+        var dl = doc.createElement("dl");
+        dl.className = "rcp-detail-fields";
+        rows.forEach(function (row) {
+            var dt = doc.createElement("dt");
+            dt.textContent = row[0];
+            var dd = doc.createElement("dd");
+            dd.textContent = row[1];
+            dl.appendChild(dt);
+            dl.appendChild(dd);
+        });
+        widget.detailEl.appendChild(dl);
+    }
+    if (widget.popupEl) widget.popupEl.classList.add("rcp-showing-detail");
+}
+
 exports.renderPillStripSection = renderPillStripSection;
+exports.renderConstraintHelp = renderConstraintHelp;

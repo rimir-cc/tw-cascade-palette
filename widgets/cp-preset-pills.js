@@ -19,6 +19,7 @@ reordering — pills stay in the same visual position across sessions.
 "use strict";
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
+var pillstrip = require("$:/plugins/rimir/cascade-palette/widgets/cp-pillstrip");
 var PRESET_TAG = C.PRESET_TAG;
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 
@@ -150,35 +151,15 @@ module.exports = function (proto) {
         // Plus pill — last navigable index. Show save-help instead of
         // per-preset metadata.
         if (this.presetFocusIdx === pills.length) {
-            while (this.detailEl.firstChild) {
-                this.detailEl.removeChild(this.detailEl.firstChild);
-            }
-            var ptitleEl = this.document.createElement("div");
-            ptitleEl.className = "rcp-detail-title";
-            ptitleEl.textContent = "Save preset as…";
-            this.detailEl.appendChild(ptitleEl);
-            var phelpEl = this.document.createElement("div");
-            phelpEl.className = "rcp-details-help";
-            phelpEl.textContent = "Capture the current state (view + filters + visibility) as a new preset. Press Enter to open the name prompt; type a name, Enter to commit, Esc to cancel.";
-            this.detailEl.appendChild(phelpEl);
-            this.popupEl.classList.add("rcp-showing-detail");
+            pillstrip.renderConstraintHelp(this, {
+                title: "Save preset as…",
+                help:  "Capture the current state (view + filters + visibility) as a new preset. Press Enter to open the name prompt; type a name, Enter to commit, Esc to cancel.",
+                rows:  []
+            });
             return;
         }
         var preset = pills[this.presetFocusIdx];
         if (!preset) return;
-        while (this.detailEl.firstChild) {
-            this.detailEl.removeChild(this.detailEl.firstChild);
-        }
-        var titleEl = this.document.createElement("div");
-        titleEl.className = "rcp-detail-title";
-        titleEl.textContent = preset.name;
-        this.detailEl.appendChild(titleEl);
-        if (preset.hint) {
-            var helpEl = this.document.createElement("div");
-            helpEl.className = "rcp-details-help";
-            helpEl.textContent = preset.hint;
-            this.detailEl.appendChild(helpEl);
-        }
         var rows = [];
         // View name (resolved from the cached views table) — fall back
         // to the raw title if the view was uninstalled.
@@ -209,18 +190,11 @@ module.exports = function (proto) {
         rows.push(["Filters", describe(filtersList, this._loadFilterTiddlers())]);
         rows.push(["Visibility", describe(visList, this._loadVisibilityTiddlers())]);
         rows.push(["Preset tiddler", preset.title]);
-        var dl = this.document.createElement("dl");
-        dl.className = "rcp-detail-fields";
-        rows.forEach(function (row) {
-            var dt = this.document.createElement("dt");
-            dt.textContent = row[0];
-            var dd = this.document.createElement("dd");
-            dd.textContent = row[1];
-            dl.appendChild(dt);
-            dl.appendChild(dd);
-        }, this);
-        this.detailEl.appendChild(dl);
-        this.popupEl.classList.add("rcp-showing-detail");
+        pillstrip.renderConstraintHelp(this, {
+            title: preset.name,
+            help:  preset.hint || "",
+            rows:  rows
+        });
     };
 
     // Number of NAVIGABLE pills in the preset strip = real presets + the

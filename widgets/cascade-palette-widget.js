@@ -130,8 +130,10 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // Active filters (data-narrowing constraints) — array of filter-
         // instance records. Persists within session across palette close/
         // reopen. Cleared by Ctrl-DEL (which clears both strips) or by
-        // the "Reset filters" leader. Filter expressions fold into
-        // evaluateFilterStage via _composeFilterSuffix.
+        // the "Reset filters" leader. Filter pills apply globally across
+        // every producer via `_applyFilterSuffix` (cp-filters.js), which
+        // exempts virtual menu entries (tag[ENTRY_TAG]) from narrowing
+        // by default — to filter virtual entries, use the input query.
         this.filters = [];
         this.filterFocusIdx = 0;
         // Active visibility rules (structural hiding constraints) — array
@@ -526,100 +528,29 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             }
         });
 
-        // Filter strip — click on background focuses; pill click focuses
-        // + selects (per-pill handler in _renderFilterStrip).
-        this.filterStripEl.addEventListener("mousedown", function (e) {
-            if (e.target === self.filterStripEl) self.setFocus("filter");
-        });
-        this.filterStripEl.addEventListener("focus", function () {
-            if (self.focus !== "filter") {
-                self.focus = "filter";
-                self._applyFocusAttr();
-            }
-        });
-
-        // Visibility strip — same shape.
-        this.visibilityStripEl.addEventListener("mousedown", function (e) {
-            if (e.target === self.visibilityStripEl) self.setFocus("visibility");
-        });
-        this.visibilityStripEl.addEventListener("focus", function () {
-            if (self.focus !== "visibility") {
-                self.focus = "visibility";
-                self._applyFocusAttr();
-            }
-        });
-
-        // Reach strip — same shape as the constraint strips.
-        this.reachStripEl.addEventListener("mousedown", function (e) {
-            if (e.target === self.reachStripEl) self.setFocus("reach");
-        });
-        this.reachStripEl.addEventListener("focus", function () {
-            if (self.focus !== "reach") {
-                self.focus = "reach";
-                self._applyFocusAttr();
-            }
-        });
-
-        // Field strip — same shape as the constraint strips.
-        this.fieldStripEl.addEventListener("mousedown", function (e) {
-            if (e.target === self.fieldStripEl) self.setFocus("field");
-        });
-        this.fieldStripEl.addEventListener("focus", function () {
-            if (self.focus !== "field") {
-                self.focus = "field";
-                self._applyFocusAttr();
-            }
-        });
-
-        // View strip — same shape as the constraint strips. Background
-        // click focuses; pill click activates that view (handled per-pill
-        // in _renderViewStrip).
-        this.viewStripEl.addEventListener("mousedown", function (e) {
-            if (e.target === self.viewStripEl) self.setFocus("view");
-        });
-        this.viewStripEl.addEventListener("focus", function () {
-            if (self.focus !== "view") {
-                self.focus = "view";
-                self._applyFocusAttr();
-            }
-        });
-
-        // Preset strip — background click focuses; pill click applies
-        // that preset (handled per-pill in _renderPresetStrip).
-        this.presetStripEl.addEventListener("mousedown", function (e) {
-            if (e.target === self.presetStripEl) self.setFocus("preset");
-        });
-        this.presetStripEl.addEventListener("focus", function () {
-            if (self.focus !== "preset") {
-                self.focus = "preset";
-                self._applyFocusAttr();
-            }
-        });
-
-        // View-config strip — background click focuses (entering compact
-        // mode); pill click in expanded mode focuses that pill.
-        this.viewConfigStripEl.addEventListener("mousedown", function (e) {
-            if (e.target === self.viewConfigStripEl) self.setFocus("viewconfig");
-        });
-        this.viewConfigStripEl.addEventListener("focus", function () {
-            if (self.focus !== "viewconfig") {
-                self.focus = "viewconfig";
-                self._applyFocusAttr();
-            }
-        });
-
-        // Leader strip — same shape as the other pill strips. Background
-        // click focuses; pill click fires that leader (handled per-pill
-        // in _renderLeaderStrip).
-        this.leaderStripEl.addEventListener("mousedown", function (e) {
-            if (e.target === self.leaderStripEl) self.setFocus("leader");
-        });
-        this.leaderStripEl.addEventListener("focus", function () {
-            if (self.focus !== "leader") {
-                self.focus = "leader";
-                self._applyFocusAttr();
-            }
-        });
+        // Pill strips share identical focus-wiring: background-only
+        // mousedown to take focus (per-pill clicks are wired in each
+        // strip's _render*Strip method) + focus listener that mirrors
+        // the DOM focus into this.focus.
+        function wireStripFocus(stripEl, name) {
+            stripEl.addEventListener("mousedown", function (e) {
+                if (e.target === stripEl) self.setFocus(name);
+            });
+            stripEl.addEventListener("focus", function () {
+                if (self.focus !== name) {
+                    self.focus = name;
+                    self._applyFocusAttr();
+                }
+            });
+        }
+        wireStripFocus(this.filterStripEl, "filter");
+        wireStripFocus(this.visibilityStripEl, "visibility");
+        wireStripFocus(this.reachStripEl, "reach");
+        wireStripFocus(this.fieldStripEl, "field");
+        wireStripFocus(this.viewStripEl, "view");
+        wireStripFocus(this.presetStripEl, "preset");
+        wireStripFocus(this.viewConfigStripEl, "viewconfig");
+        wireStripFocus(this.leaderStripEl, "leader");
 
         this.backdropEl.addEventListener("mousedown", function (e) {
             if (e.target === self.backdropEl) self.close();
@@ -666,85 +597,59 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                         self._refreshSidePreviewOnChange(changes);
                     }
                 }
-                // If any side-preview-tagged tiddler was created/modified/
-                // deleted, the candidate list may differ — drop the
-                // tagged-previews cache so the next render re-scans.
-                // Cheap probe: check cached candidates' source titles,
-                // and any changed tiddler that currently carries the tag.
-                if (self._taggedPreviewsCache) {
-                    var taggedDirty = false;
-                    var cachedEntries = self._taggedPreviewsCache.entries || [];
-                    for (var ti = 0; ti < cachedEntries.length && !taggedDirty; ti++) {
-                        if (changes[cachedEntries[ti].source]) taggedDirty = true;
+                // Shared dirty-probe for tag-keyed caches. A cache is
+                // dirty if any of: (a) one of its tracked config keys
+                // changed, (b) one of its cached titles changed (covers
+                // edit + delete), (c) any newly-changed tiddler carries
+                // the cache's tag (covers create + retag).
+                function isTaggedChange(opts) {
+                    var configKeys = opts.configKeys || [];
+                    for (var i = 0; i < configKeys.length; i++) {
+                        if (changes[configKeys[i]]) return true;
                     }
-                    if (!taggedDirty) {
-                        Object.keys(changes).forEach(function (title) {
-                            if (taggedDirty) return;
-                            var t = self.wiki.getTiddler(title);
+                    var titles = opts.cachedTitles || [];
+                    for (var j = 0; j < titles.length; j++) {
+                        if (changes[titles[j]]) return true;
+                    }
+                    if (opts.tag) {
+                        var keys = Object.keys(changes);
+                        for (var k = 0; k < keys.length; k++) {
+                            var t = self.wiki.getTiddler(keys[k]);
                             var tags = (t && t.fields && t.fields.tags) || [];
-                            if (tags.indexOf(C.SIDE_PREVIEW_TAG) >= 0) {
-                                taggedDirty = true;
-                            }
-                        });
+                            if (tags.indexOf(opts.tag) >= 0) return true;
+                        }
                     }
-                    if (taggedDirty) {
+                    return false;
+                }
+                // Tagged side-preview candidates — drop the cache so the
+                // next render re-scans.
+                if (self._taggedPreviewsCache) {
+                    var taggedTitles = (self._taggedPreviewsCache.entries || [])
+                        .map(function (e) { return e.source; });
+                    if (isTaggedChange({ tag: C.SIDE_PREVIEW_TAG, cachedTitles: taggedTitles })) {
                         self._taggedPreviewsCache = null;
                         self._invalidateSidePreviewCache();
                     }
                 }
-                // Same hook for row-icon tiddlers + the URL-fields config:
-                // any change to a row-icon-tagged tiddler (created /
-                // modified / deleted) or the URL_FIELDS_CONFIG list
-                // requires the per-item icon list to be recomputed on the
-                // next render. The cache is rebuilt lazily on first
-                // touch — we just drop it here.
+                // Row-icon tiddlers + the URL-fields config. The cache is
+                // rebuilt lazily on first touch — we just drop it here.
                 if (self._rowIconsCache || changes[C.URL_FIELDS_CONFIG]) {
-                    var rowIconDirty = !!changes[C.URL_FIELDS_CONFIG];
-                    var cachedRowIcons = (self._rowIconsCache &&
-                        self._rowIconsCache.entries) || [];
-                    for (var ri = 0; ri < cachedRowIcons.length && !rowIconDirty; ri++) {
-                        if (changes[cachedRowIcons[ri].title]) rowIconDirty = true;
+                    var iconTitles = ((self._rowIconsCache && self._rowIconsCache.entries) || [])
+                        .map(function (e) { return e.title; });
+                    if (isTaggedChange({
+                        tag:         C.ROW_ICON_TAG,
+                        cachedTitles: iconTitles,
+                        configKeys:  [C.URL_FIELDS_CONFIG]
+                    })) {
+                        self._invalidateRowIconsCache();
                     }
-                    if (!rowIconDirty) {
-                        Object.keys(changes).forEach(function (title) {
-                            if (rowIconDirty) return;
-                            var t = self.wiki.getTiddler(title);
-                            var tags = (t && t.fields && t.fields.tags) || [];
-                            if (tags.indexOf(C.ROW_ICON_TAG) >= 0) {
-                                rowIconDirty = true;
-                            }
-                        });
-                    }
-                    if (rowIconDirty) self._invalidateRowIconsCache();
                 }
-                // Invalidate preset pills if any preset-tagged tiddler
-                // changed (created/edited/deleted). Cheap heuristic: scan
-                // changed titles for the preset tag on the current value;
-                // also invalidate if the changed title was previously known
-                // as a preset (covers deletion).
-                var presetTagName = C.PRESET_TAG;
-                var presetsChanged = false;
-                Object.keys(changes).forEach(function (title) {
-                    if (presetsChanged) return;
-                    var cached = self._presetPills;
-                    if (cached) {
-                        for (var i = 0; i < cached.length; i++) {
-                            if (cached[i].title === title) {
-                                presetsChanged = true;
-                                return;
-                            }
-                        }
-                    }
-                    var t = self.wiki.getTiddler(title);
-                    var tags = (t && t.fields && t.fields.tags) || [];
-                    if (tags.indexOf(presetTagName) >= 0) {
-                        presetsChanged = true;
-                    }
-                });
-                if (presetsChanged) {
+                // Preset pills — also clears active-preset marker if the
+                // active preset was deleted.
+                var presetTitles = (self._presetPills || [])
+                    .map(function (p) { return p.title; });
+                if (isTaggedChange({ tag: C.PRESET_TAG, cachedTitles: presetTitles })) {
                     self._invalidatePresetPills();
-                    // If the active preset got deleted, clear the marker
-                    // (and its baseline) so the strip stops claiming it.
                     if (self.activePresetTitle &&
                         !self.wiki.tiddlerExists(self.activePresetTitle)) {
                         self.activePresetTitle = null;
@@ -752,29 +657,10 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                     }
                     if (self.open) self._renderPresetStrip();
                 }
-                // Same hook for leader tiddlers — invalidate the leader
-                // cache and re-render the strip when a leader-tagged
-                // tiddler changes / is deleted.
-                var leaderTagName = C.LEADER_TAG;
-                var leadersChanged = false;
-                Object.keys(changes).forEach(function (title) {
-                    if (leadersChanged) return;
-                    var cached = self._leadersCache;
-                    if (cached) {
-                        for (var i = 0; i < cached.length; i++) {
-                            if (cached[i].title === title) {
-                                leadersChanged = true;
-                                return;
-                            }
-                        }
-                    }
-                    var t = self.wiki.getTiddler(title);
-                    var tags = (t && t.fields && t.fields.tags) || [];
-                    if (tags.indexOf(leaderTagName) >= 0) {
-                        leadersChanged = true;
-                    }
-                });
-                if (leadersChanged) {
+                // Leader pills.
+                var leaderTitles = (self._leadersCache || [])
+                    .map(function (l) { return l.title; });
+                if (isTaggedChange({ tag: C.LEADER_TAG, cachedTitles: leaderTitles })) {
                     self._invalidateLeadersCache();
                     if (self.open) self._renderLeaderStrip();
                 }
@@ -790,129 +676,83 @@ See doc/protocol.tid for the full authoring guide and worked examples.
 
         // Register global hotkey + message handlers on rootWidget. Each
         // handler is the thin glue between a TW message and the matching
-        // subsystem entry point. The unwiring guards (removeEventListener
-        // before re-add) keep refresh-safe.
+        // subsystem entry point. registerRootMessage keeps the wire/unwire
+        // pair refresh-safe by tracking prior handlers in self._rootHandlers.
         if ($tw.rootWidget) {
-            if (self._openHandler) {
-                $tw.rootWidget.removeEventListener(C.OPEN_MESSAGE, self._openHandler);
+            self._rootHandlers = self._rootHandlers || {};
+            function registerRootMessage(message, fn) {
+                var prev = self._rootHandlers[message];
+                if (prev) $tw.rootWidget.removeEventListener(message, prev);
+                self._rootHandlers[message] = fn;
+                $tw.rootWidget.addEventListener(message, fn);
             }
-            self._openHandler = function () {
+            registerRootMessage(C.OPEN_MESSAGE, function () {
                 self.openPalette();
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.OPEN_MESSAGE, self._openHandler);
-            // Open-at-entry message: opens cp (if closed) and drills directly
-            // into a named entry tiddler — the entry must be visible at root
-            // (tagged $:/tags/rimir/cascade-palette/entry, declared at-root
-            // position for the active view). `entry` param = entry title.
-            if (self._openEntryHandler) {
-                $tw.rootWidget.removeEventListener(C.OPEN_ENTRY_MESSAGE, self._openEntryHandler);
-            }
-            self._openEntryHandler = function (event) {
+            });
+            // Open-at-entry: opens cp (if closed) and drills directly into a
+            // named entry tiddler — must be visible at root (entry-tagged,
+            // declared at-root position for the active view).
+            registerRootMessage(C.OPEN_ENTRY_MESSAGE, function (event) {
                 var entry = (event && event.param) ||
                     (event && event.paramObject && event.paramObject.entry) || "";
                 if (entry) self.openPaletteAtEntry(entry);
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.OPEN_ENTRY_MESSAGE, self._openEntryHandler);
-            // Reset-constraints message: wipes both strips. Bound to
-            // Ctrl-DEL globally and to the `Reset constraints` leader.
-            if (self._resetConstraintsHandler) {
-                $tw.rootWidget.removeEventListener(C.RESET_CONSTRAINTS_MESSAGE, self._resetConstraintsHandler);
-            }
-            self._resetConstraintsHandler = function () {
+            });
+            // Reset-constraints wipes both strips; bound to Ctrl-DEL
+            // globally and to the `Reset constraints` leader.
+            registerRootMessage(C.RESET_CONSTRAINTS_MESSAGE, function () {
                 self._clearAllFilters();
                 self._clearAllVisibility();
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.RESET_CONSTRAINTS_MESSAGE, self._resetConstraintsHandler);
-            // Reset-filters / reset-visibility — single-strip variants.
-            if (self._resetFiltersHandler) {
-                $tw.rootWidget.removeEventListener(C.RESET_FILTERS_MESSAGE, self._resetFiltersHandler);
-            }
-            self._resetFiltersHandler = function () {
+            });
+            registerRootMessage(C.RESET_FILTERS_MESSAGE, function () {
                 self._clearAllFilters();
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.RESET_FILTERS_MESSAGE, self._resetFiltersHandler);
-            if (self._resetVisibilityHandler) {
-                $tw.rootWidget.removeEventListener(C.RESET_VISIBILITY_MESSAGE, self._resetVisibilityHandler);
-            }
-            self._resetVisibilityHandler = function () {
+            });
+            registerRootMessage(C.RESET_VISIBILITY_MESSAGE, function () {
                 self._clearAllVisibility();
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.RESET_VISIBILITY_MESSAGE, self._resetVisibilityHandler);
-            // Add-filter / add-visibility: takes a `filter` / `visibility`
-            // parameter naming the constraint tiddler to add. Pre-fills the
-            // input with the constraint's prefix so the user can type the
-            // arg and hit Enter to commit.
-            if (self._addFilterHandler) {
-                $tw.rootWidget.removeEventListener(C.ADD_FILTER_MESSAGE, self._addFilterHandler);
-            }
-            self._addFilterHandler = function (event) {
+            });
+            // Add-filter / add-visibility / add-reach / add-field —
+            // takes a constraint-tiddler title in `param`. Pre-fills
+            // the input with the constraint's prefix so the user can
+            // type the arg and hit Enter to commit.
+            registerRootMessage(C.ADD_FILTER_MESSAGE, function (event) {
                 var title = (event && event.param) ||
                     (event && event.paramObject && event.paramObject.filter) || "";
                 if (title) self._addFilterByTitle(title);
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.ADD_FILTER_MESSAGE, self._addFilterHandler);
-            if (self._addVisibilityHandler) {
-                $tw.rootWidget.removeEventListener(C.ADD_VISIBILITY_MESSAGE, self._addVisibilityHandler);
-            }
-            self._addVisibilityHandler = function (event) {
+            });
+            registerRootMessage(C.ADD_VISIBILITY_MESSAGE, function (event) {
                 var title = (event && event.param) ||
                     (event && event.paramObject && event.paramObject.visibility) || "";
                 if (title) self._addVisibilityByTitle(title);
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.ADD_VISIBILITY_MESSAGE, self._addVisibilityHandler);
-            // Add-reach / add-field — same shape as add-filter / add-
-            // visibility but for the two new strips. Triggered by the
-            // leader actions (d / g / a), and could also be triggered
-            // from external wikitext (e.g. a toolbar shortcut).
-            if (self._addReachHandler) {
-                $tw.rootWidget.removeEventListener(C.ADD_REACH_MESSAGE, self._addReachHandler);
-            }
-            self._addReachHandler = function (event) {
+            });
+            registerRootMessage(C.ADD_REACH_MESSAGE, function (event) {
                 var title = (event && event.param) ||
                     (event && event.paramObject && event.paramObject.reach) || "";
                 if (title) self._addReachByTitle(title);
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.ADD_REACH_MESSAGE, self._addReachHandler);
-            if (self._addFieldHandler) {
-                $tw.rootWidget.removeEventListener(C.ADD_FIELD_MESSAGE, self._addFieldHandler);
-            }
-            self._addFieldHandler = function (event) {
+            });
+            registerRootMessage(C.ADD_FIELD_MESSAGE, function (event) {
                 var title = (event && event.param) ||
                     (event && event.paramObject && event.paramObject.field) || "";
                 if (title) self._addFieldByTitle(title);
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.ADD_FIELD_MESSAGE, self._addFieldHandler);
-            if (self._resetReachHandler) {
-                $tw.rootWidget.removeEventListener(C.RESET_REACH_MESSAGE, self._resetReachHandler);
-            }
-            self._resetReachHandler = function () {
+            });
+            registerRootMessage(C.RESET_REACH_MESSAGE, function () {
                 self._clearAllReach();
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.RESET_REACH_MESSAGE, self._resetReachHandler);
-            if (self._resetFieldsHandler) {
-                $tw.rootWidget.removeEventListener(C.RESET_FIELDS_MESSAGE, self._resetFieldsHandler);
-            }
-            self._resetFieldsHandler = function () {
+            });
+            registerRootMessage(C.RESET_FIELDS_MESSAGE, function () {
                 self._clearAllFields();
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.RESET_FIELDS_MESSAGE, self._resetFieldsHandler);
+            });
             // set-filter / set-visibility: leader-driven explicit-arg push.
             // Skips the interactive prefill — the leader supplies the arg.
-            if (self._setFilterHandler) {
-                $tw.rootWidget.removeEventListener(C.SET_FILTER_MESSAGE, self._setFilterHandler);
-            }
-            self._setFilterHandler = function (event) {
+            registerRootMessage(C.SET_FILTER_MESSAGE, function (event) {
                 var p = (event && event.paramObject) || {};
                 var title = p.filter || (event && event.param) || "";
                 var arg = p.arg !== undefined ? p.arg : "";
@@ -925,12 +765,8 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                     }
                 }
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.SET_FILTER_MESSAGE, self._setFilterHandler);
-            if (self._setVisibilityHandler) {
-                $tw.rootWidget.removeEventListener(C.SET_VISIBILITY_MESSAGE, self._setVisibilityHandler);
-            }
-            self._setVisibilityHandler = function (event) {
+            });
+            registerRootMessage(C.SET_VISIBILITY_MESSAGE, function (event) {
                 var p = (event && event.paramObject) || {};
                 var title = p.visibility || (event && event.param) || "";
                 var arg = p.arg !== undefined ? p.arg : "";
@@ -943,53 +779,34 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                     }
                 }
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.SET_VISIBILITY_MESSAGE, self._setVisibilityHandler);
-            // set-view: leader-driven (and click-equivalent) view switch.
-            if (self._setViewHandler) {
-                $tw.rootWidget.removeEventListener(C.SET_VIEW_MESSAGE, self._setViewHandler);
-            }
-            self._setViewHandler = function (event) {
+            });
+            registerRootMessage(C.SET_VIEW_MESSAGE, function (event) {
                 var p = (event && event.paramObject) || {};
                 var viewTitle = p.view || (event && event.param) || "";
                 if (viewTitle) self._setActiveView(viewTitle);
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.SET_VIEW_MESSAGE, self._setViewHandler);
-            // apply-preset / save-preset / recall-preset.
-            if (self._applyPresetHandler) {
-                $tw.rootWidget.removeEventListener(C.APPLY_PRESET_MESSAGE, self._applyPresetHandler);
-            }
-            self._applyPresetHandler = function (event) {
+            });
+            registerRootMessage(C.APPLY_PRESET_MESSAGE, function (event) {
                 var p = (event && event.paramObject) || {};
                 var presetTitle = p.preset || (event && event.param) || "";
                 if (presetTitle) self._applyPreset(presetTitle);
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.APPLY_PRESET_MESSAGE, self._applyPresetHandler);
-            if (self._savePresetHandler) {
-                $tw.rootWidget.removeEventListener(C.SAVE_PRESET_MESSAGE, self._savePresetHandler);
-            }
-            self._savePresetHandler = function () {
+            });
+            registerRootMessage(C.SAVE_PRESET_MESSAGE, function () {
                 self.enterSaveMode();
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.SAVE_PRESET_MESSAGE, self._savePresetHandler);
-            if (self._recallPresetHandler) {
-                $tw.rootWidget.removeEventListener(C.RECALL_PRESET_MESSAGE, self._recallPresetHandler);
-            }
-            self._recallPresetHandler = function () {
-                // Recall focuses the preset pill strip — the user can
-                // then ← → to a pill and Enter to apply. Falls back to
-                // input focus when no presets exist.
+            });
+            // Recall focuses the preset pill strip — the user can then ← →
+            // to a pill and Enter to apply. Falls back to input focus when
+            // no presets exist.
+            registerRootMessage(C.RECALL_PRESET_MESSAGE, function () {
                 if (self._presetPillCount && self._presetPillCount() > 0) {
                     self.setFocus("preset");
                 } else {
                     self.setFocus("input");
                 }
                 return false;
-            };
-            $tw.rootWidget.addEventListener(C.RECALL_PRESET_MESSAGE, self._recallPresetHandler);
+            });
         } else if (console && console.warn) {
             console.warn("[cascade-palette] $tw.rootWidget unavailable at render time");
         }

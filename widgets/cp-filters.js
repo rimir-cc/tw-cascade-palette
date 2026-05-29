@@ -24,6 +24,7 @@ var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
 var utils = require("$:/plugins/rimir/cascade-palette/widgets/cp-utils");
 var pillstrip = require("$:/plugins/rimir/cascade-palette/widgets/cp-pillstrip");
 var FILTER_TAG = C.FILTER_TAG;
+var ENTRY_TAG = C.ENTRY_TAG;
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 
 module.exports = function (proto) {
@@ -143,35 +144,15 @@ module.exports = function (proto) {
         if (!this.filters.length) return;
         var item = this.filters[this.filterFocusIdx];
         if (!item) return;
-        while (this.detailEl.firstChild) {
-            this.detailEl.removeChild(this.detailEl.firstChild);
-        }
-        var titleEl = this.document.createElement("div");
-        titleEl.className = "rcp-detail-title";
-        titleEl.textContent = item.name + (item.arg ? " — " + item.arg : "");
-        this.detailEl.appendChild(titleEl);
-
-        var helpEl = this.document.createElement("div");
-        helpEl.className = "rcp-details-help";
-        helpEl.textContent = item.help || item.hint || item.name;
-        this.detailEl.appendChild(helpEl);
-
         var rows = [];
         if (item.arg) rows.push(["Argument", item.arg]);
         if (item.expr) rows.push(["Filter", item.expr]);
         rows.push(["Filter tiddler", item.constraintTiddler]);
-        var dl = this.document.createElement("dl");
-        dl.className = "rcp-detail-fields";
-        rows.forEach(function (row) {
-            var dt = this.document.createElement("dt");
-            dt.textContent = row[0];
-            var dd = this.document.createElement("dd");
-            dd.textContent = row[1];
-            dl.appendChild(dt);
-            dl.appendChild(dd);
-        }, this);
-        this.detailEl.appendChild(dl);
-        this.popupEl.classList.add("rcp-showing-detail");
+        pillstrip.renderConstraintHelp(this, {
+            title: item.name + (item.arg ? " — " + item.arg : ""),
+            help:  item.help || item.hint || item.name,
+            rows:  rows
+        });
     };
 
     // Compose the suffix appended to every stage filter when filters are
@@ -184,6 +165,53 @@ module.exports = function (proto) {
             .map(function (s) { return s.expr || ""; })
             .filter(function (f) { return f; })
             .join("");
+    };
+
+    // Apply the active filter-pill suffix to a base filter expression,
+    // exempting virtual menu entries from the narrowing. Centralises the
+    // "filters are global like Visibility, but virtual entries pass
+    // unconditionally" contract: callers no longer concat the suffix
+    // themselves.
+    //
+    // When no filter pills are active this is identical to a single
+    // `_filterInScope(baseFilter)` call — zero overhead.
+    //
+    // With filters active we compute two passes over the base:
+    //   - narrowed: base + filter suffix (real tiddlers that survive)
+    //   - entries:  base ∩ [tag[ENTRY_TAG]] (virtual entries in base)
+    // and return their union (narrowed-order first, entries-only suffix
+    // appended in order). Entries that already match the suffix appear
+    // once via the first pass. The cost is +1 filterTiddlers call per
+    // producer evaluation — matches the cost class of the per-row
+    // visibility check.
+    //
+    // Authors who want a filter pill to AFFECT entries can write the
+    // expression as a positive predicate that includes the entry tag —
+    // but the convention is: pill = narrow real tiddlers, input query =
+    // narrow whatever's currently rendered (including virtual entries).
+    proto._applyFilterSuffix = function (baseFilter, vars, source) {
+        var suffix = this._composeFilterSuffix();
+        if (!suffix) {
+            return this._filterInScope(baseFilter, vars, source);
+        }
+        var narrowed = this._filterInScope(baseFilter + suffix, vars, source);
+        var entriesInBase = this._filterInScope(
+            baseFilter + " +[tag[" + ENTRY_TAG + "]]",
+            vars,
+            source
+        );
+        if (!entriesInBase.length) return narrowed;
+        var seen = Object.create(null);
+        var out = [];
+        for (var i = 0; i < narrowed.length; i++) {
+            var t = narrowed[i];
+            if (!seen[t]) { seen[t] = true; out.push(t); }
+        }
+        for (var j = 0; j < entriesInBase.length; j++) {
+            var e = entriesInBase[j];
+            if (!seen[e]) { seen[e] = true; out.push(e); }
+        }
+        return out;
     };
 
     // Push a filter by tiddler title. For "none" arg-type, push directly.

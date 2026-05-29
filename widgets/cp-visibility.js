@@ -14,8 +14,12 @@ substitutes the user's argument at push time.
 This is the structural-hiding half of what was previously called "scope".
 The filter (data-narrowing) sibling lives in cp-filters.js.
 
-Visibility ONLY affects root-entry rows. View-source results and drilled
-sub-stages are unaffected — those are governed by filters.
+Visibility is GLOBAL: `isEntryVisible` is called by every row producer
+(normal layers, axis buckets, entries layer, leaf/child counters), so a
+matching predicate hides the row from every view. The shipped predicates
+(`hide-entry`, `hide-group`) happen to be designed around the `ca-group`
+field that entries carry, so in practice they only hide entries — but the
+mechanism applies to all rows.
 
 Replace-by-kind: one slot per visibility tiddler. The hide-entry kind is
 a special case (one pill per hidden title) — `_addHideEntryVisibility`
@@ -163,35 +167,15 @@ module.exports = function (proto) {
         if (!this.visibilities.length) return;
         var item = this.visibilities[this.visibilityFocusIdx];
         if (!item) return;
-        while (this.detailEl.firstChild) {
-            this.detailEl.removeChild(this.detailEl.firstChild);
-        }
-        var titleEl = this.document.createElement("div");
-        titleEl.className = "rcp-detail-title";
-        titleEl.textContent = item.name + (item.arg ? " — " + item.arg : "");
-        this.detailEl.appendChild(titleEl);
-
-        var helpEl = this.document.createElement("div");
-        helpEl.className = "rcp-details-help";
-        helpEl.textContent = item.help || item.hint || item.name;
-        this.detailEl.appendChild(helpEl);
-
         var rows = [];
         if (item.arg) rows.push(["Argument", item.arg]);
         if (item.expr) rows.push(["Hides", item.expr]);
         rows.push(["Visibility tiddler", item.constraintTiddler]);
-        var dl = this.document.createElement("dl");
-        dl.className = "rcp-detail-fields";
-        rows.forEach(function (row) {
-            var dt = this.document.createElement("dt");
-            dt.textContent = row[0];
-            var dd = this.document.createElement("dd");
-            dd.textContent = row[1];
-            dl.appendChild(dt);
-            dl.appendChild(dd);
-        }, this);
-        this.detailEl.appendChild(dl);
-        this.popupEl.classList.add("rcp-showing-detail");
+        pillstrip.renderConstraintHelp(this, {
+            title: item.name + (item.arg ? " — " + item.arg : ""),
+            help:  item.help || item.hint || item.name,
+            rows:  rows
+        });
     };
 
     // True if entryTitle should be hidden by any active visibility rule.

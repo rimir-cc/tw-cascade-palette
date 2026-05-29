@@ -159,7 +159,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-filter-name` |string |filter |Display name. Required. |
 |`ca-filter-prefix` |string |filter |Input-prefix that triggers the filter (e.g. `/`, `prefix:`). Optional. Matched greedy-by-length, across both filter and visibility tag families. |
 |`ca-filter-arg` |`text`\|`tag`\|`tiddler`\|`none` |filter |How the trailing input is interpreted. Default `text`. |
-|`ca-filter-expr` |filter snippet |filter |Appended (intersected) with every result-list filter. Use `<arg>` as the argument operand placeholder; engine substitutes `[<arg>]` at pill-push time. |
+|`ca-filter-expr` |filter snippet |filter |Appended (intersected) with every producer's base filter — applied ''globally'' across all views (flat, tree, axis-bucketed). Virtual menu entries (tiddlers tagged `$:/tags/rimir/cascade-palette/entry`) are ''exempted'' from the narrowing by default; to narrow them too, type the query into the input bar. Use `<arg>` as the argument operand placeholder; engine substitutes `[<arg>]` at pill-push time. |
 |`ca-filter-chip` |string template |filter |Plain-text pill label. Use `<<arg>>` for substitution. Defaults to `ca-filter-name`. |
 |`ca-filter-hint` / `-help` |string |filter |Hover / details-pane help. |
 |`ca-reach-name` |string |reach |Display name. Required. |
@@ -226,7 +226,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-view-sort-field` |string |view (by-field) |Field name read off each row |
 |`ca-view-sort-key` |filter |view (custom) |Per-row filter returning a sortable key |
 |`ca-view-containers-first` |`yes`\|`no` |view |Containers float above leaves at each tree level. Default `yes` for tree views |
-|`ca-view-show-count` |`yes`\|`no` |view |Render a child-count badge on tree-container rows. Default `no` |
+|`ca-view-show-count` |`yes`\|`no` |view |Render a child-count badge on tree-container rows. Default `no`. Tree-container counts are suppressed while a filter pill is active (existence of the chevron is the "drillable" signal — avoids the per-row child-enumeration cost). Axis-bucket counts remain on (they're free — bucket existence already implies a non-empty post-filter set). |
 |`ca-view-count-format` |template |view |Badge template, default ` (<<count>>)` |
 |`ca-view-show-action-preview` |`yes`\|`no` |view |Render a small `→N` badge on typed leaf rows showing how many actions would appear on drill (after `ca-action-when` applicability is evaluated per row). Default `yes`. Set to `no` on views where the visual would be noisy or per-row applicability evaluation is too costly. |
 |`ca-view-row-name` / `-hint` / `-icon` / `-kind` / `-group` / `-order` / `-next-scope` / `-items-from` |filter |view |Per-source overrides; evaluated with `<currentTiddler>` bound to the source. Unset filters fall through to the source's own `ca-*` field |

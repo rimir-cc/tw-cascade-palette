@@ -293,8 +293,13 @@ function evaluateAxisChainAtDepth(widget, layer, parentPath) {
     var depth = depthIntoChain(parentPath, chain.length);
     if (depth >= chain.length) return null;
     if (!layer.roots) return [];
+    // Apply active filter pills to the source via the shared helper so
+    // virtual entries are exempted and axis buckets reflect the narrowed
+    // real-tiddler set. Empty post-filter buckets vanish — their absence
+    // IS the "nothing to drill into" signal (replaces the old
+    // count-driven cue).
     var source = [];
-    try { source = widget.wiki.filterTiddlers(layer.roots, null); }
+    try { source = widget._applyFilterSuffix(layer.roots, null); }
     catch (err) { return []; }
     var narrowed = narrowByParents(widget, source, chain, parentPath);
     var currentAxis = chain[depth];
@@ -331,7 +336,7 @@ function sourceAfterAxes(widget, layer, parentPath) {
     if (!chain.length) return [];
     if (!layer.roots) return [];
     var source = [];
-    try { source = widget.wiki.filterTiddlers(layer.roots, null); }
+    try { source = widget._applyFilterSuffix(layer.roots, null); }
     catch (err) { return []; }
     return narrowByParents(widget, source, chain, parentPath);
 }
