@@ -18,35 +18,22 @@ red/orange underline for visibility matches.
 \*/
 "use strict";
 
+var utils = require("$:/plugins/rimir/cascade-palette/widgets/cp-utils");
+
 module.exports = function (proto) {
 
     // Detect whether the current input text begins with a known constraint
-    // prefix. Returns `{ kind: "filter" | "visibility", meta, argText }`
-    // or null. Prefix matching is greedy by length — longer prefixes
-    // (`prefix:`) win over shorter shared ones (`/`).
+    // prefix. Thin wrapper around cp-utils.detectInputPrefix that supplies
+    // the loaded filter + visibility metas (both cached, so this call is
+    // O(1) after first warm).
+    //
+    // Returns `{kind, meta, argText}` on match, null otherwise.
     proto._detectInputPrefix = function (text) {
-        if (!text) return null;
-        var candidates = [];
-        this._loadFilterTiddlers().forEach(function (m) {
-            if (m.prefix) candidates.push({ kind: "filter", meta: m });
-        });
-        this._loadVisibilityTiddlers().forEach(function (m) {
-            if (m.prefix) candidates.push({ kind: "visibility", meta: m });
-        });
-        candidates.sort(function (a, b) {
-            return b.meta.prefix.length - a.meta.prefix.length;
-        });
-        for (var i = 0; i < candidates.length; i++) {
-            var c = candidates[i];
-            if (text.indexOf(c.meta.prefix) === 0) {
-                return {
-                    kind: c.kind,
-                    meta: c.meta,
-                    argText: text.slice(c.meta.prefix.length)
-                };
-            }
-        }
-        return null;
+        return utils.detectInputPrefix(
+            text,
+            this._loadFilterTiddlers(),
+            this._loadVisibilityTiddlers()
+        );
     };
 
     // Commit the detected prefix match. Pushes to the right strip, clears

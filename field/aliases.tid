@@ -1,5 +1,5 @@
 title: $:/plugins/rimir/cascade-palette/field/aliases
-tags: $:/tags/rimir/cascade-palette/field
+tags: $:/tags/rimir/cascade-palette/search-field
 ca-field-name: aliases
 ca-field-chip: ↪ Aliases
 ca-field-hint: Match against alternate names declared by the row author.

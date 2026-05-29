@@ -37,7 +37,13 @@ exports.TEMPLATE_TAG = "$:/tags/rimir/cascade-palette/template";
 exports.FILTER_TAG = "$:/tags/rimir/cascade-palette/filter";
 exports.VISIBILITY_TAG = "$:/tags/rimir/cascade-palette/visibility";
 exports.REACH_TAG = "$:/tags/rimir/cascade-palette/reach";
+// Legacy tag for search-in-pill tiddlers. Pre-0.0.84 name; engine
+// still reads tiddlers carrying it for back-compat, but emits a
+// once-per-session deprecation warning. Authors should migrate to
+// SEARCH_FIELD_TAG below.
 exports.FIELD_TAG = "$:/tags/rimir/cascade-palette/field";
+// Canonical tag for search-in-pill tiddlers (0.0.84+).
+exports.SEARCH_FIELD_TAG = "$:/tags/rimir/cascade-palette/search-field";
 exports.VIEW_TAG = "$:/tags/rimir/cascade-palette/view";
 exports.STRUCTURE_LAYER_TAG = "$:/tags/rimir/cascade-palette/structure-layer";
 exports.AXIS_TAG = "$:/tags/rimir/cascade-palette/axis";

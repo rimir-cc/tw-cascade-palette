@@ -54,7 +54,7 @@ var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
 
 var URL_PROTOCOL_RE = /^(?:https?|ftp|ftps|mailto|tel):/i;
 
-module.exports = function (proto) {
+function setup(proto) {
 
     /* ---------- registry loading + caching ---------- */
 
@@ -168,10 +168,7 @@ module.exports = function (proto) {
             } else if (def.applies) {
                 var hits;
                 try {
-                    hits = this.wiki.filterTiddlers(
-                        def.applies,
-                        this.makeFakeWidget({ currentTiddler: title })
-                    );
+                    hits = this._filterInScope(def.applies, { currentTiddler: title });
                 } catch (err) {
                     if (console && console.warn) {
                         console.warn(
@@ -184,10 +181,7 @@ module.exports = function (proto) {
                 if (!hits || !hits.length) continue;
                 if (def.payload) {
                     try {
-                        var pres = this.wiki.filterTiddlers(
-                            def.payload,
-                            this.makeFakeWidget({ currentTiddler: title })
-                        );
+                        var pres = this._filterInScope(def.payload, { currentTiddler: title });
                         payload = (pres && pres[0]) || "";
                     } catch (err2) {
                         if (console && console.warn) {
@@ -263,13 +257,16 @@ module.exports = function (proto) {
         if (action) {
             var stage = this.topStage();
             var rowTitle = (item && (item.rawTitle || item.title)) || "";
-            var vars = stage
-                ? this.buildStageVariables(stage, rowTitle)
-                : { "query": "", "picked": "", "parent-picked": "", "context-tiddler": "" };
-            vars["payload"] = icon.payload || "";
-            vars["row-icon-key"] = icon.key || "";
-            vars["row-icon-mode"] = isAlt ? "alt" : "primary";
-            vars["currentTiddler"] = rowTitle;
+            // buildStageVariables tolerates stage=null and the extras map
+            // merges over the base vars (overriding currentTiddler to the
+            // row tiddler — distinct from `picked` which here equals the
+            // same row title but semantically means "this is what fired").
+            var vars = this.buildStageVariables(stage, rowTitle, {
+                "payload": icon.payload || "",
+                "row-icon-key": icon.key || "",
+                "row-icon-mode": isAlt ? "alt" : "primary",
+                "currentTiddler": rowTitle
+            });
             this.invokeViaNavigator(action, vars);
             fired = true;
         }
@@ -417,4 +414,7 @@ module.exports = function (proto) {
         rowEl.appendChild(stripEl);
     };
 
-};
+}
+
+setup.URL_PROTOCOL_RE = URL_PROTOCOL_RE;
+module.exports = setup;

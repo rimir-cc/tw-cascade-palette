@@ -40,6 +40,7 @@ type.
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
 var cpAxes = require("$:/plugins/rimir/cascade-palette/widgets/cp-axes");
+var utils = require("$:/plugins/rimir/cascade-palette/widgets/cp-utils");
 var VIEW_TAG = C.VIEW_TAG;
 var STRUCTURE_LAYER_TAG = C.STRUCTURE_LAYER_TAG;
 var ENTRY_TAG = C.ENTRY_TAG;
@@ -52,7 +53,53 @@ var DEFAULT_ORDER = C.DEFAULT_ORDER;
 var BUILTIN_ENTRIES_LAYER_TITLE =
     "$:/plugins/rimir/cascade-palette/structure-layers/entries";
 
-module.exports = function (proto) {
+// Parse a ca-position-<slug> / ca-position field value into a list of
+// effective positions. Three accepted shapes:
+//   1. JSON array  (value starts with `[`) — `["A","B"]` → ["A","B"]
+//   2. "none"      → null (entry excluded from this view)
+//   3. legacy      — colon- and newline-separated multi-value string;
+//                    `A:B` → ["A","B"], `A\nB` → ["A","B"]
+// Returns ["at-root"] for missing / empty after trim. Returns null on
+// "none". Invalid JSON falls back to legacy parsing (defensive — never
+// throws).
+function parsePositionField(posRaw) {
+    if (posRaw === "none") return null;
+    if (posRaw === undefined || posRaw === null || posRaw === "") {
+        return ["at-root"];
+    }
+    var str = String(posRaw);
+    if (str.length > 0 && str.charAt(0) === "[") {
+        try {
+            var arr = JSON.parse(str);
+            if (Array.isArray(arr)) {
+                var out = [];
+                for (var i = 0; i < arr.length; i++) {
+                    var v = arr[i];
+                    if (v === undefined || v === null) continue;
+                    var sv = String(v).trim();
+                    if (sv) out.push(sv);
+                }
+                return out.length ? out : ["at-root"];
+            }
+        } catch (err) { /* fall through to legacy parser */ }
+    }
+    var positions = str.split(/[:\n]/).map(function (s) {
+        return s.trim();
+    }).filter(function (s) { return s; });
+    if (!positions.length) positions = ["at-root"];
+    return positions;
+}
+
+// Resolve the effective positions for an entry tiddler given a view slug.
+// Precedence: ca-position-<slug> > ca-position > "at-root".
+// Returns null on "none" (entry excluded from this view).
+function resolveEntryPositions(entryFields, slug) {
+    var posRaw = entryFields["ca-position-" + slug];
+    if (posRaw === undefined) posRaw = entryFields["ca-position"];
+    return parsePositionField(posRaw);
+}
+
+function setup(proto) {
 
     // ===================================================================
     // Loading
@@ -141,6 +188,13 @@ module.exports = function (proto) {
     // layer's rows).
     proto._layerFromViewFields = function (view, f) {
         var rootsFilter = f["ca-view-roots"] || f["ca-view-source"] || "";
+        if (!f["ca-view-roots"] && f["ca-view-source"]) {
+            utils.deprecationWarning(
+                "field:ca-view-source",
+                "view '" + (f.title || view.title || "") + "' uses ca-view-source; rename to ca-view-roots",
+                this.wiki
+            );
+        }
         return {
             title: view.title,
             isImplicit: true,
@@ -325,15 +379,18 @@ module.exports = function (proto) {
         }
         if (candidates === null) {
             var filterExpr = parentTitle ? layer.children : layer.roots;
-            var widget = parentTitle
-                ? this.makeFakeWidget({ currentTiddler: parentTitle })
+            // null vars when parentTitle is empty so _filterInScope uses
+            // a null widget (wiki.each default source) — matches the
+            // pre-0.0.82 behaviour at the roots-filter call site.
+            var rootsVars = parentTitle
+                ? { currentTiddler: parentTitle }
                 : null;
             candidates = [];
             if (filterExpr) {
                 try {
-                    candidates = this.wiki.filterTiddlers(
+                    candidates = this._filterInScope(
                         filterExpr + this._composeFilterSuffix(),
-                        widget
+                        rootsVars
                     );
                 } catch (err) {
                     if (console && console.error) {
@@ -359,9 +416,7 @@ module.exports = function (proto) {
             // entry layer (which has includePosition=false to avoid double-
             // filtering its own entries).
             if (layer.includePosition) {
-                var posRaw = srcFields["ca-position-" + slug];
-                if (posRaw === undefined) posRaw = srcFields["ca-position"];
-                if (posRaw === "none") return;
+                if (resolveEntryPositions(srcFields, slug) === null) return;
             }
             var fieldsObj = $tw.utils.extend({}, srcFields);
             self._applyLayerRowFilters(layer, title, fieldsObj);
@@ -431,14 +486,8 @@ module.exports = function (proto) {
             if (!self.isEntryVisible(entryTitle)) return;
             var t = self.wiki.getTiddler(entryTitle);
             var f = (t && t.fields) || {};
-            var posRaw = f["ca-position-" + slug];
-            if (posRaw === undefined) posRaw = f["ca-position"];
-            if (posRaw === undefined) posRaw = "at-root";
-            if (posRaw === "none") return;
-            var positions = String(posRaw).split(/[:\n]/).map(function (s) {
-                return s.trim();
-            }).filter(function (s) { return s; });
-            if (!positions.length) positions = ["at-root"];
+            var positions = resolveEntryPositions(f, slug);
+            if (positions === null) return; // ca-position: none
             var matched = false;
             positions.forEach(function (pos) {
                 if (matched) return;
@@ -500,18 +549,15 @@ module.exports = function (proto) {
     proto._isLeafInLayer = function (layer, candidateTitle) {
         if (layer.leaf) {
             try {
-                var r = this.wiki.filterTiddlers(
-                    layer.leaf,
-                    this.makeFakeWidget({ currentTiddler: candidateTitle })
-                );
+                var r = this._filterInScope(layer.leaf, { currentTiddler: candidateTitle });
                 return r.length > 0;
             } catch (err) { return true; }
         }
         if (!layer.children) return true;
         try {
-            var children = this.wiki.filterTiddlers(
+            var children = this._filterInScope(
                 layer.children,
-                this.makeFakeWidget({ currentTiddler: candidateTitle })
+                { currentTiddler: candidateTitle }
             );
             var self = this;
             return children.filter(function (t) {
@@ -523,10 +569,7 @@ module.exports = function (proto) {
     proto._childCountForLayer = function (layer, parentTitle) {
         if (!layer.children) return 0;
         try {
-            var r = this.wiki.filterTiddlers(
-                layer.children,
-                this.makeFakeWidget({ currentTiddler: parentTitle })
-            );
+            var r = this._filterInScope(layer.children, { currentTiddler: parentTitle });
             var self = this;
             return r.filter(function (t) {
                 return self.isEntryVisible(t);
@@ -537,10 +580,7 @@ module.exports = function (proto) {
     proto._labelForNode = function (layer, title) {
         if (layer.label) {
             try {
-                var r = this.wiki.filterTiddlers(
-                    layer.label,
-                    this.makeFakeWidget({ currentTiddler: title })
-                );
+                var r = this._filterInScope(layer.label, { currentTiddler: title });
                 if (r.length && r[0]) return r[0];
             } catch (err) { /* fall through */ }
         }
@@ -556,10 +596,7 @@ module.exports = function (proto) {
 
     proto._evalRowEntityType = function (layer, title) {
         try {
-            var r = this.wiki.filterTiddlers(
-                layer.rowEntityType,
-                this.makeFakeWidget({ currentTiddler: title })
-            );
+            var r = this._filterInScope(layer.rowEntityType, { currentTiddler: title });
             return r.length ? r[0] : "";
         } catch (err) { return ""; }
     };
@@ -583,18 +620,16 @@ module.exports = function (proto) {
             if (!f) return;
             var r = [];
             try {
-                r = self.wiki.filterTiddlers(
-                    f, self.makeFakeWidget({ currentTiddler: sourceTitle })
-                );
+                r = self._filterInScope(f, { currentTiddler: sourceTitle });
             } catch (err) { r = []; }
             if (r.length) fieldsObj[key] = r.join(" ");
         });
         if (layer.rowActions) {
             var raw;
             try {
-                var rr = self.wiki.filterTiddlers(
+                var rr = self._filterInScope(
                     layer.rowActions,
-                    self.makeFakeWidget({ currentTiddler: sourceTitle })
+                    { currentTiddler: sourceTitle }
                 );
                 if (rr.length) raw = rr.join(" ");
             } catch (err) { /* fall through */ }
@@ -666,9 +701,9 @@ module.exports = function (proto) {
 
     proto._evalSortKey = function (filter, item) {
         try {
-            var r = this.wiki.filterTiddlers(
+            var r = this._filterInScope(
                 filter,
-                this.makeFakeWidget({ currentTiddler: item.title || item.name || "" })
+                { currentTiddler: item.title || item.name || "" }
             );
             return r.length ? r[0] : "";
         } catch (err) { return ""; }
@@ -1419,4 +1454,8 @@ module.exports = function (proto) {
         this.setFocus("input");
     };
 
-};
+}
+
+setup.parsePositionField = parsePositionField;
+setup.resolveEntryPositions = resolveEntryPositions;
+module.exports = setup;

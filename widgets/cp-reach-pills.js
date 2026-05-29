@@ -26,6 +26,7 @@ when the pill is focused.
 "use strict";
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
+var pillstrip = require("$:/plugins/rimir/cascade-palette/widgets/cp-pillstrip");
 var REACH_TAG = C.REACH_TAG;
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 
@@ -120,38 +121,19 @@ module.exports = function (proto) {
     };
 
     proto._renderReachStrip = function () {
-        if (!this.reachStripEl) return;
-        while (this.reachStripEl.firstChild) {
-            this.reachStripEl.removeChild(this.reachStripEl.firstChild);
-        }
-        var has = this.reachPills && this.reachPills.length > 0;
-        if (this.popupEl) this.popupEl.classList.toggle("rcp-has-reach", has);
-        if (!has) return;
         var self = this;
-        this.reachPills.forEach(function (item, i) {
-            var pillEl = self.document.createElement("span");
-            pillEl.className = "rcp-pill rcp-pill-reach" +
-                (self.focus === "reach" && i === self.reachFocusIdx
-                    ? " rcp-pill-focused" : "");
-            pillEl.textContent = item.chip;
-            if (item.hint) pillEl.title = item.hint;
-            pillEl.dataset.reachIdx = String(i);
-            pillEl.addEventListener("mousedown", function (e) {
-                e.preventDefault();
-                self.reachFocusIdx = i;
-                self.setFocus("reach");
-            });
-            var xEl = self.document.createElement("span");
-            xEl.className = "rcp-pill-remove";
-            xEl.textContent = "×";
-            xEl.title = "Remove this reach";
-            xEl.addEventListener("mousedown", function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                self._removeReachAt(i);
-            });
-            pillEl.appendChild(xEl);
-            self.reachStripEl.appendChild(pillEl);
+        pillstrip.renderPillStripSection({
+            widget:        self,
+            stripEl:       self.reachStripEl,
+            pills:         self.reachPills,
+            focusIdx:      self.reachFocusIdx,
+            focusSection:  "reach",
+            popupHasClass: "rcp-has-reach",
+            pillModifier:  "rcp-pill-reach",
+            datasetKey:    "reachIdx",
+            removeTitle:   "Remove this reach",
+            onSelectAt:    function (i) { self.reachFocusIdx = i; self.setFocus("reach"); },
+            onRemoveAt:    function (i) { self._removeReachAt(i); }
         });
     };
 

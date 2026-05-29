@@ -1,5 +1,5 @@
 title: $:/plugins/rimir/cascade-palette/field/search-text
-tags: $:/tags/rimir/cascade-palette/field
+tags: $:/tags/rimir/cascade-palette/search-field
 ca-field-name: searchText
 ca-field-chip: 🔎 Search-text
 ca-field-hint: Match against the row's catch-all hidden searchable text.

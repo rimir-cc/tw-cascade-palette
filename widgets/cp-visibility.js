@@ -25,18 +25,28 @@ suffixes the per-title to the tiddler key so multiple coexist.
 "use strict";
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
+var utils = require("$:/plugins/rimir/cascade-palette/widgets/cp-utils");
+var pillstrip = require("$:/plugins/rimir/cascade-palette/widgets/cp-pillstrip");
 var VISIBILITY_TAG = C.VISIBILITY_TAG;
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 var HIDE_ENTRY_VISIBILITY = "$:/plugins/rimir/cascade-palette/visibility/hide-entry";
 
 module.exports = function (proto) {
 
+    // Cached by wiki.getChangeCount(): rebuilds when the wiki has any
+    // change since last read; otherwise returns the same array reference.
+    // Called from _detectInputPrefix on every keystroke — uncached this
+    // would be 2x wiki.filterTiddlers + N×getTiddler per keystroke.
     proto._loadVisibilityTiddlers = function () {
+        var cc = (this.wiki.getChangeCount && this.wiki.getChangeCount()) || 0;
+        if (this._visibilityTiddlersCache && this._visibilityTiddlersCache.changeCount === cc) {
+            return this._visibilityTiddlersCache.entries;
+        }
         var self = this;
         var titles = this.wiki.filterTiddlers(
             "[all[shadows+tiddlers]tag[" + VISIBILITY_TAG + "]]"
         );
-        return titles.map(function (title) {
+        var entries = titles.map(function (title) {
             var t = self.wiki.getTiddler(title);
             var f = (t && t.fields) || {};
             return {
@@ -51,6 +61,8 @@ module.exports = function (proto) {
                 order: self._parseNumOrDefault(f["ca-order"], DEFAULT_ORDER)
             };
         });
+        this._visibilityTiddlersCache = { changeCount: cc, entries: entries };
+        return entries;
     };
 
     // Build a visibility instance and apply any meta-specific tweaks
@@ -67,30 +79,12 @@ module.exports = function (proto) {
         return instance;
     };
 
+    // Build the in-memory instance from a loader meta + user arg.
+    // Delegates to cp-utils.buildConstraintInstance (shared with the
+    // filter subsystem, which has the same shape). Hide-entry uniqueness
+    // overlay is applied in _visibilityInstanceFor above.
     proto._buildVisibilityInstance = function (meta, arg) {
-        var safeArg = String(arg || "")
-            .replace(/[\r\n\t]/g, " ")
-            .replace(/[\]\[]/g, "")
-            .trim()
-            .slice(0, 200);
-        function resolveFilter(template) {
-            if (!template) return "";
-            return String(template).replace(/<arg>/g, "[" + safeArg + "]");
-        }
-        function resolveText(template) {
-            if (!template) return "";
-            return String(template).replace(/<<arg>>/g, safeArg);
-        }
-        return {
-            constraintTiddler: meta.title,
-            name: meta.name,
-            argType: meta.argType,
-            arg: safeArg,
-            expr: resolveFilter(meta.expr),
-            chip: resolveText(meta.chip) || meta.name,
-            hint: resolveText(meta.hint),
-            help: resolveText(meta.help)
-        };
+        return utils.buildConstraintInstance(meta, arg);
     };
 
     proto._pushVisibility = function (instance) {
@@ -149,38 +143,18 @@ module.exports = function (proto) {
     };
 
     proto._renderVisibilityStrip = function () {
-        if (!this.visibilityStripEl) return;
-        while (this.visibilityStripEl.firstChild) {
-            this.visibilityStripEl.removeChild(this.visibilityStripEl.firstChild);
-        }
-        var has = this.visibilities && this.visibilities.length > 0;
-        if (this.popupEl) this.popupEl.classList.toggle("rcp-has-visibility", has);
-        if (!has) return;
         var self = this;
-        this.visibilities.forEach(function (item, i) {
-            var pillEl = self.document.createElement("span");
-            pillEl.className = "rcp-pill" +
-                (self.focus === "visibility" && i === self.visibilityFocusIdx
-                    ? " rcp-pill-focused" : "");
-            pillEl.textContent = item.chip;
-            if (item.hint) pillEl.title = item.hint;
-            pillEl.dataset.visibilityIdx = String(i);
-            pillEl.addEventListener("mousedown", function (e) {
-                e.preventDefault();
-                self.visibilityFocusIdx = i;
-                self.setFocus("visibility");
-            });
-            var xEl = self.document.createElement("span");
-            xEl.className = "rcp-pill-remove";
-            xEl.textContent = "×";
-            xEl.title = "Remove this visibility rule";
-            xEl.addEventListener("mousedown", function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                self._removeVisibilityAt(i);
-            });
-            pillEl.appendChild(xEl);
-            self.visibilityStripEl.appendChild(pillEl);
+        pillstrip.renderPillStripSection({
+            widget:        self,
+            stripEl:       self.visibilityStripEl,
+            pills:         self.visibilities,
+            focusIdx:      self.visibilityFocusIdx,
+            focusSection:  "visibility",
+            popupHasClass: "rcp-has-visibility",
+            datasetKey:    "visibilityIdx",
+            removeTitle:   "Remove this visibility rule",
+            onSelectAt:    function (i) { self.visibilityFocusIdx = i; self.setFocus("visibility"); },
+            onRemoveAt:    function (i) { self._removeVisibilityAt(i); }
         });
     };
 
@@ -230,10 +204,7 @@ module.exports = function (proto) {
             var hf = this.visibilities[i].expr;
             if (!hf) continue;
             try {
-                var results = this.wiki.filterTiddlers(
-                    hf,
-                    this.makeFakeWidget({ currentTiddler: entryTitle })
-                );
+                var results = this._filterInScope(hf, { currentTiddler: entryTitle });
                 if (results.length > 0) return true;
             } catch (err) {
                 if (console && console.warn) {

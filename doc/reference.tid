@@ -261,6 +261,28 @@ The built-in views compose layers as follows:
 
 The `cp-child-of` filter operator is shipped by this plugin (`widgets/cp-filter-ops.js`). Its operand is the parent tiddler title; with an empty operand it returns titles that contain no `/`. Authors writing custom path-style views can reuse it directly.
 
+! Filter operators
+
+The plugin ships four filter operators authors can reuse from any wikitext. All are pure, side-effect-free, and self-emit their source feed (no upstream `source` required unless noted).
+
+|!Operator |!Operand |!Source |!Emits |
+|`cp-child-of[<parent>]` |Parent tiddler title (empty → root level) |Ignored |Direct path-segment children of `<parent>` (titles whose prefix is `<parent>/` and whose remainder contains no further `/`). With an empty operand, titles that have no `/` at all. |
+|`cp-actions-for[<entity-type>]` |Entity-type name (empty / `*` → globals only) |Ignored |Action titles (`$:/tags/rimir/cascade-palette/action`, drafts excluded) whose `ca-entity-type` matches the operand OR is `*`. Mirrors the catalogue + globals branches of `loadActionsForType`. |
+|`cp-actions-applying-to[<title>]` |Target tiddler title (empty → no results) |Ignored |Action titles whose `ca-applies` filter returns non-empty with `currentTiddler` bound to the operand. Skips actions without `ca-applies` and actions whose `ca-applies` is blank. Mirrors `actionAppliesViaFilter`. |
+|`cp-position-of[<view-slug>]` |View slug (empty → resolves base `ca-position` only) |Per-title input feed |For each input entry title, emits its effective tree-position parents in the named view. Resolution chain: `ca-position-<slug>` → `ca-position` → `at-root`. A blank slug field falls back to `ca-position`; `"none"` excludes the entry from that view. Multi-value via colon / newline split. |
+
+These operators are reusable from any wikitext — kind-style "N actions" badges, namespace navigators, view diagnostics, etc.
+
+! Macros
+
+`$:/plugins/rimir/cascade-palette/macros` (tagged `$:/tags/Macro`, imported by the palette's startup `\import` pragma) ships author-friendly wrappers:
+
+|!Macro |!Equivalent filter |
+|`cp.label(node)` |`[<node>get[caption]!is[blank]] :else[<node>get[ca-name]!is[blank]] :else[<node>]` — standard label fallback chain |
+|`cp.actions-applying-to(title)` |`[cp-actions-applying-to<title>]` — friendlier alias |
+|`cp.action-applies(entity-type)` |`[cp-actions-for<entity-type>]` — friendlier alias |
+|`cp.position-of(view-slug)` |`[<currentTiddler>cp-position-of<view-slug>]` — defaults to `currentTiddler` |
+
 A behavioural note for `by-namespace`: tree nodes are tiddlers, not derived path segments. If `foo/bar/baz` exists but no tiddler `foo` or `foo/bar` is present, those intermediate segments do not appear as drillable folders — create real tiddlers (even with empty body) at the parent paths to make them navigable.
 
 ! Entity-type drill on tree-view rows

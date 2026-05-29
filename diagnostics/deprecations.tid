@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/diagnostics/deprecations
+tags: $:/tags/rimir/cascade-palette/diagnostic
+ca-name: Deprecations
+ca-hint: Tiddlers still using deprecated cascade-palette schemas
+ca-icon: ⚠
+ca-kind: drill
+ca-order: 40
+ca-next-scope: [all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/field]] [all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/view]has[ca-view-source]] -[all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/search-field]]
+ca-next-title: Deprecated schema usages
+ca-next-as-link: yes

@@ -236,6 +236,38 @@ ca-row-icon-action: <$action-sendmessage $message="tm-edit-tiddler" $param=<<cur
 
 Every non-system tiddler gets a ✎ in its row-icon strip. Alt-↵ fires `tm-edit-tiddler` via the navigator — same effect as clicking the pencil in TW's storyline.
 
+! 16. Filter operators — author-side reuse
+
+The plugin ships four filter operators (`cp-child-of`, `cp-actions-for`, `cp-actions-applying-to`, `cp-position-of`) reachable from any wikitext, not just the palette engine. They are the supported entry point for plugins that want to integrate with the action catalogue without depending on the widget JS.
+
+''Action-count badge for a kind preview pane''. The kind plugin's `palette/preview/instance-view.tid` can surface "N actions available" against the focused row by combining `cp-actions-applying-to` (filter path) with `cp-actions-for` (catalogue path) and counting the union:
+
+```
+<$let n={{{ [cp-actions-applying-to<currentTiddler>] [<currentTiddler>get[kind.type]cp-actions-for[]] +[unique[]count[]] }}}>
+  {{$:/core/images/right-arrow}} <<n>> actions
+</$let>
+```
+
+''Diagnostic: which actions surface for an arbitrary tiddler''. Drop this into a temporary tiddler and edit the `target` macro value:
+
+```
+\function target() Alice
+
+! Catalogue (entity-type)
+<$list filter="[<target>get[kind.type]cp-actions-for[]]" />
+
+! Filter-applies
+<$list filter="[cp-actions-applying-to<target>]" />
+```
+
+''Tree view: list entries placed under a parent in a named view''. Inverts the per-entry resolver into a per-parent query — useful for sanity-checking position fields:
+
+```
+\function parentTitle() Projects
+
+<$list filter="[tag[$:/tags/rimir/cascade-palette/entry]] :filter[cp-position-of[default]match<parentTitle>]" />
+```
+
 ! What's NOT recommended
 
 * ''Heavy filters in `ca-next-scope`'' — re-runs on every keystroke. If you can't avoid an expensive filter, cache the result in a state tiddler at palette-open time and have the scope read from the cache.

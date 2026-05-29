@@ -454,10 +454,13 @@ module.exports = function (proto) {
         // shot text rows like kind's "+ Create new kind…" where the user
         // types a key once and a follow-up action creates the artifact.
         if (commit && em.item.onCommit && committedValue !== undefined) {
-            var stageForCommit = this.topStage();
-            var commitVars = stageForCommit
-                ? this.buildStageVariables(stageForCommit, committedValue)
-                : { "picked": committedValue, "parent-picked": "" };
+            // buildStageVariables tolerates a null stage (returns base vars
+            // with empty stage-derived fields) — matches the pre-0.0.82
+            // fallback shape for orphaned-edit-mode commits.
+            var commitVars = this.buildStageVariables(
+                this.topStage(),
+                committedValue
+            );
             this.invokeViaNavigator(em.item.onCommit, commitVars);
         }
         var stage = this.topStage();
@@ -494,13 +497,14 @@ module.exports = function (proto) {
         // hide the result. Applied before var-build so the action sees
         // the effective keep-open value.
         if (action.afterFire === "keep") keepOpen = true;
-        var vars = this.buildStageVariables(stage, pickedTitle);
         // Expose Ctrl-Enter (or ca-after-fire="keep") to action wikitext
         // as `<<keep-open>>` = "yes" | "". Lets a single save-leaf branch
         // on "mass-create" vs "single create + navigate" without needing
         // two distinct rows. The cascade-palette docs the protocol; kind
         // plugin's save-leaf is the first consumer.
-        vars["keep-open"] = keepOpen ? "yes" : "";
+        var vars = this.buildStageVariables(stage, pickedTitle, {
+            "keep-open": keepOpen ? "yes" : ""
+        });
         // ca-after-fire="pop" overrides the default close-on-fire: invoke
         // the action, pop this stage, and keep the palette open on the
         // previous stage. Used by single-select sub-drills (ref / enum
@@ -849,10 +853,7 @@ module.exports = function (proto) {
             if (item.previewContext) {
                 try {
                     var vars = this.buildStageVariables(parentStage, rowTitle);
-                    var titles = this.wiki.filterTiddlers(
-                        item.previewContext,
-                        this.makeFakeWidget(vars)
-                    );
+                    var titles = this._filterInScope(item.previewContext, vars);
                     ctx = (titles && titles.length) ? titles[0] : "";
                 } catch (err) {
                     if (console && console.warn) {

@@ -1,0 +1,19 @@
+title: $:/plugins/rimir/cascade-palette/macros
+tags: $:/tags/Macro
+type: text/vnd.tiddlywiki
+
+\function cp.label(node)
+[<node>get[caption]!is[blank]] :else[<node>get[ca-name]!is[blank]] :else[<node>]
+\end cp.label
+
+\function cp.actions-applying-to(title)
+[cp-actions-applying-to<title>]
+\end cp.actions-applying-to
+
+\function cp.action-applies(entity-type)
+[cp-actions-for<entity-type>]
+\end cp.action-applies
+
+\function cp.position-of(view-slug)
+[<currentTiddler>cp-position-of<view-slug>]
+\end cp.position-of

@@ -390,10 +390,14 @@ module.exports = function (proto) {
     // unioned and deduplicated (each action matches at most once):
     //   - Catalogue path: `ca-entity-type` matches the row's bound type
     //     (set by `ca-layer-row-entity-type` on the emitting layer);
-    //     globals (`ca-entity-type: *`) match any row.
+    //     globals (`ca-entity-type: *`) match any row. Implemented via
+    //     the [cp-actions-for[<entity-type>]] filter operator
+    //     (widgets/cp-actions-for.js) so the catalogue rule is also
+    //     reachable from wikitext for badges / diagnostics.
     //   - Filter path: `ca-applies` is a filter; non-empty result for
     //     `<currentTiddler> = contextTitle` means the action surfaces
-    //     for that row. Explicit, per-action; works in any view.
+    //     for that row. Explicit, per-action; works in any view. Stays
+    //     in JS — per-row filter eval with per-action variables.
     //   - Configured-field path: when the wiki has set
     //     `$:/config/rimir/cascade-palette/entity-type-field` to a field
     //     name (typically by `rimir/kind` presetting it to `kind.type`),
@@ -406,28 +410,34 @@ module.exports = function (proto) {
     // configured-field + ca-applies + globals still apply.
     proto.loadActionsForType = function (entityType, contextTitle) {
         var self = this;
-        var titles = this.wiki.filterTiddlers(
+        // Catalogue + globals via filter operator. Empty / null
+        // entityType still surfaces globals (operator semantics).
+        var catalogueTitles = this.wiki.filterTiddlers(
+            "[cp-actions-for[" + (entityType || "") + "]]"
+        );
+        var seen = Object.create(null);
+        var matched = [];
+        catalogueTitles.forEach(function (title) {
+            if (!seen[title]) { seen[title] = true; matched.push(title); }
+        });
+        // Configured-field + ca-applies paths still need contextTitle.
+        var allTitles = this.wiki.filterTiddlers(
             "[all[shadows+tiddlers]tag[" + ACTION_TAG + "]] +[!is[draft]]"
         );
-        return titles
-            .map(function (title) {
-                return self.readCascadeFields(title);
+        allTitles.forEach(function (title) {
+            if (seen[title]) return;
+            var t = self.getActionEntityType(title);
+            if (self.actionMatchesByConfiguredField(t, contextTitle)
+                || self.actionAppliesViaFilter(title, contextTitle)) {
+                seen[title] = true;
+                matched.push(title);
+            }
+        });
+        return matched
+            .filter(function (title) {
+                return self.isActionApplicable(title, contextTitle);
             })
-            .filter(function (a) {
-                var t = self.getActionEntityType(a.title);
-                var matched = false;
-                if (t === "*") {
-                    matched = true;
-                } else if (entityType && t === entityType) {
-                    matched = true;
-                } else if (self.actionMatchesByConfiguredField(t, contextTitle)) {
-                    matched = true;
-                } else if (self.actionAppliesViaFilter(a.title, contextTitle)) {
-                    matched = true;
-                }
-                if (!matched) return false;
-                return self.isActionApplicable(a.title, contextTitle);
-            });
+            .map(function (title) { return self.readCascadeFields(title); });
     };
 
     proto._entityTypeField = function () {
@@ -460,9 +470,9 @@ module.exports = function (proto) {
         var applies = f["ca-applies"];
         if (!applies || !String(applies).trim()) return false;
         try {
-            var result = this.wiki.filterTiddlers(
+            var result = this._filterInScope(
                 String(applies),
-                this.makeFakeWidget({ currentTiddler: contextTitle || "" })
+                { currentTiddler: contextTitle || "" }
             );
             return result && result.length > 0;
         } catch (err) {
@@ -482,9 +492,9 @@ module.exports = function (proto) {
         var when = f["ca-action-when"];
         if (!when || !String(when).trim()) return true;
         try {
-            var result = this.wiki.filterTiddlers(
+            var result = this._filterInScope(
                 String(when),
-                this.makeFakeWidget({ currentTiddler: contextTitle || "" })
+                { currentTiddler: contextTitle || "" }
             );
             return result && result.length > 0;
         } catch (err) {

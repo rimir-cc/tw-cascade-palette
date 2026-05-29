@@ -19,6 +19,61 @@ context" semantics:
 \*/
 "use strict";
 
+// Section-level dispatch table — `(focus) → handler-method-name`. Maps
+// every value `this.focus` can hold (set by setFocus across modules)
+// to the per-section keydown handler. Hoisted out of the switch
+// statement so it's pure data: testable in isolation, and a new
+// section ships by adding one row + writing the handler.
+//
+// The handler signature is uniform: `(e, stage)` — the dispatcher
+// passes both. Sections that ignore `stage` (none today) would
+// still receive it.
+var SECTION_HANDLERS = {
+    "input":      "_handleKeydownInput",
+    "menu":       "_handleKeydownMenu",
+    "filter":     "_handleKeydownFilter",
+    "visibility": "_handleKeydownVisibility",
+    "reach":      "_handleKeydownReach",
+    "field":      "_handleKeydownField",
+    "view":       "_handleKeydownView",
+    "viewconfig": "_handleKeydownViewConfig",
+    "leader":     "_handleKeydownLeader",
+    "preset":     "_handleKeydownPreset",
+    "details":    "_handleKeydownDetails"
+    // "preview" focus has no per-section keydown handler — the side-
+    // preview pane is a natively focusable DOM element, so the browser
+    // handles cursor / scroll directly. The pre-Phase-E switch had a
+    // stray `case "preview": this._handleKeydownPreview(e, stage)` that
+    // would have thrown TypeError (the handler was never defined); the
+    // table-driven dispatch fixes the latent bug by simply not routing
+    // preview focus to anything (the typeof guard in handleKeydown
+    // silently no-ops unknown focus values).
+};
+
+// Resolve the section handler for a focus value. Returns the handler
+// METHOD NAME (string) or `null` when the focus is unknown. The
+// caller invokes `proto[name]` themselves — keeps this pure for
+// testing without needing a widget instance.
+function resolveSectionHandler(focus) {
+    if (!focus || typeof focus !== "string") return null;
+    return Object.prototype.hasOwnProperty.call(SECTION_HANDLERS, focus)
+        ? SECTION_HANDLERS[focus]
+        : null;
+}
+
+// Snapshot the dispatch table (read-only export for diagnostics /
+// specs). Returns a fresh copy each call so callers can safely
+// inspect / iterate without race-on-mutate.
+function dispatchTableSnapshot() {
+    var out = {};
+    for (var k in SECTION_HANDLERS) {
+        if (Object.prototype.hasOwnProperty.call(SECTION_HANDLERS, k)) {
+            out[k] = SECTION_HANDLERS[k];
+        }
+    }
+    return out;
+}
+
 module.exports = function (proto) {
 
     proto.handleKeydown = function (e) {
@@ -157,20 +212,13 @@ module.exports = function (proto) {
             return;
         }
 
-        // Tier 3 — section-specific.
-        switch (this.focus) {
-            case "input":       this._handleKeydownInput(e, stage); return;
-            case "menu":        this._handleKeydownMenu(e, stage); return;
-            case "filter":      this._handleKeydownFilter(e, stage); return;
-            case "visibility":  this._handleKeydownVisibility(e, stage); return;
-            case "reach":       this._handleKeydownReach(e, stage); return;
-            case "field":       this._handleKeydownField(e, stage); return;
-            case "view":        this._handleKeydownView(e, stage); return;
-            case "viewconfig":  this._handleKeydownViewConfig(e, stage); return;
-            case "leader":      this._handleKeydownLeader(e, stage); return;
-            case "preset":      this._handleKeydownPreset(e, stage); return;
-            case "details":     this._handleKeydownDetails(e, stage); return;
-            case "preview":     this._handleKeydownPreview(e, stage); return;
+        // Tier 3 — section-specific. Dispatch via the hoisted
+        // SECTION_HANDLERS table (top of file): focus value → method
+        // name → invoke. Unknown focus is a silent no-op (defensive —
+        // setFocus is the gate that should reject bad values).
+        var handlerName = resolveSectionHandler(this.focus);
+        if (handlerName && typeof this[handlerName] === "function") {
+            this[handlerName](e, stage);
         }
     };
 
@@ -478,9 +526,9 @@ module.exports = function (proto) {
         // Cheap backlink count — informative without rendering the list.
         var backlinkCount = 0;
         try {
-            backlinkCount = this.wiki.filterTiddlers(
+            backlinkCount = this._filterInScope(
                 "[all[tiddlers]backlinks[]]",
-                this.makeFakeWidget({ currentTiddler: item.title })
+                { currentTiddler: item.title }
             ).length;
         } catch (err) { /* ignore */ }
         this.pushStage(this.buildConfirmStage({
@@ -993,3 +1041,11 @@ module.exports = function (proto) {
     };
 
 };
+
+// Re-export the pure helpers as properties on the patcher function so
+// specs can reach them without monkey-patching: the loader uses the
+// function call signature (`require(...)(proto)`), but `.X` properties
+// survive that idiom.
+module.exports.resolveSectionHandler = resolveSectionHandler;
+module.exports.dispatchTableSnapshot = dispatchTableSnapshot;
+module.exports.SECTION_HANDLERS = SECTION_HANDLERS;

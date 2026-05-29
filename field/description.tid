@@ -1,5 +1,5 @@
 title: $:/plugins/rimir/cascade-palette/field/description
-tags: $:/tags/rimir/cascade-palette/field
+tags: $:/tags/rimir/cascade-palette/search-field
 ca-field-name: description
 ca-field-chip: 📝 Description
 ca-field-hint: Match against the row's longer-form description.

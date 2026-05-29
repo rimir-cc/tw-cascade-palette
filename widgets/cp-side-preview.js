@@ -161,10 +161,7 @@ module.exports = function (proto) {
             if (!e.applies) { hits.push(e); continue; }
             if (!context) continue; // applies declared, no context to test against
             try {
-                var res = this.wiki.filterTiddlers(
-                    e.applies,
-                    this.makeFakeWidget({ currentTiddler: context })
-                );
+                var res = this._filterInScope(e.applies, { currentTiddler: context });
                 if (res && res.length) hits.push(e);
             } catch (err) {
                 if (console && console.warn) {

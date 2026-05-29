@@ -2,7 +2,6 @@ title: $:/plugins/rimir/cascade-palette/views/by-date
 tags: $:/tags/rimir/cascade-palette/view
 ca-view-name: By date
 ca-view-hint: Group all non-system tiddlers by created-year → month → day. Demo of the axis-chain mechanism — fork and replace the chain to suit your own dating needs.
-ca-view-source: [!is[system]!is[shadow]]
 ca-view-roots: [!is[system]!is[shadow]]
 ca-view-axes: $:/plugins/rimir/cascade-palette/axes/by-year-created $:/plugins/rimir/cascade-palette/axes/by-month-created $:/plugins/rimir/cascade-palette/axes/by-day-created
 ca-view-row-actions: <$action-navigate $to=<<currentTiddler>>/>

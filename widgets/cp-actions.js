@@ -61,10 +61,7 @@ module.exports = function (proto) {
         var fullFilter = stage.filter + this._composeFilterSuffix();
         var titles;
         try {
-            titles = this.wiki.filterTiddlers(
-                fullFilter,
-                this.makeFakeWidget(variables)
-            );
+            titles = this._filterInScope(fullFilter, variables);
         } catch (err) {
             if (console && console.error) {
                 console.error(
@@ -110,10 +107,7 @@ module.exports = function (proto) {
         var variables = this.buildStageVariables(stage, null);
         var jsonStrings;
         try {
-            jsonStrings = this.wiki.filterTiddlers(
-                stage.itemsFromFilter,
-                this.makeFakeWidget(variables)
-            );
+            jsonStrings = this._filterInScope(stage.itemsFromFilter, variables);
         } catch (err) {
             if (console && console.error) {
                 console.error(
@@ -147,40 +141,42 @@ module.exports = function (proto) {
     };
 
     // Build the full variable map exposed to filter and action contexts.
-    // - `query` — current stage's input text
-    // - `picked` — the just-picked item (null for filter eval, set for actions)
-    // - `parent-picked` — pick from the stage one back
-    // - `stage-N-picked` — pick from stage index N (0 = root). For root entries
-    //   we don't have a picked title, so `stage-0-picked` is "".
-    proto.buildStageVariables = function (stage, picked) {
+    //
+    // Base vars:
+    //   query                 current stage's input text
+    //   picked                the just-picked item (null/"" for filter eval, set for actions)
+    //   parent-picked         pick from the stage one back
+    //   stage-N-picked        pick from stage index N (0 = root). For root entries
+    //                         we don't have a picked title, so `stage-0-picked` is "".
+    //   context-tiddler       tiddler the user was looking at when the palette opened.
+    //                         Empty when no context was captured.
+    //   currentTiddler        bound to the picked title (when picked is non-empty).
+    //                         View-emitted row-actions reach for this name by convention.
+    //   stage-preview-context value from `ca-preview-context` on whatever entry/action
+    //                         drilled the user into the current subtree. Topmost stage
+    //                         with a non-empty `_previewContext` wins.
+    //
+    // Defensive when stage is null/undefined — returns a base map with empty
+    // values (used by edit-mode commit + row-icon fire paths where the stage
+    // pointer may have been popped by the time the action fires).
+    //
+    // `extras`: optional plain object; keys MERGE OVER the base vars (so the
+    // caller can override `currentTiddler` to the row tiddler, inject
+    // `payload` / `row-icon-key` / `row-icon-mode` / `keep-open` / etc.
+    // without monkey-patching the returned object).
+    proto.buildStageVariables = function (stage, picked, extras) {
         var vars = {
-            "query": stage.query || "",
+            "query": (stage && stage.query) || "",
             "picked": picked || "",
-            "parent-picked": stage.parentPicked || "",
-            // The tiddler the user was looking at when the palette opened.
-            // Empty when no context was captured. Scope filters and actions
-            // can use this to do context-aware work (e.g. show backlinks,
-            // sibling tiddlers, etc.).
+            "parent-picked": (stage && stage.parentPicked) || "",
             "context-tiddler": this.contextTiddler || ""
         };
-        // Also expose `currentTiddler` bound to the picked title — view-
-        // emitted row-actions (and authors more broadly) reach for this
-        // name by convention. Distinct from the widget-tree's natural
-        // currentTiddler, which the action parent already provides if
-        // we don't override.
         if (picked) vars["currentTiddler"] = picked;
-        // Walk the stack to expose stage-N-picked. The current stage's
-        // own pick is captured via `picked` above; we record parent picks
-        // from the actual stack history.
         for (var i = 0; i < this.stack.length; i++) {
             var s = this.stack[i];
             vars["stage-" + i + "-picked"] = s.parentPicked || "";
         }
-        // Expose `stage-preview-context` — the context value computed by
-        // `ca-preview-context` on whatever entry/action drilled the user
-        // into the current subtree. Topmost stage with a non-empty
-        // `_previewContext` wins, so deeper stages can still reference
-        // "what we're talking about" via this variable.
+        vars["stage-preview-context"] = "";
         for (var k = this.stack.length - 1; k >= 0; k--) {
             var sp = this.stack[k];
             if (sp && sp._previewContext) {
@@ -188,8 +184,12 @@ module.exports = function (proto) {
                 break;
             }
         }
-        if (!("stage-preview-context" in vars)) {
-            vars["stage-preview-context"] = "";
+        if (extras) {
+            for (var key in extras) {
+                if (Object.prototype.hasOwnProperty.call(extras, key)) {
+                    vars[key] = extras[key];
+                }
+            }
         }
         return vars;
     };
@@ -204,6 +204,25 @@ module.exports = function (proto) {
         // `:sortsub` all call back into this method to spawn per-iteration
         // child widgets. A plain object stub would throw "is not a function".
         return this.makeFakeWidgetWithVariables(variables);
+    };
+
+    // Canonical wrapper around wiki.filterTiddlers + makeFakeWidget.
+    // Centralises the makeFakeWidgetWithVariables invariant (see
+    // [[tw-gotchas-widget-context#Custom fake widgets...]]) — every site
+    // that injects variables into a filter eval MUST route through here
+    // so future schema changes / debugging hooks land in one place.
+    //
+    // vars     null / falsy → widget = null (matches the historical
+    //                          "no variable injection, wiki.each default"
+    //                          path used at root-level roots-filter sites)
+    //          truthy        → makeFakeWidget(vars)
+    // source   optional 3rd argument to wiki.filterTiddlers — undefined =
+    //                          default (wiki.each); pass [seedTitle] to
+    //                          anchor a per-row filter to that one title
+    //                          (axis key/label eval, etc.)
+    proto._filterInScope = function (filterStr, vars, source) {
+        var fakeWidget = vars ? this.makeFakeWidget(vars) : null;
+        return this.wiki.filterTiddlers(filterStr, fakeWidget, source);
     };
 
     /* ---------- navigator routing ---------- */
@@ -294,7 +313,6 @@ module.exports = function (proto) {
             }
             return items.slice();
         }
-        var q = String(query).toLowerCase();
         var fieldOverride = this._activeFieldNames
             ? this._activeFieldNames()
             : null;
@@ -302,34 +320,65 @@ module.exports = function (proto) {
         var kept = [];
         for (var j = 0; j < items.length; j++) {
             var item = items[j];
-            item._match = null;
-            item._matches = null;
-            var fields = fieldOverride
-                || (item.searchFields && item.searchFields.length
-                    ? item.searchFields
-                    : globalDefault);
-            var matches = [];
-            for (var k = 0; k < fields.length; k++) {
-                var fname = fields[k];
-                var sv = this._resolveMatchableField(item, fname);
-                if (!sv) continue;
-                var idx = sv.toLowerCase().indexOf(q);
-                if (idx !== -1) {
-                    matches.push({
-                        field: fname,
-                        value: sv,
-                        start: idx,
-                        len: q.length
-                    });
-                }
-            }
+            var matches = this._highlightMatches(item, query, fieldOverride, globalDefault);
             if (matches.length) {
                 item._matches = matches;
                 item._match = matches[0];
                 kept.push(item);
+            } else {
+                item._match = null;
+                item._matches = null;
             }
         }
         return kept;
+    };
+
+    // Per-item match computation. Pure (apart from one read of
+    // `this._activeFieldNames` / `this._defaultSearchFields` when the
+    // caller doesn't pre-supply them): scans the resolved field list
+    // for substring hits and returns the full match array. NO mutation
+    // of `item` — that's filterByQuery's job. Returns []  when no
+    // matches OR when query is empty.
+    //
+    // `fieldOverride` / `globalDefault` are optional injection points so
+    // hot loops (filterByQuery) can resolve them once and share. Bare
+    // `this._highlightMatches(item, query)` works too — useful for
+    // ad-hoc highlight queries from tests / one-off callers.
+    //
+    // Each match: {field, value, start, len}. `value` is the resolved
+    // field text (with array-flatten applied) so renderers don't have
+    // to re-read it.
+    proto._highlightMatches = function (item, query, fieldOverride, globalDefault) {
+        if (!query) return [];
+        var q = String(query).toLowerCase();
+        if (fieldOverride === undefined) {
+            fieldOverride = this._activeFieldNames
+                ? this._activeFieldNames()
+                : null;
+        }
+        if (globalDefault === undefined) {
+            globalDefault = this._defaultSearchFields();
+        }
+        var fields = fieldOverride
+            || (item.searchFields && item.searchFields.length
+                ? item.searchFields
+                : globalDefault);
+        var matches = [];
+        for (var k = 0; k < fields.length; k++) {
+            var fname = fields[k];
+            var sv = this._resolveMatchableField(item, fname);
+            if (!sv) continue;
+            var idx = sv.toLowerCase().indexOf(q);
+            if (idx !== -1) {
+                matches.push({
+                    field: fname,
+                    value: sv,
+                    start: idx,
+                    len: q.length
+                });
+            }
+        }
+        return matches;
     };
 
     proto._defaultSearchFields = function () {

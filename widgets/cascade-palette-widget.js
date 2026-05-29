@@ -13,9 +13,11 @@ sibling cp-*.js library modules.
 Subsystem files (each patches CascadePaletteWidget.prototype):
 
   cp-constants     module-top symbols (tag names, messages, defaults).
+  cp-utils         stateless helpers (sanitiseConstraintArg, parseNum*,
+                   detectInputPrefix, buildConstraintInstance).
   cp-filters       filter subsystem: pills that narrow stage data.
   cp-visibility    visibility subsystem: pills that hide root entries.
-  cp-input-prefix  shared input-grammar dispatcher across both kinds.
+  cp-input-prefix  shared input-grammar dispatcher (delegates to cp-utils).
   cp-views         declarative view tiddlers, tree strategies, sorting.
   cp-leaders       key + idle-window leader gestures, flash anim.
   cp-pick-presets  pick-mode commit/return + preset save/apply.
@@ -26,6 +28,50 @@ Subsystem files (each patches CascadePaletteWidget.prototype):
   cp-rendering     DOM: breadcrumb, input, results, per-row, details.
   cp-keyboard      3-tier keyboard dispatcher + section handlers.
   cp-firing        Enter/Ctrl-Enter dispatch + edit mode + drill.
+
+Prototype-extension contract:
+
+The widget constructor sets ~25 instance fields (see the five logical
+groups in the constructor below). Modules read/write these as the
+de-facto cross-module API. Notable shared state — touch with care:
+
+  this.stack[]               cp-stack OWNS  | every cp-* reads
+  this.editMode              cp-firing OWNS | cp-keyboard guards on it
+  this.focus                 cp-keyboard OWNS | every renderer reads
+  this.filters[] / visibilities[] / reachPills[] / fieldPills[]
+                             cp-{filters,visibility,reach-pills,field-pills}
+                             OWN (each its own array)
+  this._leaderFiring         cp-leaders OWNS — but READ by:
+                             cp-filters._pushFilter, cp-visibility._pushVisibility,
+                             cp-field-pills._pushField, cp-views._setActiveView
+                             (decides whether to play a flash animation)
+  this._pickModeReturnTo     cp-pick-presets OWNS | cp-firing + cp-keyboard read
+  this.contextTiddler        cp-actions builds it | every filter-eval consumes
+  this._presetPills/_leadersCache/_rowIconsCache/_filterTiddlersCache/_visibilityTiddlersCache
+                             Each owning module's _load* fn manages cache +
+                             _invalidate* helper; wiki change hook below
+                             clears them on relevant tag changes.
+
+Cross-module method calls (informal interface — coupling lives in WHICH
+methods are called WHEN, not in any explicit type):
+
+  recomputeStage / popStage / pushStage   (cp-stack) — called from cp-firing,
+                                          cp-keyboard, cp-filters, cp-visibility,
+                                          cp-reach-pills, cp-field-pills, cp-leaders
+  invokeViaNavigator (cp-actions)         called from cp-firing, cp-leaders,
+                                          cp-row-icons, cp-pick-presets
+  makeFakeWidget (cp-actions)             called from EVERY filter-eval site
+                                          (24 callsites — see cp-actions.js:206
+                                          for the makeFakeWidgetWithVariables
+                                          invariant)
+  buildStageVariables (cp-actions)        called before every action-fire to
+                                          assemble <<query>> / <<picked>> / ...
+  setFocus / _setFocus (cp-keyboard)      called from cp-leaders, cp-pick-presets,
+                                          cp-firing, cp-views
+  _flashElement (cp-leaders)              called from every pill-push path
+  _refreshPresetActiveCue (cp-pick-presets) called after constraint/view
+                                          mutations to keep the active-preset
+                                          marker honest
 
 Focus sections: input | menu | details + the strip sections that are
 currently populated (preset, visibility, filter, view). Tab cycles focus. The stage stack lives in `this.stack`;
@@ -160,6 +206,10 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     // the subsystems form a runtime dependency graph at invocation
     // time — e.g. cp-filters / cp-visibility call `this.recomputeStage`
     // (from cp-stack) and `this._flashElement` (from cp-leaders).
+    // cp-utils is a stateless library — no prototype patch — but we
+    // pre-require it so the dependent modules (cp-filters, cp-visibility,
+    // cp-input-prefix, cp-items) find it cached in the module loader.
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-utils");
     require("$:/plugins/rimir/cascade-palette/widgets/cp-filters")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-visibility")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-input-prefix")(CascadePaletteWidget.prototype);

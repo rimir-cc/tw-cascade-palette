@@ -659,10 +659,7 @@ module.exports = function (proto) {
             var applies = f["ca-template-applies"];
             if (applies) {
                 try {
-                    var results = self.wiki.filterTiddlers(
-                        applies,
-                        self.makeFakeWidget({ currentTiddler: title })
-                    );
+                    var results = self._filterInScope(applies, { currentTiddler: title });
                     if (results.indexOf(title) === -1) return;
                 } catch (err) {
                     if (console && console.warn) {

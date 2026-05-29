@@ -211,11 +211,7 @@ function evalKey(widget, axis, tiddlerTitle) {
             // the first iteration order tiddler's value, bucketing every row
             // under the same wrong key. Filters that explicitly reference
             // `<currentTiddler>` still work — the variable remains bound.
-            var r = widget.wiki.filterTiddlers(
-                axis.keyFilter,
-                widget.makeFakeWidget(vars),
-                [tiddlerTitle]
-            );
+            var r = widget._filterInScope(axis.keyFilter, vars, [tiddlerTitle]);
             val = (r.length && r[0]) ? r[0] : "";
         } catch (err) {
             if (console && console.error) {
@@ -238,11 +234,7 @@ function evalLabel(widget, axis, key) {
         // (matches the key-filter convention in `evalKey` above). The
         // `<currentTiddler>` variable is bound to the key too — filters
         // can reference either form.
-        var r = widget.wiki.filterTiddlers(
-            axis.labelFilter,
-            widget.makeFakeWidget(vars),
-            [key]
-        );
+        var r = widget._filterInScope(axis.labelFilter, vars, [key]);
         return (r.length && r[0]) ? r[0] : key;
     } catch (err) {
         return key;
@@ -373,6 +365,8 @@ function readChainSpec(wiki, layer) {
 }
 
 exports.UNSET_KEY = UNSET_KEY;
+exports.groupBy = groupBy;
+exports.sortGroups = sortGroups;
 exports.parseChainSpec = parseChainSpec;
 exports.activeChainSpec = activeChainSpec;
 exports.activeChain = activeChain;

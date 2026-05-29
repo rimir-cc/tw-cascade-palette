@@ -1,5 +1,5 @@
 title: $:/plugins/rimir/cascade-palette/field/text
-tags: $:/tags/rimir/cascade-palette/field
+tags: $:/tags/rimir/cascade-palette/search-field
 ca-field-name: text
 ca-field-chip: 📄 Text
 ca-field-hint: Match against the tiddler's body text.

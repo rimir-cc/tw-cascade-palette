@@ -7,16 +7,67 @@ type: text/vnd.tiddlywiki
 
 ! Cascade Palette
 
-;Hotkey
-:The palette opens with the shortcut configured at <code>$:/config/shortcuts/rimir-cascade-palette-open</code>. Default: ''Ctrl-Space''. Edit that tiddler to rebind.
+The palette has two layers of configuration:
 
-;Behaviour
-:* ''Max results per stage'' — caps the number of items rendered per stage. Default 30. Configured at <code>$:/config/rimir/cascade-palette/max-results</code>.
-:* ''Soft depth warning'' — engine logs a warning to the console if stack depth exceeds this. Default 10. Configured at <code>$:/config/rimir/cascade-palette/soft-depth-warning</code>. No hard cap.
-:* ''Show perf footer'' — toggle a small diagnostic footer with recompute / render timings and item counts. Off by default. Configured at <code>$:/config/rimir/cascade-palette/show-perf-footer</code>.
-:* ''URL row-icon fields'' — space-separated list of fields scanned by the built-in 🌐 row-icon. First field whose value matches an http/https/ftp/mailto/tel URL prefix wins; rows with a match get a 🌐 glyph in their footer strip that opens the URL in a new tab on Alt-↵ or click. Default `url`. Configured at <code>$:/config/rimir/cascade-palette/url-fields</code>.
-:* ''Entity-type field bridge'' — a single field name that auto-bridges catalogue actions to every view. When set, an action's `ca-entity-type: <X>` ALSO matches any row whose tiddler carries `<configured-field>: <X>` — Space opens that action menu in tree views (''All tiddlers'', ''By namespace'', etc.) without per-action `ca-applies` filters. Engine ships ''no default'' (opt-in); type-system plugins set it. Installing ''`rimir/kind` ≥ 0.1.50'' presets this to `kind.type` (the universal type-marker stamped on every kind-instance). Configured at <code>$:/config/rimir/cascade-palette/entity-type-field</code>.
+* ''Settings rows'' — interactive rows inside the palette itself (open with the hotkey, navigate to ''Settings''). Toggle / number / text inputs that write to `$:/config/rimir/cascade-palette/*` config tiddlers.
+* ''Raw config tiddlers'' — direct edits at `$:/config/rimir/cascade-palette/*` for advanced settings without a UI row (deep-search tuning, etc.).
 
-;Diagnostics
-:* See all loaded entries: <$button>List entries<$action-navigate $to="$:/temp/cascade-palette/entries-listing"/></$button>
-:* See all loaded actions: list any tiddler tagged ''`$:/tags/rimir/cascade-palette/action`''.
+Both are listed below — UI-surfaced settings are marked ''Settings row available''; others are raw-edit only.
+
+! Hotkey
+
+;<code>$:/config/shortcuts/rimir-cascade-palette-open</code>
+:The keyboard shortcut that opens the palette. Default ''Ctrl-Space''. Standard TW shortcut tiddler — edit directly to rebind, no restart needed. ''Settings row available'' (under ''Settings'' inside the palette).
+
+! Behaviour
+
+;<code>$:/config/rimir/cascade-palette/max-results</code>
+:Caps the number of items rendered per stage. Default 30. ''Settings row available''.
+
+;<code>$:/config/rimir/cascade-palette/popup-width</code>
+:CSS width of the popup container (e.g. ''`820px`''). Default 820. ''Settings row available''.
+
+;<code>$:/config/rimir/cascade-palette/details-always-on</code>
+:If ''`yes`'', the details drawer below the result list stays open (instead of requiring Ctrl-hold). Default ''`no`''. ''Settings row available''.
+
+;<code>$:/config/rimir/cascade-palette/soft-depth-warning</code>
+:Engine logs a console warning when the stage stack exceeds this depth. Default 10. No hard cap — this is purely a development aid. ''Settings row available''.
+
+;<code>$:/config/rimir/cascade-palette/show-perf-footer</code>
+:Toggle a small diagnostic footer with recompute / render timings and item counts. Off by default. ''Settings row available''.
+
+! Row icons
+
+;<code>$:/config/rimir/cascade-palette/url-fields</code>
+:Space-separated field list scanned by the built-in 🌐 row-icon. First field whose value matches an `http://` / `https://` / `ftp://` / `ftps://` / `mailto:` / `tel:` prefix wins; rows with a match get a 🌐 glyph in their footer strip that opens the URL in a new tab on Alt-↵ or click. Default ''`url`''. Raw-edit only.
+
+! Action discovery
+
+;<code>$:/config/rimir/cascade-palette/entity-type-field</code>
+:A single field name that auto-bridges catalogue actions to every view. When set, an action's `ca-entity-type: <X>` ALSO matches any row whose tiddler carries `<configured-field>: <X>` — Space opens the action menu in tree views (''All tiddlers'', ''By namespace'', etc.) without per-action `ca-applies` filters. Engine ships ''no default'' (opt-in); type-system plugins set it. Installing ''`rimir/kind` ≥ 0.1.50'' presets this to `kind.type` (the universal type-marker stamped on every kind-instance). Raw-edit only.
+
+! Deep-tree search (advanced)
+
+These tune the BFS walker fired by the ''reach'' pills (`R here` / `R everywhere`). All raw-edit only; no settings rows by default — typical users never need to touch them.
+
+;<code>$:/config/rimir/cascade-palette/deep-search-max-depth</code>
+:Maximum BFS depth for the deep-search walker. Higher = more thorough, slower. Default 4.
+
+;<code>$:/config/rimir/cascade-palette/deep-search-max-nodes</code>
+:Hard cap on total nodes the BFS visits per keystroke. Default 800.
+
+;<code>$:/config/rimir/cascade-palette/deep-search-max-ms</code>
+:Time budget per keystroke. The walker bails out when wall-clock exceeds this. Default 80ms.
+
+;<code>$:/config/rimir/cascade-palette/search-fields-default</code>
+:Space-separated fields the matcher scans on each row when no per-row `ca-search-fields` is declared. Default ''`name hint`''.
+
+! Diagnostics
+
+The palette ships a built-in ''Diagnostics'' drill (under ''Configurations''):
+
+* ''Loaded entries'' — every tiddler tagged `$:/tags/rimir/cascade-palette/entry`.
+* ''Loaded actions'' — every tiddler tagged `$:/tags/rimir/cascade-palette/action`.
+* ''Loaded settings'' — every tiddler tagged `$:/tags/rimir/cascade-palette/setting`.
+
+Use these to verify your authored contributions are visible to the engine. See [[Dev Workflow|$:/plugins/rimir/cascade-palette/doc/dev-workflow]] for the full debugging guide.

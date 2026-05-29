@@ -83,9 +83,9 @@ module.exports = function (proto) {
         if (!this.activeView) return false;
         var titles;
         try {
-            titles = this.wiki.filterTiddlers(
+            titles = this._filterInScope(
                 leader.viewsFilter,
-                this.makeFakeWidget({ currentTiddler: this.activeView })
+                { currentTiddler: this.activeView }
             );
         } catch (err) {
             return false;

@@ -17,6 +17,13 @@ Bindings (toggle / number / text / date kinds):
                       value of the field (e.g. "prefs,layout")
     ca-bind-type      scribetype handler name (default "text/plain")
 
+Alternative JSON form (preferred for new entries):
+    ca-bind           JSON object {tiddler, field, path, type}
+                      Read FIRST; any keys present override the
+                      per-field equivalents. Mixed forms allowed —
+                      a partial JSON object falls back to ca-bind-*
+                      for the missing keys.
+
 Value flow on READ:  field text → handler.fromField() → display value
 Value flow on WRITE: UI value → handler.toField() → field text
 
@@ -24,6 +31,7 @@ Value flow on WRITE: UI value → handler.toField() → field text
 "use strict";
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
+var utils = require("$:/plugins/rimir/cascade-palette/widgets/cp-utils");
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 var DEFAULT_BIND_TYPE = C.DEFAULT_BIND_TYPE;
 var DEFAULT_TRUE_VALUE = C.DEFAULT_TRUE_VALUE;
@@ -34,6 +42,56 @@ var DEFAULT_STEP_LARGE = C.DEFAULT_STEP_LARGE;
 var STRING_ARRAY_TYPE = C.STRING_ARRAY_TYPE;
 
 module.exports = function (proto) {
+
+    // Resolve one binding key (tiddler / field / path / type) with
+    // JSON-first precedence: parse `ca-bind` once per build call, then
+    // for each key check (in order) JSON value → per-field fallback
+    // `ca-bind-<key>` → `defaultValue`. Mixed schemas are allowed: a
+    // partial JSON object can omit `path` and let `ca-bind-path` fill
+    // it. The parsed JSON is cached on the field map via a non-
+    // enumerable property so subsequent calls within the same item
+    // build reuse it (4 calls per item — one per bind key).
+    proto._resolveBindKey = function (f, key, defaultValue) {
+        var parsed = this._parseCaBind(f);
+        if (parsed && Object.prototype.hasOwnProperty.call(parsed, key)) {
+            var v = parsed[key];
+            if (v !== undefined && v !== null && v !== "") return v;
+        }
+        return f["ca-bind-" + key] || defaultValue;
+    };
+
+    // Parse `ca-bind` as JSON. Returns null when absent / blank /
+    // invalid JSON / not an object (defensive — never throws). Result
+    // cached on the field map as `__cpBindParsed` to amortise the
+    // parse across the 4 _resolveBindKey lookups per item.
+    proto._parseCaBind = function (f) {
+        if (Object.prototype.hasOwnProperty.call(f, "__cpBindParsed")) {
+            return f.__cpBindParsed;
+        }
+        var raw = f["ca-bind"];
+        var parsed = null;
+        if (raw && String(raw).trim()) {
+            try {
+                var maybe = JSON.parse(raw);
+                if (maybe && typeof maybe === "object" && !Array.isArray(maybe)) {
+                    parsed = maybe;
+                }
+            } catch (err) {
+                if (console && console.warn) {
+                    console.warn(
+                        "[cascade-palette] ca-bind JSON parse error —",
+                        err && err.message, "raw:", raw
+                    );
+                }
+            }
+        }
+        try {
+            Object.defineProperty(f, "__cpBindParsed", {
+                value: parsed, writable: false, enumerable: false, configurable: true
+            });
+        } catch (err) { /* tiddler.fields may be frozen — degrade to recompute */ }
+        return parsed;
+    };
 
     proto.readCascadeFields = function (title) {
         var t = this.wiki.getTiddler(title);
@@ -89,11 +147,11 @@ module.exports = function (proto) {
             // type like application/x-string-array enables list-membership
             // semantics on toggle and provides array round-tripping for
             // text/number/date kinds.
-            bindTiddler: f["ca-bind-tiddler"] || "",
-            bindField: f["ca-bind-field"] || "text",
-            bindPath: f["ca-bind-path"] || "",
-            bindType: f["ca-bind-type"] ||
-                ((f["ca-kind"] === "date") ? "application/x-tw-date" : DEFAULT_BIND_TYPE),
+            bindTiddler: this._resolveBindKey(f, "tiddler", ""),
+            bindField: this._resolveBindKey(f, "field", "text"),
+            bindPath: this._resolveBindKey(f, "path", ""),
+            bindType: this._resolveBindKey(f, "type",
+                ((f["ca-kind"] === "date") ? "application/x-tw-date" : DEFAULT_BIND_TYPE)),
             trueValue: f["ca-true-value"] || DEFAULT_TRUE_VALUE,
             falseValue: f["ca-false-value"] || DEFAULT_FALSE_VALUE,
             // Numeric edit-kind config. `min`/`max` are nullable so callers
@@ -202,15 +260,15 @@ module.exports = function (proto) {
         };
     };
 
+    // Thin delegators to cp-utils — kept on the prototype so existing
+    // call sites (this._parseNumOrNull(...) etc.) continue to work
+    // without churn. The shared implementations are testable in isolation
+    // via cp-utils's exports.
     proto._parseNumOrNull = function (raw) {
-        if (raw === undefined || raw === null || raw === "") return null;
-        var n = parseFloat(raw);
-        return isNaN(n) ? null : n;
+        return utils.parseNumOrNull(raw);
     };
-
     proto._parseNumOrDefault = function (raw, fallback) {
-        var n = this._parseNumOrNull(raw);
-        return n === null ? fallback : n;
+        return utils.parseNumOrDefault(raw, fallback);
     };
 
     /* ---------- bound-value read/write ---------- */

@@ -21,17 +21,27 @@ same tiddler title evicts the previous instance.
 "use strict";
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
+var utils = require("$:/plugins/rimir/cascade-palette/widgets/cp-utils");
+var pillstrip = require("$:/plugins/rimir/cascade-palette/widgets/cp-pillstrip");
 var FILTER_TAG = C.FILTER_TAG;
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 
 module.exports = function (proto) {
 
+    // Cached by wiki.getChangeCount(): rebuilds when the wiki has any
+    // change since last read; otherwise returns the same array reference.
+    // Called from _detectInputPrefix on every keystroke — uncached this
+    // would be 2x wiki.filterTiddlers + N×getTiddler per keystroke.
     proto._loadFilterTiddlers = function () {
+        var cc = (this.wiki.getChangeCount && this.wiki.getChangeCount()) || 0;
+        if (this._filterTiddlersCache && this._filterTiddlersCache.changeCount === cc) {
+            return this._filterTiddlersCache.entries;
+        }
         var self = this;
         var titles = this.wiki.filterTiddlers(
             "[all[shadows+tiddlers]tag[" + FILTER_TAG + "]]"
         );
-        return titles.map(function (title) {
+        var entries = titles.map(function (title) {
             var t = self.wiki.getTiddler(title);
             var f = (t && t.fields) || {};
             return {
@@ -46,32 +56,15 @@ module.exports = function (proto) {
                 order: self._parseNumOrDefault(f["ca-order"], DEFAULT_ORDER)
             };
         });
+        this._filterTiddlersCache = { changeCount: cc, entries: entries };
+        return entries;
     };
 
+    // Build the in-memory instance from a loader meta + user arg.
+    // Delegates to cp-utils.buildConstraintInstance (shared with the
+    // visibility subsystem, which has the same shape).
     proto._buildFilterInstance = function (meta, arg) {
-        var safeArg = String(arg || "")
-            .replace(/[\r\n\t]/g, " ")
-            .replace(/[\]\[]/g, "")
-            .trim()
-            .slice(0, 200);
-        function resolveFilter(template) {
-            if (!template) return "";
-            return String(template).replace(/<arg>/g, "[" + safeArg + "]");
-        }
-        function resolveText(template) {
-            if (!template) return "";
-            return String(template).replace(/<<arg>>/g, safeArg);
-        }
-        return {
-            constraintTiddler: meta.title,
-            name: meta.name,
-            argType: meta.argType,
-            arg: safeArg,
-            expr: resolveFilter(meta.expr),
-            chip: resolveText(meta.chip) || meta.name,
-            hint: resolveText(meta.hint),
-            help: resolveText(meta.help)
-        };
+        return utils.buildConstraintInstance(meta, arg);
     };
 
     proto._pushFilter = function (instance) {
@@ -130,38 +123,18 @@ module.exports = function (proto) {
     };
 
     proto._renderFilterStrip = function () {
-        if (!this.filterStripEl) return;
-        while (this.filterStripEl.firstChild) {
-            this.filterStripEl.removeChild(this.filterStripEl.firstChild);
-        }
-        var has = this.filters && this.filters.length > 0;
-        if (this.popupEl) this.popupEl.classList.toggle("rcp-has-filters", has);
-        if (!has) return;
         var self = this;
-        this.filters.forEach(function (item, i) {
-            var pillEl = self.document.createElement("span");
-            pillEl.className = "rcp-pill" +
-                (self.focus === "filter" && i === self.filterFocusIdx
-                    ? " rcp-pill-focused" : "");
-            pillEl.textContent = item.chip;
-            if (item.hint) pillEl.title = item.hint;
-            pillEl.dataset.filterIdx = String(i);
-            pillEl.addEventListener("mousedown", function (e) {
-                e.preventDefault();
-                self.filterFocusIdx = i;
-                self.setFocus("filter");
-            });
-            var xEl = self.document.createElement("span");
-            xEl.className = "rcp-pill-remove";
-            xEl.textContent = "×";
-            xEl.title = "Remove this filter";
-            xEl.addEventListener("mousedown", function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                self._removeFilterAt(i);
-            });
-            pillEl.appendChild(xEl);
-            self.filterStripEl.appendChild(pillEl);
+        pillstrip.renderPillStripSection({
+            widget:        self,
+            stripEl:       self.filterStripEl,
+            pills:         self.filters,
+            focusIdx:      self.filterFocusIdx,
+            focusSection:  "filter",
+            popupHasClass: "rcp-has-filters",
+            datasetKey:    "filterIdx",
+            removeTitle:   "Remove this filter",
+            onSelectAt:    function (i) { self.filterFocusIdx = i; self.setFocus("filter"); },
+            onRemoveAt:    function (i) { self._removeFilterAt(i); }
         });
     };
 

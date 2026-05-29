@@ -29,16 +29,37 @@ leader keys).
 "use strict";
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
+var pillstrip = require("$:/plugins/rimir/cascade-palette/widgets/cp-pillstrip");
+var utils = require("$:/plugins/rimir/cascade-palette/widgets/cp-utils");
 var FIELD_TAG = C.FIELD_TAG;
+var SEARCH_FIELD_TAG = C.SEARCH_FIELD_TAG;
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 
 module.exports = function (proto) {
 
     proto._loadFieldTiddlers = function () {
         var self = this;
+        // Union of the canonical `search-field` tag and the legacy
+        // `field` tag (pre-0.0.84). Authors with both shipped see the
+        // same tiddler at most once because filter-run union dedupes
+        // by title. A once-per-session deprecation warning fires when
+        // any legacy-tagged tiddlers are still in the store.
         var titles = this.wiki.filterTiddlers(
+            "[all[shadows+tiddlers]tag[" + SEARCH_FIELD_TAG + "]] " +
             "[all[shadows+tiddlers]tag[" + FIELD_TAG + "]]"
         );
+        var legacyCount = this.wiki.filterTiddlers(
+            "[all[shadows+tiddlers]tag[" + FIELD_TAG + "]] " +
+            "-[all[shadows+tiddlers]tag[" + SEARCH_FIELD_TAG + "]]"
+        ).length;
+        if (legacyCount > 0) {
+            utils.deprecationWarning(
+                "tag:" + FIELD_TAG,
+                "search-in pill tiddlers should be tagged " + SEARCH_FIELD_TAG +
+                " instead of " + FIELD_TAG + " (" + legacyCount + " legacy-tagged tiddler(s) loaded)",
+                this.wiki
+            );
+        }
         return titles.map(function (title) {
             var t = self.wiki.getTiddler(title);
             var f = (t && t.fields) || {};
@@ -116,38 +137,19 @@ module.exports = function (proto) {
     };
 
     proto._renderFieldStrip = function () {
-        if (!this.fieldStripEl) return;
-        while (this.fieldStripEl.firstChild) {
-            this.fieldStripEl.removeChild(this.fieldStripEl.firstChild);
-        }
-        var has = this.fieldPills && this.fieldPills.length > 0;
-        if (this.popupEl) this.popupEl.classList.toggle("rcp-has-fields", has);
-        if (!has) return;
         var self = this;
-        this.fieldPills.forEach(function (item, i) {
-            var pillEl = self.document.createElement("span");
-            pillEl.className = "rcp-pill rcp-pill-field" +
-                (self.focus === "field" && i === self.fieldFocusIdx
-                    ? " rcp-pill-focused" : "");
-            pillEl.textContent = item.chip;
-            if (item.hint) pillEl.title = item.hint;
-            pillEl.dataset.fieldIdx = String(i);
-            pillEl.addEventListener("mousedown", function (e) {
-                e.preventDefault();
-                self.fieldFocusIdx = i;
-                self.setFocus("field");
-            });
-            var xEl = self.document.createElement("span");
-            xEl.className = "rcp-pill-remove";
-            xEl.textContent = "×";
-            xEl.title = "Remove this field";
-            xEl.addEventListener("mousedown", function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                self._removeFieldAt(i);
-            });
-            pillEl.appendChild(xEl);
-            self.fieldStripEl.appendChild(pillEl);
+        pillstrip.renderPillStripSection({
+            widget:        self,
+            stripEl:       self.fieldStripEl,
+            pills:         self.fieldPills,
+            focusIdx:      self.fieldFocusIdx,
+            focusSection:  "field",
+            popupHasClass: "rcp-has-fields",
+            pillModifier:  "rcp-pill-field",
+            datasetKey:    "fieldIdx",
+            removeTitle:   "Remove this field",
+            onSelectAt:    function (i) { self.fieldFocusIdx = i; self.setFocus("field"); },
+            onRemoveAt:    function (i) { self._removeFieldAt(i); }
         });
     };
 

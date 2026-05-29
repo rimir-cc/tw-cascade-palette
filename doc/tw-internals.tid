@@ -1,0 +1,123 @@
+title: $:/plugins/rimir/cascade-palette/doc/tw-internals
+tags: $:/tags/rimir/doc-template
+rdt.plugin-name: cascade palette
+rdt.section: tw-internals
+rdt.section-order: 45
+rdt.title: TW Internals
+type: text/vnd.tiddlywiki
+
+This page documents the TiddlyWiki-specific machinery cascade-palette uses (and the traps it dodges). Most of it lives in `widgets/cascade-palette-widget.js` and a handful of subsystem libraries. Read this when you're about to touch the engine source — not when authoring declarative content.
+
+! Startup mounting (`cascade-palette-startup.js`)
+
+The palette widget mounts at boot via a startup module — NOT via a page-template tag. This makes the palette work uniformly in any UI mode (default wiki, appify-replaced story river, custom themes).
+
+* ''`exports.after = ["render"]`'' — runs after the page widget tree is built (so `$tw.pageWidgetNode` exists).
+* The startup imports `\import [all[shadows+tiddlers]tag[$:/tags/Macro]!has[draft.of]]` so `$:/tags/Macro`-tagged `\function` defs (including the plugin's own `macros.tid`) are visible to every filter and action wikitext evaluated by the widget.
+* The widget mounts via `<$cascade-palette/>` into `document.body`, OUTSIDE the page widget tree. This has one consequence — see ''Navigator routing'' below.
+
+The widget is mostly idle until `Ctrl-Space` (or the configured hotkey) is pressed. The hotkey is bound via a standard TW keyboard-shortcut tiddler (`config/shortcut-binding.tid`) and sends a `rimir-cascade-palette-open` message that the widget catches via `$tw.rootWidget`.
+
+! Navigator routing (`cp-actions.js:findActionParent` / `invokeViaNavigator`)
+
+Because the widget mounts in `document.body`, action widgets it invokes via `$tw.wiki.invokeActions` would by default see only `$tw.rootWidget` as their parent. That means navigator-routed messages (''`$action-navigate`'', `tm-edit-tiddler`, `tm-close-tiddler`, …) would have no `<$navigator>` ancestor to dispatch to — and silently drop.
+
+The widget's `findActionParent()` walks `$tw.pageWidgetNode`'s subtree looking for:
+
+# A ''statewrap widget'' (deepest one) — preferred when present, because `getStatewrapContext` (rimir/statewrap) walks the parent chain UP and needs to see `statewrap.statewrapContext`. Statewrap sits INSIDE appify-app, so picking it gives both statewrap context AND any ancestor navigators (events bubble UP).
+# Otherwise the first ''navigator widget''.
+# Otherwise `$tw.rootWidget` (root-level handlers like `tm-save-wiki` still work).
+
+`invokeViaNavigator(actionString, variables)` parses the action wikitext with `parentWidget: parent`, makes the widget tree with the same parent, renders into `$tw.fakeDocument`, and calls `invokeActions`. The action then dispatches into the page-tree-aware parent and bubbles correctly.
+
+! The `makeFakeWidget` invariant
+
+Every place the engine evaluates a filter (`wiki.filterTiddlers`) MUST pass a widget that has `makeFakeWidgetWithVariables` on it. TW's run-prefixes (`:filter`, `:map`, `:reduce`, `:sortsub`) call back into that method to spawn per-iteration child widgets — a plain object stub throws `TypeError: widget.makeFakeWidgetWithVariables is not a function` and silently drops the prefix's whole result.
+
+The widget centralises this through ''`proto.makeFakeWidget(variables)`'' (`cp-actions.js:197`):
+
+```js
+proto.makeFakeWidget = function (variables) {
+    // Delegates to TW core's Widget.prototype.makeFakeWidgetWithVariables —
+    // it layers `variables` on top of this widget's parent chain (so both
+    // injected literals AND $:/tags/Macro-tagged \function defs imported by
+    // the startup \import resolve correctly), AND propagates
+    // makeFakeWidgetWithVariables onto the returned fake widget so nested
+    // prefixes work.
+    return this.makeFakeWidgetWithVariables(variables);
+};
+```
+
+Rule for new code: every `wiki.filterTiddlers(filter, ?)` callsite that injects variables routes through `this.makeFakeWidget(vars)`. Never construct a `{getVariable, wiki}` stub by hand. See [[tw-gotchas-widget-context#Custom fake widgets passed to wiki.filterTiddlers…]] in the project-wide gotchas memory.
+
+! Stage stack & persistence (`cp-stack.js`)
+
+The palette is a stack of stages (`this.stack`), each a small POJO:
+
+|!Field |!Meaning |
+|`kind` |`"root"` / `"tree"` / `"filter"` / `"actions"` / `"confirm"` |
+|`query` |Current text typed at this stage |
+|`items` / `results` |Pre-filter and post-query rows |
+|`selectedIndex` |Which row is highlighted |
+|`parentPath` |For tree-stages: array of bucket keys (axes) + tiddler titles (recursive) |
+|`_previewContext` / `_previewActiveTemplate` |For side-preview pinning |
+|`_freezeItems` |Used by the axis picker (a sub-stage with frozen item list) |
+
+''Session persistence.'' `close()` paths split: ''preserve'' (Shift-Esc, action-fire close) writes `JSON.stringify(safe)` to `$:/temp/rimir/cascade-palette/saved-stack`; ''reset'' (plain Esc at root, backdrop click) clears it. `openPalette()` reads on each open; if present, restores (`items`/`results` left empty for `recomputeStage` to repopulate). `confirm` and `actions` stages are dropped on serialise — they reference closure-captured strings — so the saved chain truncates at the first such stage.
+
+''Compact JSON only.'' Writes are `JSON.stringify(root)` with no indent, no newlines. This avoids [[tw-gotchas-filesystem-sync#Non-text field with newline / control chars silently switches `.tid` → `.json` file format]] — TW's filesystem adapter flips a tiddler from `.tid` to `.json` if any non-`text` field contains `\n` / `\t` / leading-whitespace.
+
+! Filter substitution (`cp-actions.js:buildStageVariables`)
+
+The widget exposes variables to every filter and action wikitext via a synthetic widget context:
+
+|!Variable |!What it is |
+|`<<query>>` |Current input text |
+|`<<picked>>` |For action invocation: the title just picked (the entity the action acts on) |
+|`<<parent-picked>>` |Title picked in the parent stage (one back) |
+|`<<stage-N-picked>>` |Title picked at stage index N (root = 0) |
+|`<<context-tiddler>>` |Tiddler the user was looking at when the hotkey fired (focused [data-tiddler-title] ancestor, falling back to $:/HistoryList) |
+|`<<stage-preview-context>>` |Inside a preview-bearing subtree: the entity the side preview is pinned to |
+|`<<currentTiddler>>` |Per-row binding when relevant (axis evaluation, row-actions, applies-filters) |
+
+`buildStageVariables(stage, picked, extras)` is the canonical builder. New callsites that inject extras should pass them via the `extras` map instead of hand-constructing a separate variables object — keeps the surface uniform and audit-able.
+
+! Side-preview pane (`cp-side-preview.js`)
+
+''Cache.'' Rendered widget trees are keyed by `(depth, contextTitle, templateTitle)`. Selection-tracking re-renders inside the same preview reuse the DOM; switching pills re-renders (template change); per-row context change re-renders.
+
+''Reactive updates.'' The plugin's wiki change hook (`cascade-palette-widget.js`) dispatches `refresh(changes)` into the cached widget tree for non-invalidating changes — form inputs inside a preview template stay reactive without rebuild — and drops the cache entirely when the active template tiddler, the context tiddler, or any side-preview-tagged tiddler is created/modified/deleted.
+
+''Activation paths.'' `_attachPreviewToStage` recognises (a) per-menu template set; (b) tag-only opt-in (row sets `ca-preview-context` / `ca-preview-per-row` without a template — pane activates from tag candidates only); (c) inheritance from a parent per-row stage.
+
+! Axis-key memoisation (`cp-axes.js`)
+
+Axis `keyFn` results are memoised per `(axisTitle + paramsHash) × tiddlerTitle`, invalidated on `wiki.getChangeCount()`. First touch of the cache fills it; subsequent re-renders cost O(rows visited at the current depth), not O(source).
+
+The `groupBy` / `sortGroups` primitive is loaded from `$:/plugins/rimir/mindmap/lib/grouped-tree.js` when the mindmap plugin is installed (soft-dep); a tiny inline fallback covers the case where mindmap isn't around — same algorithm, no feature degradation.
+
+! Prototype-extension contract
+
+`cascade-palette-widget.js` constructs the prototype, then 21 `cp-*.js` library modules `require()` and patch methods onto it. The require order does NOT matter — patches are static (every method is installed before any method is called) — but modules read each other's state and methods at runtime:
+
+* ''Shared instance fields'' on `this` (initialised in the constructor) form the de-facto contract between modules. The constructor lists them in five logical groups (lifecycle / focus / constraints / view-preset-leader / transient). Touch with care; renaming a field requires grep across modules.
+* ''Cross-module method calls'' are not explicitly typed. cp-filters / cp-visibility / cp-reach-pills / cp-field-pills / cp-preset-pills / cp-leaders all call `this.recomputeStage` (cp-stack) and `this._flashElement` (cp-leaders). cp-pick-presets / cp-firing / cp-keyboard call `this.invokeViaNavigator` (cp-actions). The right reading direction is: every `proto.foo` is callable from anywhere; coupling lives in WHICH methods are called WHEN.
+
+''When you add a new field to `this`,'' put it in the right logical group in the constructor with a comment explaining lifecycle (created when? cleared when? read by whom?). Future grep across `cp-*.js` is the only protection against accidental shadowing.
+
+''When you add a new `proto.foo` method,'' if it's an internal helper, prefix with `_`. The convention is applied consistently across modules.
+
+! Hot paths
+
+|!Surface |!Per keystroke |!Notes |
+|`recomputeStage` |1× | full filter eval + matcher + render |
+|`evaluateFilterStage` |1× | `wiki.filterTiddlers` against `ca-next-scope` / view-specific source |
+|`applyQueryToStage` |1× | O(items × tokens) matcher — fine for stages with ≤200 items |
+|`_loadFilterTiddlers` / `_loadVisibilityTiddlers` |2–4× (cached per `wiki.getChangeCount()` from v0.0.80) | reloads invalidate only on writes |
+|Deep-search BFS |opt-in via reach pills | bounded by `max-depth=4`, `max-nodes=800`, `max-ms=80` configs |
+
+! See also
+
+* [[Architecture|$:/plugins/rimir/cascade-palette/doc/architecture]] — high-level component map
+* [[Protocol|$:/plugins/rimir/cascade-palette/doc/protocol]] — declarative authoring surface
+* [[Dev Workflow|$:/plugins/rimir/cascade-palette/doc/dev-workflow]] — how to contribute & test
