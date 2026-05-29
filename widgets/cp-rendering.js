@@ -174,6 +174,10 @@ module.exports = function (proto) {
         // Deep-search hint: truncation sentinel uses its own styled row so
         // the user reads it as informational, not actionable.
         if (item._deepTruncated) rowEl.classList.add("rcp-row-deep-truncated");
+        // Ancestor-only marker: row is shown because a descendant matched
+        // the active filter pills, not because it matched itself. Renders
+        // dimmed so the user can tell the parent isn't a direct hit.
+        if (item._ancestorOnly) rowEl.classList.add("rcp-row-ancestor-only");
         // Hover help — ca-hint is shown as a subtitle in some rows but is
         // ALSO surfaced as the native HTML tooltip on every row, so even
         // settings rows (which use the right slot for the bound value) get

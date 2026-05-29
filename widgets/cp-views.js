@@ -35,6 +35,15 @@ Entity-type drilling: a layer can declare `ca-layer-row-entity-type`
 yields a non-empty entity type opens the action-menu stage for that
 type.
 
+Filter-pill ancestor reveal: in tree-container layers (have
+`children`, no `axes`), pushing a filter pill that matches only deep
+descendants would normally empty the tree — `_applyFilterSuffix` is
+applied per-level, dropping any ancestor that didn't itself match.
+`_getRevealedSet` walks the layer skeleton once, collects every
+filter-matching title plus all their ancestors, and `_evaluateLayer`
+narrows candidates to that set. Rows in `revealed` but not in
+`matched` are stamped with `_ancestorOnly` and render dimmed.
+
 \*/
 "use strict";
 
@@ -346,6 +355,85 @@ function setup(proto) {
         return rows;
     };
 
+    // Filter-pill ancestor-reveal helper.
+    //
+    // In tree-container layers (have `children`, no `axes`), the filter
+    // suffix is applied per-level by `_applyFilterSuffix`. That means a
+    // parent that doesn't itself match the filter is dropped — and any
+    // descendant that WOULD match becomes unreachable. To keep matches
+    // discoverable via drill-down, walk the whole layer tree once and
+    // compute the set of titles that should remain visible: tiddlers
+    // matching the filter PLUS all their ancestors back to the roots.
+    //
+    // Returns { matched, revealed } or null when ancestor-reveal isn't
+    // needed (no filter pills active, layer has no children/roots, or
+    // layer drives an axis chain — axis bucketing is already descendant-
+    // aware so the per-level filter narrowing is correct there).
+    //
+    // Cached per-(layer, filter-suffix) on the widget so the per-row
+    // `_isLeafInLayer` / `_childCountForLayer` calls don't reseed the
+    // BFS. Cache is keyed by suffix string so it self-invalidates on
+    // pill changes; the previous entry just falls out of scope.
+    proto._getRevealedSet = function (layer) {
+        var suffix = this._composeFilterSuffix();
+        if (!suffix) return null;
+        if (!layer || !layer.children || !layer.roots) return null;
+        if (layer.axes) return null;
+        var cacheKey = (layer.title || "implicit") + "::" + suffix;
+        if (this._revealedCache && this._revealedCache.key === cacheKey) {
+            return this._revealedCache.result;
+        }
+        var self = this;
+        var matched = Object.create(null);
+        var parentOf = Object.create(null);
+        var seen = Object.create(null);
+        var roots, rootsMatched;
+        try {
+            roots = this._filterInScope(layer.roots, null);
+            rootsMatched = this._applyFilterSuffix(layer.roots, null);
+        } catch (err) { return null; }
+        for (var i = 0; i < rootsMatched.length; i++) {
+            if (self.isEntryVisible(rootsMatched[i])) {
+                matched[rootsMatched[i]] = true;
+            }
+        }
+        var queue = [];
+        for (var j = 0; j < roots.length; j++) {
+            if (!seen[roots[j]]) { seen[roots[j]] = true; queue.push(roots[j]); }
+        }
+        while (queue.length) {
+            var t = queue.shift();
+            try {
+                var vars = { currentTiddler: t };
+                var kids = self._filterInScope(layer.children, vars);
+                var kidsMatched = self._applyFilterSuffix(layer.children, vars);
+                for (var k = 0; k < kidsMatched.length; k++) {
+                    if (self.isEntryVisible(kidsMatched[k])) {
+                        matched[kidsMatched[k]] = true;
+                    }
+                }
+                for (var m = 0; m < kids.length; m++) {
+                    var c = kids[m];
+                    if (seen[c]) continue;
+                    seen[c] = true;
+                    parentOf[c] = t;
+                    queue.push(c);
+                }
+            } catch (err) { /* skip on subtree error */ }
+        }
+        var revealed = Object.create(null);
+        for (var title in matched) {
+            var cur = title;
+            while (cur && !revealed[cur]) {
+                revealed[cur] = true;
+                cur = parentOf[cur];
+            }
+        }
+        var result = { matched: matched, revealed: revealed };
+        this._revealedCache = { key: cacheKey, result: result };
+        return result;
+    };
+
     // Evaluate a single layer at a given node, returning its rows.
     // Dispatches built-in layers (entries) to their dedicated path.
     proto._evaluateLayer = function (view, layer, layerIdx, parentTitle, parentPath) {
@@ -355,6 +443,7 @@ function setup(proto) {
         var self = this;
         parentPath = parentPath || [];
         var candidates = null;
+        var revealedSet = this._getRevealedSet(layer);
         // Axis chain: when the layer declares axes and we're still within
         // the chain, emit synthetic bucket rows. When the chain is exactly
         // exhausted (depth === chain.length), enumerate the narrowed
@@ -389,10 +478,22 @@ function setup(proto) {
             candidates = [];
             if (filterExpr) {
                 try {
-                    candidates = this._applyFilterSuffix(
-                        filterExpr,
-                        rootsVars
-                    );
+                    if (revealedSet) {
+                        // Ancestor-reveal mode: get unfiltered candidates
+                        // at this level, then narrow to the revealed set.
+                        // Keeps revealed-only ancestors visible (rows the
+                        // filter wouldn't pass on their own merits but
+                        // whose descendants did).
+                        var raw = this._filterInScope(filterExpr, rootsVars);
+                        candidates = raw.filter(function (t) {
+                            return revealedSet.revealed[t];
+                        });
+                    } else {
+                        candidates = this._applyFilterSuffix(
+                            filterExpr,
+                            rootsVars
+                        );
+                    }
                 } catch (err) {
                     if (console && console.error) {
                         console.error(
@@ -443,6 +544,15 @@ function setup(proto) {
             }
             var item = self._buildCascadeItem(fieldsObj, title);
             item._layerIdx = layerIdx;
+            // Ancestor-only marker — set when filter pills are active
+            // and this row is in the revealed set but didn't itself
+            // match the filter (i.e. it's shown only because a
+            // descendant matched). Used by cp-rendering to add a
+            // dimmed visual marker so the user knows the row itself
+            // wasn't a hit.
+            if (revealedSet && !revealedSet.matched[title]) {
+                item._ancestorOnly = true;
+            }
             // When `ca-actions` was synthesised from this layer's
             // `ca-(view|layer)-row-actions` template (rather than from
             // the row's own tiddler), mark it as "fire on Enter only".
@@ -465,12 +575,12 @@ function setup(proto) {
                 !item.nextScope && !item.itemsFrom) {
                 item._treeContainer = true;
                 item._treeParent = title;
-                // Child count is only computed when the view opted-in via
-                // `ca-view-show-count` AND no filters are active. With
-                // filters active the bucket's mere existence is the
-                // "drillable" signal — see cp-axes.js comment. This skip
-                // keeps filtered renders O(rows) instead of O(rows × children).
-                if (view.showCount && !self.filters.length) {
+                // Child count is computed when the view opted-in via
+                // `ca-view-show-count` AND either no filters are active
+                // OR the revealed-set is cached (set-membership check is
+                // cheap; see _childCountForLayer). Otherwise the bucket's
+                // mere existence is the "drillable" signal — see cp-axes.js.
+                if (view.showCount && (!self.filters.length || revealedSet)) {
                     item._childCount = self._childCountForLayer(layer, title);
                 }
             }
@@ -562,11 +672,27 @@ function setup(proto) {
             } catch (err) { return true; }
         }
         if (!layer.children) return true;
-        // Filter pills narrow the child set first (so a node with children
-        // that all fail the active filter renders as a leaf). Visibility is
-        // a per-row predicate so we still have to walk until the first
-        // visible match — but the suffix-narrowed result is usually short.
+        // Ancestor-reveal mode: a parent is a leaf only when none of its
+        // children are in the revealed set. Revealed-only ancestors MUST
+        // remain drillable — that's the whole point of revealing them.
+        var revealedSet = this._getRevealedSet(layer);
         try {
+            if (revealedSet) {
+                var kids = this._filterInScope(
+                    layer.children,
+                    { currentTiddler: candidateTitle }
+                );
+                for (var j = 0; j < kids.length; j++) {
+                    if (revealedSet.revealed[kids[j]] &&
+                        this.isEntryVisible(kids[j])) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            // No filter pills: existing path. Visibility is a per-row
+            // predicate so we still have to walk until the first visible
+            // match — but the suffix-narrowed result is usually short.
             var children = this._applyFilterSuffix(
                 layer.children,
                 { currentTiddler: candidateTitle }
@@ -580,12 +706,22 @@ function setup(proto) {
 
     proto._childCountForLayer = function (layer, parentTitle) {
         if (!layer.children) return 0;
+        var self = this;
+        var revealedSet = this._getRevealedSet(layer);
         try {
+            if (revealedSet) {
+                var kids = this._filterInScope(
+                    layer.children,
+                    { currentTiddler: parentTitle }
+                );
+                return kids.filter(function (t) {
+                    return revealedSet.revealed[t] && self.isEntryVisible(t);
+                }).length;
+            }
             var r = this._applyFilterSuffix(
                 layer.children,
                 { currentTiddler: parentTitle }
             );
-            var self = this;
             return r.filter(function (t) {
                 return self.isEntryVisible(t);
             }).length;

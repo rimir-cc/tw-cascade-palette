@@ -340,7 +340,7 @@ Stages are populated by re-running `ca-next-scope` whenever the user types in th
 
 The palette has two parallel constraint kinds, each surfacing its own pill strip:
 
-* A ''filter'' is a tiddler tagged ''`$:/tags/rimir/cascade-palette/filter`''. Its expression is appended (intersected) to every result-list filter — it ''narrows what's shown''. Filter pills sit in a blue strip.
+* A ''filter'' is a tiddler tagged ''`$:/tags/rimir/cascade-palette/filter`''. Its expression is appended (intersected) to every result-list filter — it ''narrows what's shown''. Filter pills sit in a blue strip. In tree-container views the engine reveals ''ancestors of filter-matches'' so deep matches remain reachable via drill-down; revealed-only ancestors render dimmed.
 * A ''visibility'' rule is a tiddler tagged ''`$:/tags/rimir/cascade-palette/visibility`''. Its expression is a predicate evaluated against each root-entry title — non-empty result means ''hide that entry from the root menu''. Visibility pills sit in an orange/red strip.
 
 The two kinds share grammar (prefix + arg) and shape (chip / hint / help / order). Differences are limited to which pipeline stage their expression feeds into.

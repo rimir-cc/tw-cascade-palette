@@ -1399,6 +1399,20 @@ type: text/css
     color: #9ca3af;
 }
 
+/* Ancestor-only marker — in tree-container views, parents revealed
+   purely because a descendant matched the active filter pills render
+   dimmed. Tells the user "drill in to find the real hit" without
+   making them wonder why this row doesn't appear to match. The selected
+   row keeps full contrast so the user can read its title even when
+   navigating through ancestors. */
+.rcp-row-ancestor-only .rcp-row-name {
+    opacity: 0.55;
+    font-style: italic;
+}
+.rcp-row-ancestor-only.rcp-row-selected .rcp-row-name {
+    opacity: 1;
+}
+
 @media (prefers-color-scheme: dark) {
     .rcp-row-breadcrumb,
     .rcp-row-breadcrumb-seg {
@@ -1425,6 +1439,13 @@ type: text/css
     .rcp-row-deep-truncated,
     .rcp-row-deep-truncated .rcp-row-name {
         color: #6b7280;
+    }
+    .rcp-row-ancestor-only .rcp-row-name {
+        opacity: 0.5;
+        font-style: italic;
+    }
+    .rcp-row-ancestor-only.rcp-row-selected .rcp-row-name {
+        opacity: 1;
     }
 }
 
