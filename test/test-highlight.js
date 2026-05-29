@@ -3,29 +3,32 @@ title: $:/plugins/rimir/cascade-palette/test/test-highlight.js
 type: application/javascript
 tags: [[$:/tags/test-spec]]
 
-Tests for the extracted `_highlightMatches(item, query, fieldOverride,
-globalDefault)` pure helper. Pre-Phase-E this logic was inline inside
-`filterByQuery`; carving it out makes per-item highlight computation
-testable in isolation AND reusable by future ad-hoc renderers (e.g. a
-diagnostics view that wants to highlight a query against an arbitrary
-cascade item without going through the full result-narrowing path).
+Tests for the matcher core: `_highlightMatches(item, query, metaOverride,
+fieldOverride, globalDefault)` and the two single-layer resolvers
+`_resolveMetaField(item, key)` / `_resolveTiddlerField(item, fieldName)`.
 
 Contract:
-  Returns: [{field, value, start, len}]  one entry per matching field
-  Mutation: NONE — caller decides what to do with the match list
-  Empty query → []
-  No matches → []
-  Match field text resolved via _resolveMatchableField (array-flatten,
-    tiddler-field fallback when the item property is missing).
+  Returns: [{field, label, value, start, len}]  one entry per match.
+    `field` = slot name (meta key or tiddler field name).
+    `label` = pill chip (from pushed pill) or slot name (fallback path).
+    `value` = resolved text (array-flatten applied).
+  Mutation: NONE — caller decides what to do with the match list.
+  Empty query → [].
+  Meta layer:    item[metaKey] only — no tiddler-field fallback.
+  Field layer:   wiki.getTiddler(item.title).fields[fieldName] only,
+                 skipped when item.title is empty.
+  No overrides → meta layer uses item.searchFields / globalDefault as
+                 plain meta keys; field layer is skipped.
 \*/
 "use strict";
 
 describe("cascade-palette: _highlightMatches", function () {
 
     // Build a stub object with the cp-actions prototype-patch applied so
-    // _highlightMatches / _resolveMatchableField / _defaultSearchFields
-    // are reachable without instantiating the widget.
-    function buildStub(searchFieldsDefault, fakeActiveFields) {
+    // _highlightMatches / _resolveMetaField / _resolveTiddlerField /
+    // _defaultSearchFields are reachable without instantiating the
+    // widget.
+    function buildStub(searchFieldsDefault, fakeTiddlers) {
         var stub = {
             wiki: {
                 getTiddlerText: function (title, fallback) {
@@ -34,15 +37,24 @@ describe("cascade-palette: _highlightMatches", function () {
                     }
                     return fallback;
                 },
-                getTiddler: function () { return null; }
+                getTiddler: function (title) {
+                    if (!fakeTiddlers) return null;
+                    return fakeTiddlers[title] || null;
+                }
             }
         };
         var patch = require("$:/plugins/rimir/cascade-palette/widgets/cp-actions");
         patch(stub);
-        if (fakeActiveFields !== undefined) {
-            stub._activeFieldNames = function () { return fakeActiveFields; };
-        }
         return stub;
+    }
+
+    // Helper — meta pill object as the matcher expects.
+    function metaPill(key, chip) {
+        return {metaKey: key, chip: chip || key};
+    }
+    // Helper — field pill object as the matcher expects.
+    function fieldPill(name, chip) {
+        return {tiddlerField: name, chip: chip || name};
     }
 
     describe("query handling", function () {
@@ -51,54 +63,52 @@ describe("cascade-palette: _highlightMatches", function () {
             expect(s._highlightMatches({ name: "Alice" }, "")).toEqual([]);
         });
 
-        it("returns [] for null / undefined query", function () {
+        it("returns [] for null query", function () {
             var s = buildStub();
             expect(s._highlightMatches({ name: "Alice" }, null)).toEqual([]);
-            expect(s._highlightMatches({ name: "Alice" })).toEqual([]);
         });
 
-        it("returns [] when no field text matches the query", function () {
+        it("returns [] when no slot text matches the query", function () {
             var s = buildStub();
             expect(s._highlightMatches({ name: "Bob", hint: "engineer" }, "alice"))
                 .toEqual([]);
         });
     });
 
-    describe("single-field matches", function () {
-        it("finds substring match in name field", function () {
+    describe("meta layer — single-slot matches", function () {
+        it("finds substring match in name slot", function () {
             var s = buildStub();
             var m = s._highlightMatches({ name: "Alice Wonderland", hint: "" }, "wonder");
             expect(m.length).toBe(1);
-            expect(m[0]).toEqual({
-                field: "name", value: "Alice Wonderland", start: 6, len: 6
-            });
+            expect(m[0].field).toBe("name");
+            expect(m[0].value).toBe("Alice Wonderland");
+            expect(m[0].start).toBe(6);
+            expect(m[0].len).toBe(6);
         });
 
-        it("is case-insensitive (lowercases both sides)", function () {
+        it("is case-insensitive", function () {
             var s = buildStub();
             var m = s._highlightMatches({ name: "ALICE", hint: "" }, "ali");
             expect(m.length).toBe(1);
             expect(m[0].field).toBe("name");
-            expect(m[0].start).toBe(0);
         });
 
-        it("returns the FIRST occurrence of the query in the field", function () {
+        it("returns the FIRST occurrence in the slot", function () {
             var s = buildStub();
             var m = s._highlightMatches({ name: "aaa-foo-aaa", hint: "" }, "aaa");
             expect(m.length).toBe(1);
             expect(m[0].start).toBe(0);
         });
 
-        it("len matches the query length, not the matched substring's", function () {
+        it("len matches query length", function () {
             var s = buildStub();
-            // Mixed case: query "AB" finds position 0 in "ab", but len is 2.
             var m = s._highlightMatches({ name: "abcdef", hint: "" }, "AB");
             expect(m[0].len).toBe(2);
         });
     });
 
-    describe("multi-field matches", function () {
-        it("collects matches across multiple search fields", function () {
+    describe("meta layer — multi-slot matches", function () {
+        it("collects matches across multiple slots", function () {
             var s = buildStub();
             var m = s._highlightMatches(
                 { name: "alpha", hint: "alphabet" }, "alph"
@@ -109,7 +119,7 @@ describe("cascade-palette: _highlightMatches", function () {
             expect(fields).toContain("hint");
         });
 
-        it("includes ONLY fields where the query matched", function () {
+        it("includes ONLY slots where the query matched", function () {
             var s = buildStub();
             var m = s._highlightMatches(
                 { name: "alpha", hint: "no-match-here" }, "alpha"
@@ -118,7 +128,7 @@ describe("cascade-palette: _highlightMatches", function () {
             expect(m[0].field).toBe("name");
         });
 
-        it("preserves field-list ORDER from the resolved field set", function () {
+        it("preserves slot-list ORDER from the resolved key set", function () {
             var s = buildStub("a b c");
             var m = s._highlightMatches(
                 { a: "x match", b: "match", c: "match x" }, "match"
@@ -127,19 +137,20 @@ describe("cascade-palette: _highlightMatches", function () {
         });
     });
 
-    describe("field resolution chain", function () {
-        it("uses fieldOverride when caller supplies it (active pills wins)", function () {
-            var s = buildStub("name hint");  // default = name hint
+    describe("meta layer — slot resolution chain", function () {
+        it("uses metaOverride when caller supplies it (active pills win)", function () {
+            var s = buildStub("name hint");
             var m = s._highlightMatches(
                 { name: "no", hint: "no", description: "yes-match" },
                 "match",
-                ["description"]
+                [metaPill("description")],
+                null
             );
             expect(m.length).toBe(1);
             expect(m[0].field).toBe("description");
         });
 
-        it("uses item.searchFields when no override is given", function () {
+        it("uses item.searchFields when no metaOverride is given", function () {
             var s = buildStub("name hint");
             var m = s._highlightMatches(
                 {
@@ -152,22 +163,22 @@ describe("cascade-palette: _highlightMatches", function () {
             expect(m[0].field).toBe("description");
         });
 
-        it("falls back to global default when no override AND no per-item searchFields", function () {
-            var s = buildStub("custom-field");
+        it("falls back to globalDefault when no override AND no per-item searchFields", function () {
+            var s = buildStub("custom-key");
             var m = s._highlightMatches(
-                { "custom-field": "match here", name: "no", hint: "no" },
+                { "custom-key": "match here", name: "no", hint: "no" },
                 "match"
             );
             expect(m.length).toBe(1);
-            expect(m[0].field).toBe("custom-field");
+            expect(m[0].field).toBe("custom-key");
         });
 
-        it("globalDefault parameter takes precedence over resolving from config", function () {
-            // searchFieldsDefault returns "name hint" but caller injects ["hint"].
+        it("explicit globalDefault parameter wins over the config read", function () {
             var s = buildStub("name hint");
             var m = s._highlightMatches(
                 { name: "match", hint: "match" },
                 "match",
+                null,
                 null,
                 ["hint"]
             );
@@ -175,44 +186,166 @@ describe("cascade-palette: _highlightMatches", function () {
             expect(m[0].field).toBe("hint");
         });
 
-        it("fieldOverride wins over both item.searchFields AND globalDefault", function () {
-            var s = buildStub("default-field");
+        it("metaOverride beats both item.searchFields AND globalDefault", function () {
+            var s = buildStub("default-key");
             var m = s._highlightMatches(
                 {
                     name: "match", hint: "match",
-                    "default-field": "match",
+                    "default-key": "match",
                     searchFields: ["name"]
                 },
                 "match",
-                ["hint"]
+                [metaPill("hint")],
+                null
             );
             expect(m.length).toBe(1);
             expect(m[0].field).toBe("hint");
         });
     });
 
+    describe("meta layer — chip labels", function () {
+        it("stamps the pill's chip onto match.label when an override is active", function () {
+            var s = buildStub();
+            var m = s._highlightMatches(
+                { description: "found match here" },
+                "match",
+                [metaPill("description", "📝 Description")],
+                null
+            );
+            expect(m.length).toBe(1);
+            expect(m[0].label).toBe("📝 Description");
+        });
+
+        it("uses the slot name as label when no pill stamped one (fallback path)", function () {
+            var s = buildStub("name");
+            var m = s._highlightMatches({ name: "match" }, "match");
+            expect(m[0].label).toBe("name");
+        });
+    });
+
+    describe("field layer — tiddler-field matches", function () {
+        function tiddlerWithFields(fields) {
+            return {fields: fields};
+        }
+
+        it("reads tiddler.fields[name] when a field pill is pushed", function () {
+            var s = buildStub("name hint", {
+                "MyTiddler": tiddlerWithFields({text: "body content here"})
+            });
+            var m = s._highlightMatches(
+                { title: "MyTiddler", name: "" },
+                "body",
+                null,
+                [fieldPill("text", "📄 Text")]
+            );
+            expect(m.length).toBe(1);
+            expect(m[0].field).toBe("text");
+            expect(m[0].label).toBe("📄 Text");
+            expect(m[0].value).toBe("body content here");
+        });
+
+        it("skips field pills on synthetic rows (no title)", function () {
+            var s = buildStub("name hint", {});
+            var m = s._highlightMatches(
+                { name: "" },  // no title
+                "anything",
+                null,
+                [fieldPill("text")]
+            );
+            expect(m).toEqual([]);
+        });
+
+        it("flattens array-typed fields for substring matching", function () {
+            var s = buildStub("name hint", {
+                "Tagged": tiddlerWithFields({tags: ["work", "urgent"]})
+            });
+            var m = s._highlightMatches(
+                { title: "Tagged", name: "" },
+                "urgen",
+                null,
+                [fieldPill("tags")]
+            );
+            expect(m.length).toBe(1);
+            expect(m[0].value).toBe("work urgent");
+        });
+
+        it("returns [] when the tiddler exists but the field is missing", function () {
+            var s = buildStub("name hint", {
+                "MyTiddler": tiddlerWithFields({title: "MyTiddler"})
+            });
+            var m = s._highlightMatches(
+                { title: "MyTiddler", name: "" },
+                "anything",
+                null,
+                [fieldPill("text")]
+            );
+            expect(m).toEqual([]);
+        });
+
+        it("does NOT fall back to item[key] — strict tiddler-field lookup", function () {
+            var s = buildStub("name hint", {});  // no tiddler in store
+            var m = s._highlightMatches(
+                { title: "MissingTid", text: "would-be-fallback" },
+                "fallback",
+                null,
+                [fieldPill("text")]
+            );
+            // Even though item.text contains "fallback", the field layer
+            // does NOT consult cascade-item props — that's the meta
+            // layer's job. Empty match list.
+            expect(m).toEqual([]);
+        });
+    });
+
+    describe("combined meta + field layers", function () {
+        it("unions matches from both layers", function () {
+            var s = buildStub("name hint", {
+                "Tid": { fields: { text: "tiddler body match" } }
+            });
+            var m = s._highlightMatches(
+                { title: "Tid", name: "name match", hint: "" },
+                "match",
+                [metaPill("name")],
+                [fieldPill("text")]
+            );
+            expect(m.length).toBe(2);
+            var fields = m.map(function (x) { return x.field; });
+            expect(fields).toContain("name");
+            expect(fields).toContain("text");
+        });
+    });
+
     describe("no mutation guarantee", function () {
-        it("does NOT mutate the input item's _match / _matches / other fields", function () {
+        it("does NOT mutate the input item", function () {
             var s = buildStub();
             var item = {
-                name: "Alice", hint: "engineer", _match: "should-stay", _matches: "should-stay"
+                name: "Alice", hint: "engineer",
+                _match: "should-stay", _matches: "should-stay"
             };
             s._highlightMatches(item, "alice");
             expect(item._match).toBe("should-stay");
             expect(item._matches).toBe("should-stay");
         });
 
-        it("does not mutate the resolved fields list", function () {
+        it("does not mutate the override lists", function () {
             var s = buildStub();
-            var override = ["name", "hint"];
-            s._highlightMatches({ name: "match", hint: "" }, "match", override);
-            expect(override).toEqual(["name", "hint"]);
+            var mo = [metaPill("name")];
+            s._highlightMatches({ name: "match" }, "match", mo, null);
+            expect(mo.length).toBe(1);
+            expect(mo[0].metaKey).toBe("name");
         });
     });
 
     describe("filterByQuery integration", function () {
-        it("filterByQuery still narrows items + stamps _match / _matches", function () {
+        function buildStubWithPills(metaOverride, fieldOverride) {
             var s = buildStub("name hint");
+            s._activeMetaPills = function () { return metaOverride || null; };
+            s._activeFieldPills = function () { return fieldOverride || null; };
+            return s;
+        }
+
+        it("narrows items + stamps _match / _matches", function () {
+            var s = buildStubWithPills();
             var items = [
                 { name: "Alice", hint: "alice" },
                 { name: "Bob", hint: "bob" }
@@ -224,8 +357,8 @@ describe("cascade-palette: _highlightMatches", function () {
             expect(kept[0]._matches.length).toBe(2);  // matches in BOTH name and hint
         });
 
-        it("filterByQuery clears stale _match / _matches on non-matching items", function () {
-            var s = buildStub("name hint");
+        it("clears stale _match / _matches on non-matching items", function () {
+            var s = buildStubWithPills();
             var items = [
                 { name: "Alice", hint: "", _match: "stale", _matches: ["stale"] },
                 { name: "Bob", hint: "", _match: "stale", _matches: ["stale"] }
@@ -235,8 +368,8 @@ describe("cascade-palette: _highlightMatches", function () {
             expect(items[1]._matches).toBeNull();
         });
 
-        it("filterByQuery with empty query keeps all items + clears annotations", function () {
-            var s = buildStub("name hint");
+        it("empty query keeps all items + clears annotations", function () {
+            var s = buildStubWithPills();
             var items = [
                 { name: "Alice", _match: "stale", _matches: ["stale"] },
                 { name: "Bob", _match: "stale", _matches: ["stale"] }

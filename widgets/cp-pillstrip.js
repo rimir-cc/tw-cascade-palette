@@ -18,8 +18,9 @@ Authored as a stateless top-level helper rather than a prototype patch
 because it doesn't own any widget state — the caller passes everything
 it needs via the `descriptor` object. This keeps the helper pure and
 testable, and lets each of cp-filters / cp-visibility / cp-reach-pills /
-cp-field-pills retain its own `_render…Strip` method (a 5-line wrapper
-that builds the descriptor and delegates).
+cp-search-meta-pills / cp-search-field-pills retain its own
+`_render…Strip` method (a 5-line wrapper that builds the descriptor and
+delegates).
 
 The preset and leader strips have unique structural elements (trailing
 "+" save pill, split key/name children, scrollIntoView, dirty markers)

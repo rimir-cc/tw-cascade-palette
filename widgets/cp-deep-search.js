@@ -15,9 +15,11 @@ naming the drill chain from root to the result, used by:
 Activation is via the Reach pill strip (cp-reach-pills.js): "Here"
 and "Everywhere" pills carry `ca-reach-mode`; the matcher branch in
 cp-stack.js:applyQueryToStage reads `_activeReachMode()` and routes
-into deepWalk when it returns non-"local". Field pills
-(cp-field-pills.js) shape `_activeFieldNames()` which the matcher
-inside the walk consumes to widen the searchable field set.
+into deepWalk when it returns non-"local". Search-meta pills
+(cp-search-meta-pills.js) and search-field pills
+(cp-search-field-pills.js) shape `_activeMetaPills()` /
+`_activeFieldPills()`, both consumed by the matcher inside the walk
+to widen the meta-key set and add the literal tiddler-field layer.
 
 Caps (config tiddlers):
   $:/config/rimir/cascade-palette/deep-search-max-depth   (default 4)
@@ -61,12 +63,11 @@ module.exports = function (proto) {
         var nodes = 0;
         var truncated = false;
 
-        // Pre-resolve the active search fields ONCE per walk — same
+        // Pre-resolve the active search pills ONCE per walk — same
         // override semantics as filterByQuery; rebuilding per-item would
         // re-read config N times.
-        var fieldOverride = this._activeFieldNames
-            ? this._activeFieldNames()
-            : null;
+        var metaOverride = this._activeMetaPills ? this._activeMetaPills() : null;
+        var fieldOverride = this._activeFieldPills ? this._activeFieldPills() : null;
         var defaultFields = this._defaultSearchFields();
         var q = query.toLowerCase();
 
@@ -97,7 +98,7 @@ module.exports = function (proto) {
                 // _matches (cp-rendering uses it to draw one snippet per
                 // matched field). _match retained as back-compat pointer
                 // to the first match for inline highlight.
-                var allMatches = this._matchItemAll(item, q, query.length, fieldOverride, defaultFields);
+                var allMatches = this._matchItemAll(item, q, query.length, metaOverride, fieldOverride, defaultFields);
                 if (allMatches && allMatches.length) {
                     item._matches = allMatches;
                     item._match = allMatches[0];
@@ -161,34 +162,67 @@ module.exports = function (proto) {
         return matches;
     };
 
-    // Per-item match collector — returns ALL matches across the
-    // item's searchable fields. Same lookup chain as filterByQuery
-    // (override → per-item ca-search-fields → global default). Empty
-    // array when no field matches; caller treats that as "skip".
-    // Mutating the shared item with _matches / _match / _path is
-    // acceptable because items are rebuilt on every recomputeStage —
-    // the annotation doesn't outlive the keystroke.
-    proto._matchItemAll = function (item, qLower, qLen, override, defaultFields) {
-        var fields = override
-            || (item.searchFields && item.searchFields.length
-                ? item.searchFields
-                : defaultFields);
+    // Per-item match collector — returns ALL matches across the meta
+    // and tiddler-field layers. Same two-layer model as filterByQuery
+    // (meta override → per-item ca-search-fields → global default for
+    // the meta layer; field override → skipped when null for the
+    // tiddler-field layer). Empty array when no match; caller treats
+    // that as "skip". Mutating the shared item with _matches / _match
+    // / _path is acceptable because items are rebuilt on every
+    // recomputeStage — the annotation doesn't outlive the keystroke.
+    proto._matchItemAll = function (item, qLower, qLen, metaOverride, fieldOverride, defaultFields) {
         var matches = [];
-        for (var i = 0; i < fields.length; i++) {
-            var fname = fields[i];
-            // _resolveMatchableField (cp-actions.js) walks: cascade-item
-            // property → tiddler-field fallback. Single source of truth
-            // shared with filterByQuery's local path.
-            var sv = this._resolveMatchableField(item, fname);
-            if (!sv) continue;
-            var idx = sv.toLowerCase().indexOf(qLower);
-            if (idx !== -1) {
+
+        // Meta layer
+        var metaSpecs;
+        if (metaOverride) {
+            metaSpecs = metaOverride;
+        } else {
+            var fallbackKeys = (item.searchFields && item.searchFields.length)
+                ? item.searchFields
+                : defaultFields;
+            metaSpecs = [];
+            for (var fi = 0; fi < fallbackKeys.length; fi++) {
+                metaSpecs.push({metaKey: fallbackKeys[fi], chip: fallbackKeys[fi]});
+            }
+        }
+        for (var mi = 0; mi < metaSpecs.length; mi++) {
+            var mspec = metaSpecs[mi];
+            var mk = mspec.metaKey;
+            if (!mk) continue;
+            var mv = this._resolveMetaField(item, mk);
+            if (!mv) continue;
+            var midx = mv.toLowerCase().indexOf(qLower);
+            if (midx !== -1) {
                 matches.push({
-                    field: fname,
-                    value: sv,
-                    start: idx,
+                    field: mk,
+                    label: mspec.chip || mk,
+                    value: mv,
+                    start: midx,
                     len: qLen
                 });
+            }
+        }
+
+        // Tiddler-field layer (skipped when no field pills pushed OR
+        // the item has no backing tiddler).
+        if (fieldOverride && item.title) {
+            for (var ti = 0; ti < fieldOverride.length; ti++) {
+                var fspec = fieldOverride[ti];
+                var tf = fspec.tiddlerField;
+                if (!tf) continue;
+                var tv = this._resolveTiddlerField(item, tf);
+                if (!tv) continue;
+                var tidx = tv.toLowerCase().indexOf(qLower);
+                if (tidx !== -1) {
+                    matches.push({
+                        field: tf,
+                        label: fspec.chip || tf,
+                        value: tv,
+                        start: tidx,
+                        len: qLen
+                    });
+                }
             }
         }
         return matches;

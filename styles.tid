@@ -867,7 +867,9 @@ type: text/css
 .rcp-filter-strip::before,
 .rcp-view-strip::before,
 .rcp-reach-strip::before,
-.rcp-fields-strip::before {
+.rcp-meta-strip::before,
+.rcp-field-strip::before,
+.rcp-leader-strip::before {
     flex-shrink: 0;
     align-self: center;
     min-width: 56px;
@@ -897,7 +899,20 @@ type: text/css
 .rcp-filter-strip::before     { content: "Filters"; }
 .rcp-view-strip::before       { content: "Views"; }
 .rcp-reach-strip::before      { content: "Reach"; }
-.rcp-fields-strip::before     { content: "Search-in"; }
+.rcp-meta-strip::before       { content: "⌕ Meta"; }
+.rcp-field-strip::before      { content: "⌕ Field"; }
+
+.rcp-leader-strip::before {
+    content: "Leaders";
+    position: sticky;
+    left: 0;
+    background: #faf5ff;
+    z-index: 1;
+}
+
+.rcp-popup[data-focus="leader"] .rcp-leader-strip::before {
+    background: #ede9fe;
+}
 
 @media (prefers-color-scheme: dark) {
     .rcp-preset-strip::before,
@@ -905,7 +920,9 @@ type: text/css
     .rcp-filter-strip::before,
     .rcp-view-strip::before,
     .rcp-reach-strip::before,
-    .rcp-fields-strip::before {
+    .rcp-meta-strip::before,
+    .rcp-field-strip::before,
+    .rcp-leader-strip::before {
         color: #6b7280;
     }
     .rcp-preset-strip::before {
@@ -913,6 +930,12 @@ type: text/css
     }
     .rcp-popup[data-focus="preset"] .rcp-preset-strip::before {
         background: #500724;
+    }
+    .rcp-leader-strip::before {
+        background: #1e1929;
+    }
+    .rcp-popup[data-focus="leader"] .rcp-leader-strip::before {
+        background: #2e1065;
     }
     .rcp-reach-strip {
         background: #042f2e;
@@ -926,17 +949,29 @@ type: text/css
         border-color: #67e8f9;
         color: #cffafe;
     }
-    .rcp-fields-strip {
+    .rcp-meta-strip {
         background: #1e1b3a;
         border-bottom-color: #374151;
     }
-    .rcp-popup[data-focus="field"] .rcp-fields-strip {
+    .rcp-popup[data-focus="meta"] .rcp-meta-strip {
         background: #4c1d95;
     }
-    .rcp-fields-strip .rcp-pill-focused {
+    .rcp-meta-strip .rcp-pill-focused {
         background: #5b21b6;
         border-color: #c4b5fd;
         color: #ede9fe;
+    }
+    .rcp-field-strip {
+        background: #3a2e0a;
+        border-bottom-color: #374151;
+    }
+    .rcp-popup[data-focus="field"] .rcp-field-strip {
+        background: #92400e;
+    }
+    .rcp-field-strip .rcp-pill-focused {
+        background: #b45309;
+        border-color: #fcd34d;
+        color: #fef3c7;
     }
 }
 
@@ -948,7 +983,8 @@ type: text/css
 .rcp-filter-strip,
 .rcp-visibility-strip,
 .rcp-reach-strip,
-.rcp-fields-strip {
+.rcp-meta-strip,
+.rcp-field-strip {
     display: none;
     flex-wrap: wrap;
     gap: 4px;
@@ -972,18 +1008,34 @@ type: text/css
     box-shadow: inset 2px 0 0 0 #0e7490;
 }
 
-/* Fields strip — pills that decide WHICH item fields the matcher
-   reads. Sits next to the reach strip. Violet accent. Hidden when no
-   field pills are pushed. */
-.rcp-fields-strip {
+/* Meta strip — pills that decide WHICH cascade-item author meta keys
+   the matcher reads (name / hint / description / aliases /
+   searchText). Sits next to the reach strip. Violet accent. Hidden
+   when no meta pills are pushed. */
+.rcp-meta-strip {
     background: #f5f3ff;
 }
-.rcp-popup.rcp-has-fields .rcp-fields-strip {
+.rcp-popup.rcp-has-meta .rcp-meta-strip {
     display: flex;
 }
-.rcp-popup[data-focus="field"] .rcp-fields-strip {
+.rcp-popup[data-focus="meta"] .rcp-meta-strip {
     background: #ede9fe;
     box-shadow: inset 2px 0 0 0 #6d28d9;
+}
+
+/* Field strip — pills that decide WHICH literal tiddler fields the
+   matcher reads on the row's backing tiddler (text / caption / tags /
+   author-defined). Amber accent distinguishes it from the violet meta
+   strip. Hidden when no field pills are pushed. */
+.rcp-field-strip {
+    background: #fffbeb;
+}
+.rcp-popup.rcp-has-field .rcp-field-strip {
+    display: flex;
+}
+.rcp-popup[data-focus="field"] .rcp-field-strip {
+    background: #fef3c7;
+    box-shadow: inset 2px 0 0 0 #b45309;
 }
 
 /* Pin-all-pill-rows — settings toggle bound to
@@ -992,7 +1044,8 @@ type: text/css
    no pills are pushed. Useful as a dev/discoverability aid. */
 .rcp-popup.rcp-pin-pill-rows .rcp-visibility-strip,
 .rcp-popup.rcp-pin-pill-rows .rcp-reach-strip,
-.rcp-popup.rcp-pin-pill-rows .rcp-fields-strip,
+.rcp-popup.rcp-pin-pill-rows .rcp-meta-strip,
+.rcp-popup.rcp-pin-pill-rows .rcp-field-strip,
 .rcp-popup.rcp-pin-pill-rows .rcp-filter-strip {
     display: flex;
 }
@@ -1004,10 +1057,15 @@ type: text/css
     border-color: #0e7490;
     color: #134e4a;
 }
-.rcp-fields-strip .rcp-pill-focused {
+.rcp-meta-strip .rcp-pill-focused {
     background: #ddd6fe;
     border-color: #6d28d9;
     color: #2e1065;
+}
+.rcp-field-strip .rcp-pill-focused {
+    background: #fde68a;
+    border-color: #b45309;
+    color: #78350f;
 }
 
 .rcp-filter-strip {

@@ -539,9 +539,9 @@ module.exports = function (proto) {
     proto.applyQueryToStage = function (stage) {
         // Search mode is driven by the reach pills (cp-reach-pills.js).
         // No reach pills → local mode (legacy single-stage substring).
-        // Reach pills active → deep walk via cp-deep-search.js. Field
-        // pills (cp-field-pills.js) widen the matcher's field set but
-        // don't affect mode.
+        // Reach pills active → deep walk via cp-deep-search.js. Meta /
+        // Field pills (cp-search-meta-pills.js, cp-search-field-pills.js)
+        // widen the matcher's slot/field set but don't affect mode.
         var mode = this._activeReachMode
             ? this._activeReachMode()
             : "local";

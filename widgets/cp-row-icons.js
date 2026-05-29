@@ -350,6 +350,7 @@ function setup(proto) {
             case "filter":     el = this.filterStripEl;      break;
             case "visibility": el = this.visibilityStripEl;  break;
             case "reach":      el = this.reachStripEl;       break;
+            case "meta":       el = this.metaStripEl;        break;
             case "field":      el = this.fieldStripEl;       break;
             case "view":       el = this.viewStripEl;        break;
             case "viewconfig": el = this.viewConfigStripEl;  break;

@@ -236,11 +236,11 @@ module.exports = function (proto) {
             // distinct document to preview. The stage's own
             // `_previewContext` becomes the fallback for empty selection.
             previewPerRow: (f["ca-preview-per-row"] || "").toLowerCase() === "yes",
-            // Configurable searched fields (filterByQuery walks these).
-            // Space-separated item-key names — `name`, `hint`, `description`,
-            // `aliases`, `searchText`, or any future string-valued field on
-            // the item. Empty / missing → defaults to the value of
-            // `$:/config/rimir/cascade-palette/search-fields-default`
+            // Configurable searched meta keys (filterByQuery's meta layer
+            // walks these). Space-separated cascade-item property names
+            // — `name`, `hint`, or any author-defined string-valued
+            // property on the item. Empty / missing → defaults to the
+            // value of `$:/config/rimir/cascade-palette/search-fields-default`
             // (ships as "name hint").
             searchFields: (function () {
                 var raw = f["ca-search-fields"];
@@ -248,9 +248,6 @@ module.exports = function (proto) {
                 var parts = String(raw).match(/\S+/g);
                 return (parts && parts.length) ? parts : null;
             })(),
-            description: f["ca-description"] || "",
-            aliases:     f["ca-aliases"]     || "",
-            searchText:  f["ca-search-text"] || "",
             // Deep-search opt-out. When `yes`, the deep walk treats the row
             // as inert: it is not returned as a result AND its subtree is
             // not descended. Local-stage substring search is unaffected.

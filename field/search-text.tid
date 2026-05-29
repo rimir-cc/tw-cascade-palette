@@ -1,7 +1,0 @@
-title: $:/plugins/rimir/cascade-palette/field/search-text
-tags: $:/tags/rimir/cascade-palette/search-field
-ca-field-name: searchText
-ca-field-chip: 🔎 Search-text
-ca-field-hint: Match against the row's catch-all hidden searchable text.
-ca-field-help: When pushed, the matcher reads each row's `ca-search-text` — a catch-all bag the author can fill with anything they want searchable but not displayed (full text body, keywords, tags collected into a string, etc.). Matches surface a snippet line below the row.
-ca-order: 140

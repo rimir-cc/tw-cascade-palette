@@ -34,6 +34,7 @@ var SECTION_HANDLERS = {
     "filter":     "_handleKeydownFilter",
     "visibility": "_handleKeydownVisibility",
     "reach":      "_handleKeydownReach",
+    "meta":       "_handleKeydownMeta",
     "field":      "_handleKeydownField",
     "view":       "_handleKeydownView",
     "viewconfig": "_handleKeydownViewConfig",
@@ -165,7 +166,8 @@ module.exports = function (proto) {
         if (e.key === "Enter" && this.focus !== "filter" &&
             this.focus !== "visibility" && this.focus !== "view" &&
             this.focus !== "preset" &&
-            this.focus !== "reach" && this.focus !== "field") {
+            this.focus !== "reach" && this.focus !== "meta" &&
+            this.focus !== "field") {
             // Alt-Enter — fire the selected row's primary row-icon
             // (e.g. open external URL in a new tab). Ctrl-Alt-Enter
             // fires the same icon's ''secondary'' action (`alt`
@@ -613,6 +615,22 @@ module.exports = function (proto) {
         }
     };
 
+    var META_KEY_DESC = {
+        getCount:    function () { return this.metaPills.length; },
+        getFocusIdx: function () { return this.metaFocusIdx; },
+        setFocusIdx: function (i) { this.metaFocusIdx = i; },
+        render:      function () { this._renderMetaStrip(); },
+        maybeHelp:   function () { this._maybeRenderMetaHelp(); },
+        onDelete:    function (i) { this._removeMetaAt(i); },
+        onEnter:     function () {
+            if (!this.detailsOpen) {
+                this.detailsOpen = true;
+                this._maybeRenderMetaHelp();
+            }
+            this.setFocus("details");
+        }
+    };
+
     var FIELD_KEY_DESC = {
         getCount:    function () { return this.fieldPills.length; },
         getFocusIdx: function () { return this.fieldFocusIdx; },
@@ -787,6 +805,7 @@ module.exports = function (proto) {
     proto._handleKeydownPreset     = function (e) { this._handleKeydownPillStrip(e, PRESET_KEY_DESC); };
     proto._handleKeydownLeader     = function (e) { this._handleKeydownPillStrip(e, LEADER_KEY_DESC); };
     proto._handleKeydownReach      = function (e) { this._handleKeydownPillStrip(e, REACH_KEY_DESC); };
+    proto._handleKeydownMeta       = function (e) { this._handleKeydownPillStrip(e, META_KEY_DESC); };
     proto._handleKeydownField      = function (e) { this._handleKeydownPillStrip(e, FIELD_KEY_DESC); };
 
     proto._handleKeydownDetails = function (e, stage) {
@@ -826,7 +845,7 @@ module.exports = function (proto) {
     proto._isPillFocus = function (f) {
         f = f || this.focus;
         return f === "preset" || f === "visibility" ||
-               f === "reach" || f === "field" ||
+               f === "reach" || f === "meta" || f === "field" ||
                f === "filter" || f === "view" || f === "viewconfig" ||
                f === "leader";
     };
@@ -973,10 +992,11 @@ module.exports = function (proto) {
         var order = [];
         if (this._presetPillCount() >= 1) order.push("preset");
         if (this.visibilities && this.visibilities.length) order.push("visibility");
-        // Reach + Field strips sit just above the filter strip in the
-        // visual stack; same order in the Tab cycle so navigation walks
-        // top-to-bottom.
+        // Reach + Meta + Field strips sit just above the filter strip
+        // in the visual stack; same order in the Tab cycle so navigation
+        // walks top-to-bottom.
         if (this.reachPills && this.reachPills.length) order.push("reach");
+        if (this.metaPills && this.metaPills.length) order.push("meta");
         if (this.fieldPills && this.fieldPills.length) order.push("field");
         if (this.filters && this.filters.length) order.push("filter");
         if (this._visibleViews().length >= 2) order.push("view");

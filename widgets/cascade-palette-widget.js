@@ -38,12 +38,15 @@ de-facto cross-module API. Notable shared state — touch with care:
   this.stack[]               cp-stack OWNS  | every cp-* reads
   this.editMode              cp-firing OWNS | cp-keyboard guards on it
   this.focus                 cp-keyboard OWNS | every renderer reads
-  this.filters[] / visibilities[] / reachPills[] / fieldPills[]
-                             cp-{filters,visibility,reach-pills,field-pills}
+  this.filters[] / visibilities[] / reachPills[] / metaPills[] / fieldPills[]
+                             cp-{filters,visibility,reach-pills,search-meta-pills,
+                                  search-field-pills}
                              OWN (each its own array)
   this._leaderFiring         cp-leaders OWNS — but READ by:
                              cp-filters._pushFilter, cp-visibility._pushVisibility,
-                             cp-field-pills._pushField, cp-views._setActiveView
+                             cp-search-meta-pills._pushMeta,
+                             cp-search-field-pills._pushField,
+                             cp-views._setActiveView
                              (decides whether to play a flash animation)
   this._pickModeReturnTo     cp-pick-presets OWNS | cp-firing + cp-keyboard read
   this.contextTiddler        cp-actions builds it | every filter-eval consumes
@@ -57,7 +60,8 @@ methods are called WHEN, not in any explicit type):
 
   recomputeStage / popStage / pushStage   (cp-stack) — called from cp-firing,
                                           cp-keyboard, cp-filters, cp-visibility,
-                                          cp-reach-pills, cp-field-pills, cp-leaders
+                                          cp-reach-pills, cp-search-meta-pills,
+                                          cp-search-field-pills, cp-leaders
   invokeViaNavigator (cp-actions)         called from cp-firing, cp-leaders,
                                           cp-row-icons, cp-pick-presets
   makeFakeWidget (cp-actions)             called from EVERY filter-eval site
@@ -148,10 +152,18 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // and routed to cp-deep-search.js's BFS walker.
         this.reachPills = [];
         this.reachFocusIdx = 0;
-        // Active field pills (search input fields — which item-keys the
-        // matcher reads). Same lifecycle / push-remove grammar; consumed
-        // by _activeFieldNames() (cp-field-pills.js). None active = each
-        // row's ca-search-fields / global default kicks in.
+        // Active search-meta pills (cascade-item author meta keys — name,
+        // hint, or author-defined). Same lifecycle / push-remove grammar;
+        // consumed by _activeMetaKeys() (cp-search-meta-pills.js). None
+        // active = each row's ca-search-fields / global default
+        // (meta-keys only) kicks in.
+        this.metaPills = [];
+        this.metaFocusIdx = 0;
+        // Active search-field pills (literal tiddler fields on the row's
+        // backing tiddler — text, caption, tags, author-defined fields).
+        // Same lifecycle / push-remove grammar; consumed by
+        // _activeTiddlerFields() (cp-search-field-pills.js). None active
+        // = the matcher skips the tiddler-field layer entirely.
         this.fieldPills = [];
         this.fieldFocusIdx = 0;
         // Context tiddler captured at openPalette time (the tiddler that
@@ -228,7 +240,8 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     require("$:/plugins/rimir/cascade-palette/widgets/cp-keyboard")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-firing")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-reach-pills")(CascadePaletteWidget.prototype);
-    require("$:/plugins/rimir/cascade-palette/widgets/cp-field-pills")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-search-meta-pills")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-search-field-pills")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-deep-search")(CascadePaletteWidget.prototype);
 
     /* ---------- lifecycle ---------- */
@@ -311,13 +324,21 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.reachStripEl.className = "rcp-reach-strip";
         this.reachStripEl.setAttribute("tabindex", "-1");
 
-        // Fields strip — pills that decide WHICH item fields the
-        // matcher reads (name / hint / description / aliases /
-        // searchText / author-defined). Revealed via `rcp-has-fields`.
-        // Sits next to the reach strip — both configure the search
-        // axis, just on different dimensions.
+        // Search-meta strip — pills that decide WHICH cascade-item
+        // author-meta keys the matcher reads (name / hint /
+        // author-defined). Revealed via `rcp-has-meta`. Sits between
+        // the reach strip and the field strip — both configure the
+        // search axis on different dimensions.
+        this.metaStripEl = this.document.createElement("div");
+        this.metaStripEl.className = "rcp-meta-strip";
+        this.metaStripEl.setAttribute("tabindex", "-1");
+
+        // Search-field strip — pills that decide WHICH literal tiddler
+        // fields the matcher reads on the row's backing tiddler
+        // (text / caption / tags / author-defined). Revealed via
+        // `rcp-has-field`. Sister of the meta strip.
         this.fieldStripEl = this.document.createElement("div");
-        this.fieldStripEl.className = "rcp-fields-strip";
+        this.fieldStripEl.className = "rcp-field-strip";
         this.fieldStripEl.setAttribute("tabindex", "-1");
 
         // Filter strip — pills that intersect every stage's data filter.
@@ -370,6 +391,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.cascadeColEl.appendChild(this.presetStripEl);
         this.cascadeColEl.appendChild(this.visibilityStripEl);
         this.cascadeColEl.appendChild(this.reachStripEl);
+        this.cascadeColEl.appendChild(this.metaStripEl);
         this.cascadeColEl.appendChild(this.fieldStripEl);
         this.cascadeColEl.appendChild(this.filterStripEl);
         this.cascadeColEl.appendChild(this.viewStripEl);
@@ -547,6 +569,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         wireStripFocus(this.filterStripEl, "filter");
         wireStripFocus(this.visibilityStripEl, "visibility");
         wireStripFocus(this.reachStripEl, "reach");
+        wireStripFocus(this.metaStripEl, "meta");
         wireStripFocus(this.fieldStripEl, "field");
         wireStripFocus(this.viewStripEl, "view");
         wireStripFocus(this.presetStripEl, "preset");
@@ -740,6 +763,12 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 if (title) self._addReachByTitle(title);
                 return false;
             });
+            registerRootMessage(C.ADD_META_MESSAGE, function (event) {
+                var title = (event && event.param) ||
+                    (event && event.paramObject && event.paramObject.meta) || "";
+                if (title) self._addMetaByTitle(title);
+                return false;
+            });
             registerRootMessage(C.ADD_FIELD_MESSAGE, function (event) {
                 var title = (event && event.param) ||
                     (event && event.paramObject && event.paramObject.field) || "";
@@ -748,6 +777,10 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             });
             registerRootMessage(C.RESET_REACH_MESSAGE, function () {
                 self._clearAllReach();
+                return false;
+            });
+            registerRootMessage(C.RESET_META_MESSAGE, function () {
+                self._clearAllMeta();
                 return false;
             });
             registerRootMessage(C.RESET_FIELDS_MESSAGE, function () {
@@ -1005,7 +1038,8 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             section !== "visibility" && section !== "view" &&
             section !== "preset" && section !== "viewconfig" &&
             section !== "leader" &&
-            section !== "reach" && section !== "field") return;
+            section !== "reach" && section !== "meta" &&
+            section !== "field") return;
         // Don't allow focusing a strip with no pills — it would be a dead
         // end visually and a confusing Tab destination.
         if (section === "filter" && (!this.filters || this.filters.length === 0)) {
@@ -1015,6 +1049,9 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             section = "input";
         }
         if (section === "reach" && (!this.reachPills || this.reachPills.length === 0)) {
+            section = "input";
+        }
+        if (section === "meta" && (!this.metaPills || this.metaPills.length === 0)) {
             section = "input";
         }
         if (section === "field" && (!this.fieldPills || this.fieldPills.length === 0)) {
@@ -1093,6 +1130,13 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             this.reachStripEl.focus();
             this._renderReachStrip();
             this._maybeRenderReachHelp();
+        } else if (section === "meta") {
+            if (this.metaFocusIdx >= this.metaPills.length) {
+                this.metaFocusIdx = Math.max(0, this.metaPills.length - 1);
+            }
+            this.metaStripEl.focus();
+            this._renderMetaStrip();
+            this._maybeRenderMetaHelp();
         } else if (section === "field") {
             if (this.fieldFocusIdx >= this.fieldPills.length) {
                 this.fieldFocusIdx = Math.max(0, this.fieldPills.length - 1);
@@ -1143,6 +1187,9 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         }
         if (prevFocus === "reach" || section === "reach") {
             this._renderReachStrip();
+        }
+        if (prevFocus === "meta" || section === "meta") {
+            this._renderMetaStrip();
         }
         if (prevFocus === "field" || section === "field") {
             this._renderFieldStrip();
@@ -1206,6 +1253,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         else if (this.focus === "filter")     this.hintEl.textContent = C.HINT_FILTER;
         else if (this.focus === "visibility") this.hintEl.textContent = C.HINT_VISIBILITY;
         else if (this.focus === "reach")      this.hintEl.textContent = C.HINT_REACH;
+        else if (this.focus === "meta")       this.hintEl.textContent = C.HINT_META;
         else if (this.focus === "field")      this.hintEl.textContent = C.HINT_FIELD;
         else if (this.focus === "view")       this.hintEl.textContent = C.HINT_VIEW;
         else if (this.focus === "viewconfig") {

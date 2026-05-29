@@ -4,12 +4,12 @@ ca-name: Search
 ca-icon: 🔎
 ca-group: Search
 ca-order: 300
-ca-hint: Reach + Search-in pills widen the search; three gestures pick a deep result.
+ca-hint: Reach + Meta + Field pills widen the search; three gestures pick a deep result.
 ca-kind: leaf
 ca-actions: <$action-navigate $to=<<picked>>/>
 type: text/vnd.tiddlywiki
 
-By default, typing in the palette filters the //current stage's// visible rows by substring match against each row's `name` and `hint`. Two pill strips widen this:
+By default, typing in the palette filters the //current stage's// visible rows by substring match against each row's `name` and `hint` slots. Three pill strips widen this:
 
 ! Reach (where) — mutually exclusive
 
@@ -19,25 +19,33 @@ By default, typing in the palette filters the //current stage's// visible rows b
 
 Picking a Reach result replays the drill path so the cascade arrives at the row's natural parent.
 
-! Search-in (what) — accumulating
+! Meta (cascade-item author meta) — accumulating
 
-|!Pill |!Leader |!Reads |
-|🏷 Name |(individual) |Row's display name (default-on if no pills) |
-|💡 Hint |(individual) |Row's subtitle |
-|📝 Description |(individual) |`ca-description` — surfaces as snippet line |
-|↪ Aliases |(individual) |`ca-aliases` — synonyms |
-|🔎 Search-text |(individual) |`ca-search-text` — catch-all bag |
-|📄 Text |(individual) |Tiddler `text` field — body |
-|''(all 6 above)'' |`a` |Pushes every shipped Search-in pill at once |
+Pills tagged `$:/tags/rimir/cascade-palette/search-meta`. Matcher reads `item[ca-meta-key]`.
 
-Active Search-in pills //union// — the matcher reads the combined field set.
+|!Pill |!Reads |
+|🏷 Name |Row's display name (default if no pills) |
+|💡 Hint |Row's subtitle (default if no pills) |
+
+! Field (literal tiddler fields) — accumulating
+
+Pills tagged `$:/tags/rimir/cascade-palette/search-field`. Matcher reads `wiki.getTiddler(item.title).fields[ca-tiddler-field]`. Synthetic rows skip silently.
+
+|!Pill |!Reads |
+|📄 Text |Backing tiddler's `text` field — body |
+
+! Push everything
+
+Leader `a` — pushes both Meta pills (Name, Hint) plus the Text Field pill. Equivalent to "match anywhere".
+
+Active pills in each strip //union//; the matcher reads the combined slot set.
 
 ! Multi-match visualisation
 
-A row that matches in multiple fields gets:
+A row that matches in multiple slots gets:
 
 * ''Inline highlight'' on its name / hint (whichever matched).
-* ''One snippet line per non-displayed match'' — beneath the row, prefixed by the matched field name + context window around the hit.
+* ''One snippet line per non-displayed match'' — beneath the row, prefixed by the matched pill's chip + context window around the hit.
 
 ! Picking a deep result — three gestures
 

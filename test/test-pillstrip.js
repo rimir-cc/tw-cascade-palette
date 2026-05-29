@@ -3,10 +3,10 @@ title: $:/plugins/rimir/cascade-palette/test/test-pillstrip.js
 type: application/javascript
 tags: [[$:/tags/test-spec]]
 
-Characterisation spec for the 4 simple pill strips (filter / visibility /
-reach / field). Snapshots the rendered outerHTML of each strip element
-against canned pill arrays and focus state, asserting byte-stability
-across the in-progress consolidation into cp-pillstrip.
+Characterisation spec for the 5 simple pill strips (filter / visibility /
+reach / search-meta / search-field). Snapshots the rendered outerHTML of
+each strip element against canned pill arrays and focus state, asserting
+byte-stability across the in-progress consolidation into cp-pillstrip.
 
 Each strip is exercised standalone by applying the relevant cp-* patch
 onto a minimal stub object (document, popupEl, stripEl, focus state,
@@ -24,7 +24,8 @@ describe("cascade-palette: pill-strip rendering", function () {
     var applyCpFilters     = require("$:/plugins/rimir/cascade-palette/widgets/cp-filters");
     var applyCpVisibility  = require("$:/plugins/rimir/cascade-palette/widgets/cp-visibility");
     var applyCpReach       = require("$:/plugins/rimir/cascade-palette/widgets/cp-reach-pills");
-    var applyCpField       = require("$:/plugins/rimir/cascade-palette/widgets/cp-field-pills");
+    var applyCpMeta        = require("$:/plugins/rimir/cascade-palette/widgets/cp-search-meta-pills");
+    var applyCpField       = require("$:/plugins/rimir/cascade-palette/widgets/cp-search-field-pills");
 
     // fakeDocument elements don't ship .classList or .dataset — patch
     // both onto every created element via a wrapping document.
@@ -195,13 +196,33 @@ describe("cascade-palette: pill-strip rendering", function () {
         expect(pill.className).toContain("rcp-pill-focused");
     });
 
-    // -------- Field strip --------
+    // -------- Search-meta strip --------
+
+    it("meta strip pills carry rcp-pill-meta modifier class", function () {
+        var s = makeStub(applyCpMeta, {
+            metaStripEl: wrappedDoc().createElement("div"),
+            metaPills: [{ chip: "M name", hint: "search name slot", name: "M name",
+                          metaKey: "name",
+                          constraintTiddler: "$:/plugins/example/search-meta/name" }],
+            metaFocusIdx: 0,
+            focus: "meta",
+            _removeMetaAt: function () {}
+        });
+        s._renderMetaStrip();
+        var pill = s.metaStripEl.childNodes[0];
+        expect(pill.className).toContain("rcp-pill");
+        expect(pill.className).toContain("rcp-pill-meta");
+        expect(pill.className).toContain("rcp-pill-focused");
+    });
+
+    // -------- Search-field strip --------
 
     it("field strip pills carry rcp-pill-field modifier class", function () {
         var s = makeStub(applyCpField, {
             fieldStripEl: wrappedDoc().createElement("div"),
-            fieldPills: [{ chip: "F name", hint: "search name field", name: "F name",
-                           constraintTiddler: "$:/plugins/example/field/name" }],
+            fieldPills: [{ chip: "F text", hint: "search tiddler body", name: "F text",
+                           tiddlerField: "text",
+                           constraintTiddler: "$:/plugins/example/search-field/text" }],
             fieldFocusIdx: 0,
             focus: "field",
             _removeFieldAt: function () {}

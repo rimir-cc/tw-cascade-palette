@@ -251,8 +251,8 @@ module.exports = function (proto) {
 
         // Match snippets — one line per matched field that isn't
         // rendered inline. Name / hint matches show inline (handled
-        // above) so we skip them in the snippet pass; description,
-        // aliases, searchText (and any author-declared fields) get a
+        // above) so we skip them in the snippet pass; tiddler-field
+        // matches (e.g. text) and any author-declared meta keys get a
         // muted snippet beneath the row. Multiple matches across
         // multiple fields each render their own line so the user
         // can see WHY this row is in the result list.
@@ -332,7 +332,7 @@ module.exports = function (proto) {
     };
 
     // Snippet line under the row when the match lives in a non-displayed
-    // field (description / aliases / searchText / etc.). Windows the
+    // field (tiddler text / author-defined meta / etc.). Windows the
     // match: 24 chars before, 40 after, plus ellipses if truncated.
     // Match itself is wrapped in `.rcp-match` so the highlight style
     // applies. Field name is shown as a small prefix so the user knows
@@ -354,7 +354,11 @@ module.exports = function (proto) {
 
         var fieldEl = this.document.createElement("span");
         fieldEl.className = "rcp-row-snippet-field";
-        fieldEl.textContent = match.field + ":";
+        // Prefer the pill's display chip ("📄 Text") over the bare slot
+        // name ("text") so the snippet caption reads naturally. Falls
+        // back to slot name when no pill stamped a label (e.g. matches
+        // sourced from per-row ca-search-fields / global default).
+        fieldEl.textContent = (match.label || match.field) + ":";
         snippetEl.appendChild(fieldEl);
 
         snippetEl.appendChild(this.document.createTextNode(" " + before));

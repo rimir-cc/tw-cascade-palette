@@ -1002,28 +1002,38 @@ Reach pills configure WHERE the search input walks. Same push / remove / DEL gra
 
 ''Push via:'' the ''`rimir-cascade-palette-add-reach`'' message with param ''`reach: <tiddler-title>`''. Leaders d / g are the shipped shortcuts.
 
-! Search-in pills (`$:/tags/rimir/cascade-palette/field`)
+! Search-meta pills (`$:/tags/rimir/cascade-palette/search-meta`)
 
-Search-in pills configure WHICH fields the matcher reads. Same grammar as reach pills, separate strip, violet accent. (The internal tag still uses `/field` — the user-facing label "Search-in" is the rendered name; both protocol fields and the tag retain their original `field` spelling.) A pill-tagged tiddler declares:
+Search-meta pills configure WHICH cascade-item author meta keys the matcher reads (the row's `name`, `hint`, and any author-defined slots populated by cp-items.js or a custom row-builder). Same grammar as reach pills, separate strip, violet accent. A pill-tagged tiddler declares:
 
-;`ca-field-name`
-:The field key the pill represents. The matcher's resolver walks two layers:
-:# ''Cascade-item property'' — `item.<key>` (e.g. `name`, `hint`, `description`, `aliases`, `searchText`).
-:# ''Tiddler-field fallback'' — when step 1 produces nothing AND the row has a backing tiddler, `wiki.getTiddler(item.title).fields[<key>]` is consulted. Lets a pill expose ANY tiddler field (`text`, `tags`, `caption`, …) without protocol changes.
-:Array-typed tiddler fields (like `tags`) are flattened to a space-separated string before substring matching.
-;`ca-field-chip` / `-hint` / `-help`
-:Display / tooltip / help (same shape as Reach).
+;`ca-meta-key`
+:The cascade-item property the pill represents (e.g. `name`, `hint`, or any author-defined key the cascade-item builder populates).
+;`ca-chip` / `ca-hint` / `ca-help`
+:Display chip / tooltip / details-pane help.
 
-When at least one Search-in pill is active, the matcher walks the UNION of those field keys, ignoring per-row `ca-search-fields` and global default. No pills active → matcher uses each row's `ca-search-fields` declaration, falling back to global default at `$:/config/rimir/cascade-palette/search-fields-default`.
+When at least one Search-meta pill is active, the matcher walks the UNION of those meta keys, ignoring per-row `ca-search-fields` and global default. No meta pills active → matcher uses each row's `ca-search-fields` declaration, falling back to global default at `$:/config/rimir/cascade-palette/search-fields-default`.
+
+''Push via:'' ''`rimir-cascade-palette-add-meta`'' with param ''`meta: <tiddler-title>`''.
+
+! Search-field pills (`$:/tags/rimir/cascade-palette/search-field`)
+
+Search-field pills configure WHICH literal tiddler fields the matcher reads on the row's backing tiddler. Same grammar as reach / meta pills, separate strip, amber accent. Synthetic rows (no backing tiddler) silently skip every Field pill. A pill-tagged tiddler declares:
+
+;`ca-tiddler-field`
+:The tiddler field name to read via `wiki.getTiddler(item.title).fields[<name>]`. Any field works: `text`, `caption`, `tags`, `modifier`, author-defined.
+;`ca-chip` / `ca-hint` / `ca-help`
+:Same shape as Meta.
+
+Array-typed fields (like `tags`) are flattened to a space-separated string before substring matching.
+
+When at least one Search-field pill is active, the matcher unions the tiddler-field layer with the meta layer. No field pills active → the tiddler-field layer is skipped entirely (keeps the default search cheap).
 
 ''Push via:'' ''`rimir-cascade-palette-add-field`'' with param ''`field: <tiddler-title>`''.
 
 ! Item-level search authoring (`ca-search-*` on cascade items)
 
 ;`ca-search-fields`
-:Space-separated list of item field names the matcher walks for THIS row. Default per global config.
-;`ca-description` / `ca-aliases` / `ca-search-text`
-:Optional string fields read into the cascade item as `description`, `aliases`, `searchText`. Not rendered inline. Matches surface as a snippet line below the row showing context + highlight, prefixed by the field name.
+:Space-separated list of cascade-item meta keys the matcher walks for THIS row. Default per global config.
 ;`ca-search-skip`
 :When `yes`, the deep walker excludes this row from results AND does not descend its subtree. Default auto-skip applies to `text`, `number`, `date`, `toggle`, and `confirm` row kinds.
 
@@ -1034,9 +1044,6 @@ title: $:/plugins/example/entries/find-things
 tags: $:/tags/rimir/cascade-palette/entry
 ca-name: Find things
 ca-hint: Search across projects, tasks, notes.
-ca-description: Cross-namespace finder. Synonyms: locate, search, lookup.
-ca-aliases: locate search lookup
-ca-search-fields: name hint description aliases
 ca-kind: drill
 ca-next-scope: [tag[work]]
 ```

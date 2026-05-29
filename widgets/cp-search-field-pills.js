@@ -1,37 +1,38 @@
 /*\
-title: $:/plugins/rimir/cascade-palette/widgets/cp-field-pills
+title: $:/plugins/rimir/cascade-palette/widgets/cp-search-field-pills
 type: application/javascript
 module-type: library
 
-Field subsystem — pills that decide WHICH item fields the search
-matcher reads.
+Search-field subsystem — pills that decide WHICH literal tiddler
+fields the matcher reads on the row's backing tiddler (e.g. `text`,
+`caption`, `tags`, author-defined fields).
 
-A field pill is a tiddler tagged FIELD_TAG that declares a
-`ca-field-name` field naming the cascade-item key it covers
-(`name`, `hint`, `description`, `aliases`, `searchText`, or any
-custom field an author chooses to expose).
+A field pill is a tiddler tagged SEARCH_FIELD_TAG that declares a
+`ca-tiddler-field` field naming the tiddler field it covers
+(`text`, `caption`, `tags`, or any field an author chooses to expose).
 
-Semantics (the matcher in cp-actions.js:filterByQuery + the deep
-walker in cp-deep-search.js consume `_activeFieldNames()`):
-  - No field pills pushed → matcher uses each row's
-    `ca-search-fields` declaration (or the global default).
-  - One or more field pills pushed → matcher uses the UNION of
-    those pill field-names, ignoring per-row config and global
-    default. Lets the user say explicitly "match only in
-    description" or "match in name AND description".
+Semantics (the matcher in cp-actions.js + the deep walker in
+cp-deep-search.js consume `_activeTiddlerFields()`):
+  - No field pills pushed → matcher reads no tiddler fields (the
+    default search uses cascade-item meta only — see
+    cp-search-meta-pills).
+  - One or more field pills pushed → matcher reads the UNION of those
+    pill `ca-tiddler-field`s for every row that has a backing tiddler.
+    Synthetic rows (no backing tiddler) silently skip these pills.
 
-Push / remove / focus / keyboard model mirrors cp-filters.js and
-cp-reach-pills.js exactly. Pushed via the
-`rimir-cascade-palette-add-field` message (typically from
-leader keys).
+Sister module: cp-search-meta-pills.js — pills matching cascade-item
+author meta (name / hint / description / aliases / searchText). Both
+strips coexist; the matcher unions their contributions.
+
+Push / remove / focus / keyboard model mirrors cp-search-meta-pills
++ cp-filters + cp-reach-pills exactly. Pushed via the
+`rimir-cascade-palette-add-field` message (typically from leader keys).
 
 \*/
 "use strict";
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
 var pillstrip = require("$:/plugins/rimir/cascade-palette/widgets/cp-pillstrip");
-var utils = require("$:/plugins/rimir/cascade-palette/widgets/cp-utils");
-var FIELD_TAG = C.FIELD_TAG;
 var SEARCH_FIELD_TAG = C.SEARCH_FIELD_TAG;
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 
@@ -39,37 +40,19 @@ module.exports = function (proto) {
 
     proto._loadFieldTiddlers = function () {
         var self = this;
-        // Union of the canonical `search-field` tag and the legacy
-        // `field` tag (pre-0.0.84). Authors with both shipped see the
-        // same tiddler at most once because filter-run union dedupes
-        // by title. A once-per-session deprecation warning fires when
-        // any legacy-tagged tiddlers are still in the store.
         var titles = this.wiki.filterTiddlers(
-            "[all[shadows+tiddlers]tag[" + SEARCH_FIELD_TAG + "]] " +
-            "[all[shadows+tiddlers]tag[" + FIELD_TAG + "]]"
+            "[all[shadows+tiddlers]tag[" + SEARCH_FIELD_TAG + "]]"
         );
-        var legacyCount = this.wiki.filterTiddlers(
-            "[all[shadows+tiddlers]tag[" + FIELD_TAG + "]] " +
-            "-[all[shadows+tiddlers]tag[" + SEARCH_FIELD_TAG + "]]"
-        ).length;
-        if (legacyCount > 0) {
-            utils.deprecationWarning(
-                "tag:" + FIELD_TAG,
-                "search-in pill tiddlers should be tagged " + SEARCH_FIELD_TAG +
-                " instead of " + FIELD_TAG + " (" + legacyCount + " legacy-tagged tiddler(s) loaded)",
-                this.wiki
-            );
-        }
         return titles.map(function (title) {
             var t = self.wiki.getTiddler(title);
             var f = (t && t.fields) || {};
             return {
                 title: title,
-                name: f["ca-field-name"] || title.split("/").pop(),
-                fieldKey: f["ca-field-name"] || "",
-                chip: f["ca-field-chip"] || "",
-                hint: f["ca-field-hint"] || "",
-                help: f["ca-field-help"] || "",
+                name: f["ca-tiddler-field"] || title.split("/").pop(),
+                tiddlerField: f["ca-tiddler-field"] || "",
+                chip: f["ca-chip"] || "",
+                hint: f["ca-hint"] || "",
+                help: f["ca-help"] || "",
                 order: self._parseNumOrDefault(f["ca-order"], DEFAULT_ORDER)
             };
         });
@@ -79,7 +62,7 @@ module.exports = function (proto) {
         return {
             constraintTiddler: meta.title,
             name: meta.name,
-            fieldKey: meta.fieldKey,
+            tiddlerField: meta.tiddlerField,
             chip: meta.chip || meta.name,
             hint: meta.hint,
             help: meta.help
@@ -144,10 +127,10 @@ module.exports = function (proto) {
             pills:         self.fieldPills,
             focusIdx:      self.fieldFocusIdx,
             focusSection:  "field",
-            popupHasClass: "rcp-has-fields",
+            popupHasClass: "rcp-has-field",
             pillModifier:  "rcp-pill-field",
             datasetKey:    "fieldIdx",
-            removeTitle:   "Remove this field",
+            removeTitle:   "Remove this field pill",
             onSelectAt:    function (i) { self.fieldFocusIdx = i; self.setFocus("field"); },
             onRemoveAt:    function (i) { self._removeFieldAt(i); }
         });
@@ -159,28 +142,44 @@ module.exports = function (proto) {
         var item = this.fieldPills[this.fieldFocusIdx];
         if (!item) return;
         pillstrip.renderConstraintHelp(this, {
-            title: item.name,
+            title: item.chip || item.name,
             help:  item.help || item.hint || item.name,
             rows: [
-                ["Field key", item.fieldKey || "—"],
+                ["Tiddler field", item.tiddlerField || "—"],
                 ["Tiddler", item.constraintTiddler]
             ]
         });
     };
 
-    // Active field-name list — read from the currently-pushed pills.
-    // Returns an array of cascade-item field keys, or null when no
-    // field pills are pushed (callers fall back to per-row
-    // `ca-search-fields` / global default).
-    proto._activeFieldNames = function () {
+    // Active tiddler-field-name list — read from the currently-pushed
+    // pills. Returns an array of tiddler field names, or null when no
+    // field pills are pushed (callers know to skip the tiddler-field
+    // layer of the matcher entirely).
+    proto._activeTiddlerFields = function () {
         if (!this.fieldPills || !this.fieldPills.length) return null;
-        var keys = [];
+        var fields = [];
         var seen = {};
         for (var i = 0; i < this.fieldPills.length; i++) {
-            var k = this.fieldPills[i].fieldKey;
-            if (k && !seen[k]) { keys.push(k); seen[k] = true; }
+            var f = this.fieldPills[i].tiddlerField;
+            if (f && !seen[f]) { fields.push(f); seen[f] = true; }
         }
-        return keys.length ? keys : null;
+        return fields.length ? fields : null;
+    };
+
+    // Active field-pill instance list — same order as
+    // _activeTiddlerFields but full objects (so the matcher can stamp
+    // chip labels into the emitted match records). Returns null when
+    // no field pills pushed.
+    proto._activeFieldPills = function () {
+        if (!this.fieldPills || !this.fieldPills.length) return null;
+        var seen = {};
+        var out = [];
+        for (var i = 0; i < this.fieldPills.length; i++) {
+            var p = this.fieldPills[i];
+            var f = p.tiddlerField;
+            if (f && !seen[f]) { out.push(p); seen[f] = true; }
+        }
+        return out.length ? out : null;
     };
 
     proto._addFieldByTitle = function (title) {

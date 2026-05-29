@@ -1,0 +1,9 @@
+title: $:/plugins/rimir/cascade-palette/search-field/text
+tags: $:/tags/rimir/cascade-palette/search-field
+ca-tiddler-field: text
+ca-chip: 📄 Text
+ca-hint: Match against the tiddler's body text.
+ca-help: When pushed, the matcher reads each row's backing tiddler ''`text`'' field — the wikitext / content body. Synthetic rows (rows with no backing tiddler, e.g. JSON-array-element rows from a `ca-items-from` template) skip this field silently. Matches surface a snippet line below the row showing context around the match.
+
+Shipped to demonstrate the protocol — any tiddler field can be exposed as a search-field pill the same way: ship a tiddler tagged ''`$:/tags/rimir/cascade-palette/search-field`'' with ''`ca-tiddler-field: <fieldname>`'' (e.g. `tags`, `caption`, `modifier`, …). The matcher reads ''`wiki.getTiddler(item.title).fields[<fieldname>]`'' for each row with a backing tiddler.
+ca-order: 100

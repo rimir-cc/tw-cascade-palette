@@ -289,35 +289,38 @@ module.exports = function (proto) {
         }
     };
 
-    // Per-item search field walker. Field set comes from (in priority
-    // order): the active Field pills via `_activeFieldNames()` →
-    // per-item `ca-search-fields` (stored as `searchFields` on the
-    // item) → the global default at `$:/config/rimir/cascade-palette/
-    // search-fields-default` (ships "name hint"). Matches lowercased
-    // substring; collects ALL matches across the field list (not just
-    // the first) into `item._matches` — consumed by cp-rendering to
-    // surface a snippet line per matched field so the user sees WHY
-    // every result is in the list. `_match` is kept as a back-compat
-    // pointer to the first match for the inline name/hint highlight.
+    // Per-item search walker. Two independent layers:
+    //   Meta layer:    cascade-item author meta (item[key]).
+    //                  Keys come from (in priority): active meta pills via
+    //                  `_activeMetaKeys()` → per-item `ca-search-fields`
+    //                  (stored as `searchFields` on the item) → global
+    //                  default at `$:/config/rimir/cascade-palette/
+    //                  search-fields-default` (ships "name hint").
+    //   Field layer:   literal tiddler fields on the row's backing
+    //                  tiddler. Fields come from active field pills via
+    //                  `_activeTiddlerFields()`. No default — when no
+    //                  field pills are pushed, the layer is skipped.
+    // Matches lowercased substring; collects ALL matches across both
+    // layers into `item._matches` — consumed by cp-rendering to surface
+    // a snippet line per matched field so the user sees WHY every
+    // result is in the list. `_match` is kept as a back-compat pointer
+    // to the first match for the inline name/hint highlight.
     // Plumbed identically for the local-stage and deep-search paths.
     proto.filterByQuery = function (items, query) {
         if (!query) {
-            // Clear stale annotations from a previous keystroke. Empty
-            // query = no match info on any row.
             for (var i = 0; i < items.length; i++) {
                 items[i]._match = null;
                 items[i]._matches = null;
             }
             return items.slice();
         }
-        var fieldOverride = this._activeFieldNames
-            ? this._activeFieldNames()
-            : null;
+        var metaOverride = this._activeMetaPills ? this._activeMetaPills() : null;
+        var fieldOverride = this._activeFieldPills ? this._activeFieldPills() : null;
         var globalDefault = this._defaultSearchFields();
         var kept = [];
         for (var j = 0; j < items.length; j++) {
             var item = items[j];
-            var matches = this._highlightMatches(item, query, fieldOverride, globalDefault);
+            var matches = this._highlightMatches(item, query, metaOverride, fieldOverride, globalDefault);
             if (matches.length) {
                 item._matches = matches;
                 item._match = matches[0];
@@ -330,49 +333,99 @@ module.exports = function (proto) {
         return kept;
     };
 
-    // Per-item match computation. Pure (apart from one read of
-    // `this._activeFieldNames` / `this._defaultSearchFields` when the
-    // caller doesn't pre-supply them): scans the resolved field list
-    // for substring hits and returns the full match array. NO mutation
-    // of `item` — that's filterByQuery's job. Returns []  when no
-    // matches OR when query is empty.
+    // Per-item match computation. Pure (apart from one read of the
+    // active pill lists / default when caller doesn't pre-supply them).
+    // Walks the meta layer then the field layer; emits one match per
+    // hit. NO mutation of `item` — that's filterByQuery's job. Returns
+    // [] when no matches OR when query is empty.
     //
-    // `fieldOverride` / `globalDefault` are optional injection points so
-    // hot loops (filterByQuery) can resolve them once and share. Bare
-    // `this._highlightMatches(item, query)` works too — useful for
-    // ad-hoc highlight queries from tests / one-off callers.
+    // `metaOverride` is an array of meta-pill instances (each carrying
+    // `metaKey` + `chip`), or null when no meta pills are pushed (the
+    // matcher then falls back to per-row `ca-search-fields` /
+    // `globalDefault` as plain meta-keys).
     //
-    // Each match: {field, value, start, len}. `value` is the resolved
-    // field text (with array-flatten applied) so renderers don't have
-    // to re-read it.
-    proto._highlightMatches = function (item, query, fieldOverride, globalDefault) {
+    // `fieldOverride` is an array of field-pill instances (each
+    // carrying `tiddlerField` + `chip`), or null when no field pills
+    // are pushed (the tiddler-field layer is skipped).
+    //
+    // `globalDefault` is the meta-key-array fallback (used only when
+    // metaOverride is null and the row has no `searchFields`).
+    //
+    // Each match: {field, label, value, start, len}.
+    //   `field` is the resolution slot name (meta key or tiddler field
+    //           name) — used for stable diffing / tests.
+    //   `label` is the display chip (when sourced from a pushed pill)
+    //           or the slot name as fallback — consumed by cp-rendering
+    //           for snippet captions ("🏷 Name" not "name").
+    //   `value` is the resolved text (array-flatten applied) so the
+    //           renderer doesn't re-read it.
+    proto._highlightMatches = function (item, query, metaOverride, fieldOverride, globalDefault) {
         if (!query) return [];
         var q = String(query).toLowerCase();
+        if (metaOverride === undefined) {
+            metaOverride = this._activeMetaPills ? this._activeMetaPills() : null;
+        }
         if (fieldOverride === undefined) {
-            fieldOverride = this._activeFieldNames
-                ? this._activeFieldNames()
-                : null;
+            fieldOverride = this._activeFieldPills ? this._activeFieldPills() : null;
         }
         if (globalDefault === undefined) {
             globalDefault = this._defaultSearchFields();
         }
-        var fields = fieldOverride
-            || (item.searchFields && item.searchFields.length
-                ? item.searchFields
-                : globalDefault);
         var matches = [];
-        for (var k = 0; k < fields.length; k++) {
-            var fname = fields[k];
-            var sv = this._resolveMatchableField(item, fname);
-            if (!sv) continue;
-            var idx = sv.toLowerCase().indexOf(q);
-            if (idx !== -1) {
+
+        // Meta layer. Active meta pills override per-row / global
+        // default. Each entry is a pill instance with `metaKey` +
+        // `chip` (for snippet labels). The fallback path constructs
+        // synthetic specs with `metaKey` only (label = key).
+        var metaSpecs;
+        if (metaOverride) {
+            metaSpecs = metaOverride;
+        } else {
+            var fallbackKeys = (item.searchFields && item.searchFields.length)
+                ? item.searchFields
+                : globalDefault;
+            metaSpecs = [];
+            for (var fi = 0; fi < fallbackKeys.length; fi++) {
+                metaSpecs.push({metaKey: fallbackKeys[fi], chip: fallbackKeys[fi]});
+            }
+        }
+        for (var mi = 0; mi < metaSpecs.length; mi++) {
+            var mspec = metaSpecs[mi];
+            var mk = mspec.metaKey;
+            if (!mk) continue;
+            var mv = this._resolveMetaField(item, mk);
+            if (!mv) continue;
+            var midx = mv.toLowerCase().indexOf(q);
+            if (midx !== -1) {
                 matches.push({
-                    field: fname,
-                    value: sv,
-                    start: idx,
+                    field: mk,
+                    label: mspec.chip || mk,
+                    value: mv,
+                    start: midx,
                     len: q.length
                 });
+            }
+        }
+
+        // Tiddler-field layer. Active only when field pills are pushed.
+        // Synthetic rows (no backing tiddler) silently skip.
+        if (fieldOverride && item.title) {
+            for (var ti = 0; ti < fieldOverride.length; ti++) {
+                var fspec = fieldOverride[ti];
+                var tf = fspec.tiddlerField;
+                if (!tf) continue;
+                var tv = this._resolveTiddlerField(item, tf);
+                if (!tv) continue;
+                var tidx = tv.toLowerCase().indexOf(q);
+                if (tidx !== -1) {
+                    matches.push({
+                        field: tf,
+                        label: fspec.chip || tf,
+                        value: tv,
+                        start: tidx,
+                        len: q.length
+                    });
+                }
             }
         }
         return matches;
@@ -386,27 +439,28 @@ module.exports = function (proto) {
         return (raw && raw.match(/\S+/g)) || ["name", "hint"];
     };
 
-    // Resolve the matchable text for one named field on one item.
-    // Look-up chain:
-    //   1. cascade-item property (name, hint, description, …) — fast
-    //      synthesised at item-build time in cp-items.js
-    //   2. tiddler-field fallback when the item has a backing tiddler
-    //      and step 1 missed — lets users author Search-in pills for
-    //      ANY tiddler field (text, tags, caption, modifier, …) just
-    //      by shipping a `ca-field-name: <field>` pill tiddler; no
-    //      JS / protocol change required.
-    // Returns a string or "" / undefined when no value found.
-    proto._resolveMatchableField = function (item, fname) {
-        var v = item[fname];
-        if (v) return String(v);
+    // Resolve a cascade-item meta value for matching. Reads item[key]
+    // ONLY — no tiddler-field fallback. Synthetic rows AND tiddler-
+    // backed rows both go through here for meta pills. Used by the
+    // meta layer of `_highlightMatches`.
+    proto._resolveMetaField = function (item, key) {
+        var v = item[key];
+        if (v === undefined || v === null) return "";
+        if (Array.isArray(v)) return v.join(" ");
+        return String(v);
+    };
+
+    // Resolve a literal tiddler-field value for matching. Reads
+    // `wiki.getTiddler(item.title).fields[fieldName]` ONLY. Returns ""
+    // when the row has no backing tiddler or the field is unset. List-
+    // typed fields (tags etc.) flatten to space-separated strings.
+    // Used by the field layer of `_highlightMatches`.
+    proto._resolveTiddlerField = function (item, fieldName) {
         if (!item.title) return "";
         var t = this.wiki.getTiddler(item.title);
         if (!t) return "";
-        var fv = t.fields && t.fields[fname];
+        var fv = t.fields && t.fields[fieldName];
         if (fv === undefined || fv === null) return "";
-        // TW stores list-typed fields (e.g. tags) as arrays — flatten
-        // for substring matching so a Search-in: tags pill behaves
-        // intuitively against e.g. `tags: work urgent`.
         if (Array.isArray(fv)) return fv.join(" ");
         return String(fv);
     };

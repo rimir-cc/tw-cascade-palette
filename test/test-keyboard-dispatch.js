@@ -30,6 +30,7 @@ describe("cascade-palette: keyboard dispatch table", function () {
             expect(keyboard.resolveSectionHandler("filter")).toBe("_handleKeydownFilter");
             expect(keyboard.resolveSectionHandler("visibility")).toBe("_handleKeydownVisibility");
             expect(keyboard.resolveSectionHandler("reach")).toBe("_handleKeydownReach");
+            expect(keyboard.resolveSectionHandler("meta")).toBe("_handleKeydownMeta");
             expect(keyboard.resolveSectionHandler("field")).toBe("_handleKeydownField");
             expect(keyboard.resolveSectionHandler("view")).toBe("_handleKeydownView");
             expect(keyboard.resolveSectionHandler("viewconfig")).toBe("_handleKeydownViewConfig");
@@ -74,7 +75,7 @@ describe("cascade-palette: keyboard dispatch table", function () {
 
         it("includes every key resolveSectionHandler accepts", function () {
             var snap = keyboard.dispatchTableSnapshot();
-            ["input", "menu", "filter", "visibility", "reach", "field",
+            ["input", "menu", "filter", "visibility", "reach", "meta", "field",
              "view", "viewconfig", "leader", "preset", "details"
             ].forEach(function (focus) {
                 expect(snap[focus]).toBe(keyboard.resolveSectionHandler(focus));
@@ -104,11 +105,11 @@ describe("cascade-palette: keyboard dispatch table", function () {
     });
 
     describe("table contents", function () {
-        it("covers exactly the 11 dispatched sections", function () {
+        it("covers exactly the 12 dispatched sections", function () {
             var keys = Object.keys(keyboard.dispatchTableSnapshot()).sort();
             expect(keys).toEqual([
                 "details", "field", "filter", "input", "leader", "menu",
-                "preset", "reach", "view", "viewconfig", "visibility"
+                "meta", "preset", "reach", "view", "viewconfig", "visibility"
             ]);
         });
 

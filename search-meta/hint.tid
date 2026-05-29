@@ -1,0 +1,7 @@
+title: $:/plugins/rimir/cascade-palette/search-meta/hint
+tags: $:/tags/rimir/cascade-palette/search-meta
+ca-meta-key: hint
+ca-chip: 💡 Hint
+ca-hint: Match against the row's hint / subtitle.
+ca-help: When pushed, the matcher reads each row's `hint` slot (the row's subtitle / tooltip text — sourced from `ca-hint` on cascade entries). One of the two default search slots when no Meta pill is pushed at all. Tiddler-backed rows without an explicit `ca-hint` have empty `hint` slots and won't match.
+ca-order: 110

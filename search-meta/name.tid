@@ -1,0 +1,7 @@
+title: $:/plugins/rimir/cascade-palette/search-meta/name
+tags: $:/tags/rimir/cascade-palette/search-meta
+ca-meta-key: name
+ca-chip: 🏷 Name
+ca-hint: Match against the row's display name.
+ca-help: When pushed, the matcher reads each row's `name` slot (the row's visible title — for entries sourced from `ca-name`, for tiddler-backed rows synthesised from `caption` → path-segment → title). One of the two default search slots when no Meta pill is pushed at all. Combine with other Meta pills to widen the slot set per row.
+ca-order: 100

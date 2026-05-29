@@ -8,12 +8,13 @@ type: text/vnd.tiddlywiki
 
 ! What it does
 
-By default the search input filters the ''current stage's'' visible rows only and matches against each row's ''name'' and ''hint''. Two new pill strips widen this on two independent axes:
+By default the search input filters the ''current stage's'' visible rows only and matches against each row's `name` and `hint` slots. Three pill strips widen this on independent axes:
 
 * ''Reach'' (teal) — WHERE in the cascade tree to search. Default: local (current stage only).
-* ''Search-in'' (violet) — WHICH fields the matcher reads. Default: per-row `ca-search-fields`, falling back to global default `name hint`.
+* ''Meta'' (violet) — WHICH cascade-item author meta keys the matcher reads (the row's display-time slots: `name` / `hint`, plus any author-defined keys). Default: per-row `ca-search-fields`, falling back to global default `name hint`.
+* ''Field'' (amber) — WHICH literal tiddler fields the matcher reads on the row's backing tiddler (`text` / `caption` / `tags` / author-defined). Default: not consulted unless a Field pill is pushed.
 
-Both strips use the same push / remove / DEL / navigate grammar as the existing Filter and Visibility strips. Strips appear only when at least one pill is pushed; hidden otherwise.
+All three strips use the same push / remove / DEL / navigate grammar as the existing Filter and Visibility strips. Strips appear only when at least one pill is pushed — unless you toggle Settings → ''Pin all pill rows'' (0.0.87+), which keeps every strip visible as a dev / discoverability aid.
 
 ! Reach strip — WHERE to search
 
@@ -25,47 +26,63 @@ The two Reach pills are ''mutually exclusive'' — pushing one evicts the other.
 
 When a Reach pill is active, results carry a breadcrumb prefix (`Kinds → Task → fields  priority: enum`) naming the drill chain from the search anchor to the matched row.
 
-! Search-in strip — WHICH fields to read
+! Meta strip — WHICH cascade-item author meta keys
 
-|!Pill |!Field key |!Source |!Visible inline? |
-|🏷 Name |`name` |cascade item |Yes — the row's title. Inline match highlight. |
-|💡 Hint |`hint` |cascade item |Yes — the row's subtitle / tooltip. Inline match highlight. |
-|📝 Description |`description` |cascade item |No — `ca-description`. Match surfaces as a snippet line below the row. |
-|↪ Aliases |`aliases` |cascade item |No — `ca-aliases` (alternate names / synonyms). Snippet. |
-|🔎 Search-text |`searchText` |cascade item |No — `ca-search-text` (catch-all bag). Snippet. |
-|📄 Text |`text` |''tiddler field'' |No — the backing tiddler's body. Snippet. |
+Pills tagged ''`$:/tags/rimir/cascade-palette/search-meta`''. Each declares a `ca-meta-key` naming the cascade-item property the matcher reads.
 
-Multiple Search-in pills can coexist. When any are active, the matcher reads the UNION of those fields, ignoring per-row config and global default. No Search-in pills active = matcher uses each row's `ca-search-fields` declaration, falling back to the global config at ''`$:/config/rimir/cascade-palette/search-fields-default`'' (ships `name hint`).
+|!Pill |!`ca-meta-key` |!Source |!Visible inline? |
+|🏷 Name |`name` |`ca-name` on entries; synthesised from `caption` → path-segment → title on tiddler-backed rows |Yes — the row's title. Inline match highlight. |
+|💡 Hint |`hint` |`ca-hint` on entries (empty on tiddler-backed rows without an explicit ca-hint) |Yes — the row's subtitle. Inline match highlight. |
 
-''Leader `a`'' pushes all six shipped Search-in pills at once — equivalent to "match anywhere".
+Multiple Meta pills can coexist. When any are active, the matcher reads the UNION of those slots, ignoring per-row `ca-search-fields` and the global default. No Meta pills active → matcher uses each row's `ca-search-fields` declaration, falling back to the global default at ''`$:/config/rimir/cascade-palette/search-fields-default`'' (ships `name hint`).
 
-! Adding your own Search-in pills
+! Field strip — WHICH literal tiddler fields
 
-The matcher's field-resolver walks ''two layers'' per field key:
+Pills tagged ''`$:/tags/rimir/cascade-palette/search-field`''. Each declares a `ca-tiddler-field` naming the tiddler field the matcher reads on the row's backing tiddler.
 
-# ''Cascade-item property'' — `item.<key>` (read at item-build time from `ca-<key>` on entries / actions / synthetic items).
-# ''Tiddler-field fallback'' — when step 1 produces nothing AND the row has a backing tiddler, `wiki.getTiddler(item.title).fields[<key>]` is consulted.
+|!Pill |!`ca-tiddler-field` |!Source |
+|📄 Text |`text` |The backing tiddler's `text` field — the wikitext / content body. |
 
-That second layer is what makes the shipped ''📄 Text'' pill work without protocol changes — `text` is a tiddler field, not a cascade-item property. The same fallback applies to ANY tiddler field. To expose `tags` (or `caption`, `modifier`, `modified`, an author-defined field, …) as a Search-in pill, ship a tiddler:
+Multiple Field pills can coexist; the matcher unions them. Synthetic rows (no backing tiddler) silently skip every Field pill. No Field pills active → the matcher skips the tiddler-field layer entirely (default keeps search fast).
+
+''Leader `a`'' pushes all six shipped search pills at once (five Meta + one Field) — equivalent to "match anywhere".
+
+! Authoring custom Meta pills
+
+Ship a tiddler tagged ''`$:/tags/rimir/cascade-palette/search-meta`'' that names a cascade-item property the matcher should consult. Example — a `caption` pill for the row's display name (only useful if you populate `item.caption` somewhere; usually you'd ship a Field pill instead):
 
 ```
-title: $:/plugins/example/field/tags
-tags: $:/tags/rimir/cascade-palette/field
-ca-field-name: tags
-ca-field-chip: 🏷 Tags
-ca-field-hint: Match against the tiddler's tags field.
+title: $:/config/myplugin/search-meta/displayname
+tags: $:/tags/rimir/cascade-palette/search-meta
+ca-meta-key: displayname
+ca-chip: 🪧 Display name
+ca-hint: Match against the row's displayname slot.
+ca-order: 160
 ```
 
-Array-typed fields (`tags`, list-fields) are flattened to space-separated strings before substring matching, so `tags: work urgent` matches a query of `urgen`.
+! Authoring custom Field pills
+
+Ship a tiddler tagged ''`$:/tags/rimir/cascade-palette/search-field`'' that names a tiddler field the matcher should read on each row's backing tiddler. Example — a `caption` pill for the tiddler's caption field:
+
+```
+title: $:/config/myplugin/search-field/caption
+tags: $:/tags/rimir/cascade-palette/search-field
+ca-tiddler-field: caption
+ca-chip: 🪧 Caption
+ca-hint: Match against the tiddler's caption field.
+ca-order: 110
+```
+
+Array-typed fields (`tags`, list-fields) are flattened to space-separated strings before substring matching, so a Field pill on `tags` matches `urgen` against `tags: work urgent`.
 
 ! Multi-match visualization
 
-When a row matches in multiple fields (e.g. `name` AND `description`), each match contributes:
+When a row matches in multiple slots (e.g. Name AND Description, or Description AND Text), each match contributes:
 
 * Inline highlight on the visible name / hint slot (whichever matched).
-* One snippet line per non-displayed match (description / aliases / searchText / author-declared), shown beneath the row with the matched field name + 24 chars of context before + the matched substring (highlighted) + 40 chars after.
+* One snippet line per non-displayed match (`text`, or any author-defined key the matcher consulted), shown beneath the row with the matched pill's chip label + 24 chars of context before + the matched substring (highlighted) + 40 chars after.
 
-So a single row can carry inline highlight AND multiple snippets — the user sees every reason the row is in the result list.
+So a single row can carry inline highlight AND multiple snippets — the user sees every reason the row is in the result list. The snippet caption reads the pill's chip ("📝 Description") rather than the bare slot name, so labels stay readable.
 
 ! Picking a deep result — three gestures
 
@@ -80,14 +97,11 @@ Any `<<parent-picked>>` / `<<stage-N-picked>>` context the row's actions depend 
 
 ! Authoring searchable text on cascade items
 
-Beyond exposing tiddler fields via pills (above), each cascade item can also declare its OWN searchable strings — useful for synthetic items (no backing tiddler) and for adding searchable content without polluting tiddler fields:
+The shipped Meta pills read `name` and `hint` only. To make additional searchable content available on a row, author a custom Meta pill (see above) that names whichever cascade-item property you want exposed, and stamp that property onto items in your row-builder. Two opt-out / per-row controls remain on the protocol:
 
 ```
-ca-description: Longer-form explanation, not normally rendered.
-ca-aliases: locate search lookup synonym
-ca-search-text: catch-all bag for body / keywords / hidden text
-ca-search-fields: name hint description aliases    (per-row override)
-ca-search-skip: yes                                 (exclude from deep walk)
+ca-search-fields: name hint   (per-row override of the searched meta keys)
+ca-search-skip: yes           (exclude from deep walk)
 ```
 
 ''`ca-search-skip: yes`'' opts a row out of deep search results AND prevents its subtree from being descended. Useful for `+ Add new` input prompts whose name only makes sense in their immediate context. Default auto-skip applies to `text`, `number`, `date`, `toggle`, and `confirm` row kinds.
@@ -111,11 +125,25 @@ A toolbar button, sidebar item, or any external wikitext can push pills via the 
 <$action-sendmessage $message="rimir-cascade-palette-add-reach"
   reach="$:/plugins/rimir/cascade-palette/reach/here"/>
 
+<$action-sendmessage $message="rimir-cascade-palette-add-meta"
+  meta="$:/plugins/rimir/cascade-palette/search-meta/name"/>
+
 <$action-sendmessage $message="rimir-cascade-palette-add-field"
-  field="$:/plugins/rimir/cascade-palette/field/text"/>
+  field="$:/plugins/rimir/cascade-palette/search-field/text"/>
 ```
 
-`rimir-cascade-palette-reset-reach` / `-reset-fields` clear the strips.
+`rimir-cascade-palette-reset-reach` / `-reset-meta` / `-reset-fields` clear the respective strips.
+
+! Migration from 0.0.87 and earlier
+
+The old single Search-in strip is gone. Pills used to be tagged ''`$:/tags/rimir/cascade-palette/search-field`'' (or the pre-0.0.84 legacy ''`$:/tags/rimir/cascade-palette/field`'') with a single `ca-field-name` field. Both schemas are no longer honoured.
+
+* Pills that read a cascade-item author meta key (anything except `text`) move to the Meta strip — retag to ''`$:/tags/rimir/cascade-palette/search-meta`'' and rename `ca-field-name` → `ca-meta-key`.
+* Pills that read a literal tiddler field (only `text` among the shipped ones) stay on the Field strip — keep the tag, rename `ca-field-name` → `ca-tiddler-field`.
+* `ca-field-chip` / `ca-field-hint` / `ca-field-help` rename to `ca-chip` / `ca-hint` / `ca-help` in both strips.
+* The leader `a` still pushes every shipped pill — but now via two messages (`add-meta` for each Meta pill, `add-field` for each Field pill).
+
+The diagnostics drill ''Deprecations'' (under Configurations) lists any tiddlers still on the legacy schema.
 
 ! Limitations (MVP)
 
@@ -123,4 +151,4 @@ A toolbar button, sidebar item, or any external wikitext can push pills via the 
 * No per-keystroke memo cache yet — each keystroke recomputes the walk. Caps keep this fast on real-world trees.
 * Result ranking is BFS-natural (shallower matches first; same-depth keeps cascade's sort). Exact-match boost and other ranking are on the roadmap.
 * Pills don't persist across sessions or get saved into Presets yet — they're session-local. Preset integration is on the roadmap.
-* No ''+ Add Reach / + Add Field'' picker pill yet (à la Presets' `+` save pill) — pills are pushed only via leaders or external messages for now.
+* No ''+ Add Meta / + Add Field'' picker pill yet (à la Presets' `+` save pill) — pills are pushed only via leaders or external messages for now.

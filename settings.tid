@@ -31,7 +31,7 @@ Both are listed below — UI-surfaced settings are marked ''Settings row availab
 :If ''`yes`'', the details drawer below the result list stays open (instead of requiring Ctrl-hold). Default ''`no`''. ''Settings row available''.
 
 ;<code>$:/config/rimir/cascade-palette/pin-pill-rows</code>
-:If ''`yes`'', every pill strip (Visibility, Reach, Search-in, Filter) is rendered even when no pills are pushed. Useful as a dev / discoverability aid — lets you see where each strip sits before populating it. Default ''`no`''. ''Settings row available''.
+:If ''`yes`'', every pill strip (Visibility, Reach, Meta, Field, Filter) is rendered even when no pills are pushed. Useful as a dev / discoverability aid — lets you see where each strip sits before populating it. Default ''`no`''. ''Settings row available''.
 
 ;<code>$:/config/rimir/cascade-palette/soft-depth-warning</code>
 :Engine logs a console warning when the stage stack exceeds this depth. Default 10. No hard cap — this is purely a development aid. ''Settings row available''.
@@ -63,7 +63,7 @@ These tune the BFS walker fired by the ''reach'' pills (`R here` / `R everywhere
 :Time budget per keystroke. The walker bails out when wall-clock exceeds this. Default 80ms.
 
 ;<code>$:/config/rimir/cascade-palette/search-fields-default</code>
-:Space-separated fields the matcher scans on each row when no per-row `ca-search-fields` is declared. Default ''`name hint`''.
+:Space-separated cascade-item meta keys the matcher scans on each row when no Meta pill is pushed. Default ''`name hint`''. Tiddler-field defaults are not provided — the matcher skips the tiddler-field layer entirely when no Field pill is pushed (keeps the default search cheap).
 
 ! Diagnostics
 

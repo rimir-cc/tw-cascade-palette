@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/leaders/search-anywhere
+tags: $:/tags/rimir/cascade-palette/leader
+ca-leader-key: a
+ca-leader-name: Search-in: anywhere
+ca-leader-hint: Push every shipped search pill — both Meta (Name, Hint) and Field (Text) — so the matcher reads everywhere.
+ca-leader-help: Convenience shortcut: pushes both shipped Meta pills (Name, Hint) onto the Meta strip AND the shipped Field pill (Text) onto the Field strip. The matcher then reads every cascade-item meta slot AND the backing tiddler's body. Composes with the Reach pills — `d` + `a` = deep walk with the widened matcher. Each pill can be removed individually via DEL on the focused pill.
+ca-leader-actions: <$action-sendmessage $message="rimir-cascade-palette-add-meta" meta="$:/plugins/rimir/cascade-palette/search-meta/name"/><$action-sendmessage $message="rimir-cascade-palette-add-meta" meta="$:/plugins/rimir/cascade-palette/search-meta/hint"/><$action-sendmessage $message="rimir-cascade-palette-add-field" field="$:/plugins/rimir/cascade-palette/search-field/text"/>
+ca-order: 302

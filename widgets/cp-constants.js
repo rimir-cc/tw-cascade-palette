@@ -21,6 +21,8 @@ exports.RESET_VISIBILITY_MESSAGE = "rimir-cascade-palette-reset-visibility";
 exports.RESET_CONSTRAINTS_MESSAGE = "rimir-cascade-palette-reset-constraints";
 exports.ADD_REACH_MESSAGE = "rimir-cascade-palette-add-reach";
 exports.RESET_REACH_MESSAGE = "rimir-cascade-palette-reset-reach";
+exports.ADD_META_MESSAGE = "rimir-cascade-palette-add-meta";
+exports.RESET_META_MESSAGE = "rimir-cascade-palette-reset-meta";
 exports.ADD_FIELD_MESSAGE = "rimir-cascade-palette-add-field";
 exports.RESET_FIELDS_MESSAGE = "rimir-cascade-palette-reset-fields";
 exports.SET_VIEW_MESSAGE = "rimir-cascade-palette-set-view";
@@ -37,12 +39,19 @@ exports.TEMPLATE_TAG = "$:/tags/rimir/cascade-palette/template";
 exports.FILTER_TAG = "$:/tags/rimir/cascade-palette/filter";
 exports.VISIBILITY_TAG = "$:/tags/rimir/cascade-palette/visibility";
 exports.REACH_TAG = "$:/tags/rimir/cascade-palette/reach";
-// Legacy tag for search-in-pill tiddlers. Pre-0.0.84 name; engine
-// still reads tiddlers carrying it for back-compat, but emits a
-// once-per-session deprecation warning. Authors should migrate to
-// SEARCH_FIELD_TAG below.
-exports.FIELD_TAG = "$:/tags/rimir/cascade-palette/field";
-// Canonical tag for search-in-pill tiddlers (0.0.84+).
+// Search-in pills are split into two strips (0.0.88+):
+//   SEARCH_META_TAG  → pills matching cascade-item author meta
+//                       (item[ca-meta-key], e.g. name / hint or any
+//                       author-defined key the item-builder populates).
+//   SEARCH_FIELD_TAG → pills matching literal tiddler fields
+//                       (wiki.getTiddler(item.title).fields[
+//                        ca-tiddler-field], e.g. text / caption /
+//                        tags / author-defined).
+// Pre-0.0.88 `$:/tags/rimir/cascade-palette/field` and the unified
+// `search-field` schema with `ca-field-name` are no longer honoured —
+// authors must migrate (diagnostics drill `legacy-search-pills`
+// lists stragglers).
+exports.SEARCH_META_TAG = "$:/tags/rimir/cascade-palette/search-meta";
 exports.SEARCH_FIELD_TAG = "$:/tags/rimir/cascade-palette/search-field";
 exports.VIEW_TAG = "$:/tags/rimir/cascade-palette/view";
 exports.STRUCTURE_LAYER_TAG = "$:/tags/rimir/cascade-palette/structure-layer";
@@ -136,6 +145,7 @@ exports.HINT_PREVIEW_PILLS = "Tab section · ←→ switch preview · ↑↓ scr
 exports.HINT_FILTER     = "Tab section · ←→ select · DEL remove · Ctrl-DEL clear all · Esc input";
 exports.HINT_VISIBILITY = "Tab section · ←→ select · DEL remove · Ctrl-DEL clear all · Esc input";
 exports.HINT_REACH      = "Tab section · ←→ select · DEL remove · Esc input";
+exports.HINT_META       = "Tab section · ←→ select · DEL remove · Esc input";
 exports.HINT_FIELD      = "Tab section · ←→ select · DEL remove · Esc input";
 exports.HINT_VIEW       = "Tab section · ←→ select · ↵ activate · Esc input";
 exports.HINT_LEADER     = "Tab section · ←→ select · ↵/Space fire · Esc input";
