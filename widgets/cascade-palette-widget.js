@@ -1220,6 +1220,114 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this._renderHint();
     };
 
+    // Compose the menu-section hint from the selected row's capabilities.
+    // Each token in C.HINT_TOKENS is gated on something the row actually
+    // supports — `Space actions` only when applicable actions exist,
+    // `+/- adjust` only on number rows, `Alt-↵ open` only when a row-icon
+    // is present, etc. Joined with " · " in stable display order. Cheap:
+    // every read is either a field on `picked` or a single filter call
+    // (loadActionsForType) which dominates the overall cost at <1 ms.
+    CascadePaletteWidget.prototype._composeMenuHint = function () {
+        var T = C.HINT_TOKENS;
+        var stage = this.topStage();
+        var picked = stage && stage.results &&
+            stage.results[stage.selectedIndex];
+        var tokens = [];
+
+        tokens.push(T["tab-section"]);
+
+        // `↑↓ select` only makes sense when there's more than one row to
+        // move between. Hidden on empty stages and single-result stages.
+        if (stage && stage.results && stage.results.length > 1) {
+            tokens.push(T["select"]);
+        }
+
+        // Drill capability — mirrors the dispatch order in drillSelected
+        // (cp-firing.js). Each of these row shapes opens a follow-up
+        // stage on Right-arrow.
+        var drillable = false;
+        if (picked) {
+            if (picked._path !== undefined) drillable = true;
+            else if (picked._treeContainer && picked._treeParent) drillable = true;
+            else if (picked.entityType && picked.kind === "leaf") drillable = true;
+            else if (picked.kind === "drill" && (picked.nextScope || picked.itemsFrom)) drillable = true;
+            else if (picked.isItem && stage && stage.entityType) drillable = true;
+        }
+        if (drillable) tokens.push(T["drill"]);
+
+        // `← back` only when there's a stage to pop to. At root the
+        // gesture is a no-op (see ArrowLeft in _handleKeydownMenu).
+        if (this.stack && this.stack.length > 1) tokens.push(T["back"]);
+
+        // Space binds to exactly one gesture per row — mirror the
+        // dispatch order in cp-keyboard.js's Space handler so the hint
+        // matches what the key will actually do.
+        if (picked) {
+            if (picked._path !== undefined) {
+                tokens.push(T["pin"]);
+            } else if (picked.kind === "toggle") {
+                tokens.push(T["toggle"]);
+            } else if (picked.kind === "text" || picked.kind === "number" ||
+                       picked.kind === "date") {
+                tokens.push(T["edit"]);
+            } else if (picked.title && !picked.isSynthetic) {
+                var entityType = picked.entityType ||
+                    (picked.isItem && stage ? stage.entityType : null) ||
+                    null;
+                // Reuse `_actionPreviewCountCache` populated by
+                // `_maybeAppendActionPreview` during result render —
+                // most visible rows are already in it. Fall back to a
+                // direct filter call when the view disables previews
+                // (cache is empty in that case).
+                var key = (entityType || "") + " " + picked.title;
+                var cache = this._actionPreviewCountCache;
+                var count;
+                if (cache && Object.prototype.hasOwnProperty.call(cache, key)) {
+                    count = cache[key];
+                } else {
+                    var applicable = this.loadActionsForType(entityType, picked.title);
+                    count = applicable ? applicable.length : 0;
+                    if (cache) cache[key] = count;
+                }
+                if (count > 0) tokens.push(T["actions"]);
+            }
+        }
+
+        // +/- on number rows steps the bound value (cp-keyboard.js
+        // isPlusKey / isMinusKey path).
+        if (picked && picked.kind === "number") tokens.push(T["adjust"]);
+
+        // ↵ fire is the universal commit gesture in the menu — every
+        // result type has a fireSelected branch.
+        if (picked) tokens.push(T["fire"]);
+
+        // Row-icon gestures — Alt-↵ opens the primary icon's payload
+        // (URL etc.). Ctrl-Alt-↵ fires the icon's secondary action when
+        // declared (e.g. the shipped url icon's copy-to-clipboard).
+        if (picked && picked._rowIcons && picked._rowIcons.length) {
+            tokens.push(T["open-icon"]);
+            var primary = (typeof this.primaryRowIcon === "function")
+                ? this.primaryRowIcon(picked) : null;
+            if (primary && (primary.altMessage || primary.altAction)) {
+                tokens.push(T["copy-icon"]);
+            }
+        }
+
+        // Esc in menu pops one stage at depth > 1 (returning to the
+        // previous context), and falls back to focusing input at root.
+        // Action-menu stages reach the popped state via their parent
+        // tiddler, so label it "Esc tiddler" for clarity. Other non-root
+        // stages keep the existing "Esc input" wording.
+        if (stage && stage.kind === "actions") {
+            tokens.push(T["esc-tiddler"]);
+        } else {
+            tokens.push(T["esc-input"]);
+        }
+        tokens.push(T["hold-ctrl-detail"]);
+
+        return tokens.join(" · ");
+    };
+
     CascadePaletteWidget.prototype._renderHint = function () {
         if (!this.hintEl) return;
         if (this.editMode) {
@@ -1227,25 +1335,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             return;
         }
         if (this.focus === "menu") {
-            // Swap in the row-icon hint variant when the selected row has
-            // at least one icon resolved, so the Alt-↵ gesture is
-            // discoverable. If the primary icon also declares an alt
-            // gesture (e.g. the shipped url icon's Ctrl-Alt-↵ copy),
-            // surface that one too.
-            var stageMenu = this.topStage();
-            var pickedMenu = stageMenu && stageMenu.results &&
-                stageMenu.results[stageMenu.selectedIndex];
-            var iconsMenu = pickedMenu && pickedMenu._rowIcons;
-            if (iconsMenu && iconsMenu.length) {
-                var primary = (typeof this.primaryRowIcon === "function")
-                    ? this.primaryRowIcon(pickedMenu) : null;
-                var hasAlt = primary && (primary.altMessage || primary.altAction);
-                this.hintEl.textContent = hasAlt
-                    ? C.HINT_MENU_ROW_ICON_ALT
-                    : C.HINT_MENU_ROW_ICON;
-            } else {
-                this.hintEl.textContent = C.HINT_MENU;
-            }
+            this.hintEl.textContent = this._composeMenuHint();
         }
         else if (this.focus === "details")    this.hintEl.textContent = C.HINT_DETAILS;
         else if (this.focus === "preview")    this.hintEl.textContent =

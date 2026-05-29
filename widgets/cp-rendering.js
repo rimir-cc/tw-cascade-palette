@@ -122,6 +122,7 @@ module.exports = function (proto) {
             emptyEl.className = "rcp-empty";
             emptyEl.textContent = "No results — ? for help";
             this.resultsEl.appendChild(emptyEl);
+            this._renderHint();
             return;
         }
         var self = this;
@@ -162,6 +163,11 @@ module.exports = function (proto) {
         // Preview drawer mirrors the selected row — refresh content whenever
         // the result list re-renders (arrow nav, stage push/pop, etc.).
         if (this.detailsOpen) this.renderDetails();
+        // Hint line mirrors the selected row's capabilities (Space actions,
+        // Alt-↵ open, +/- adjust, etc.). Every code path that re-renders the
+        // results also needs to refresh the hint — arrow nav, input change,
+        // stage push/pop. Cheap (textContent mutation + a few field reads).
+        this._renderHint();
     };
 
     proto._appendResultRow = function (item, i, stage) {

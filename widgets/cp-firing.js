@@ -332,11 +332,18 @@ module.exports = function (proto) {
         else if (unit === "month") next = helpers.addMonths(current, step);
         else if (unit === "year")  next = helpers.addMonths(current, step * 12);
         else return;
-        var storage = helpers.toTwDate(next);
+        // Pick storage format by bind-type:
+        //   application/x-tw-date     → 8-char YYYYMMDD (local digits)
+        //   application/x-tw-datetime → 17-char YYYYMMDDHHmmsssss (UTC)
+        // Mirrors the scribetype's toField — keeps the format consistent
+        // between the typed-input path and the +/- arithmetic path.
+        var storage = (item.bindType === "application/x-tw-date")
+            ? helpers.toTwDateOnly(next)
+            : helpers.toTwDate(next);
         if (storage === undefined) return;
-        // Write the TW UTC date string directly via _readBoundRaw's inverse —
-        // bypassing the scribetype since we already produced storage form.
-        // (Calling writeBoundValue with a display string would re-parse it.)
+        // Write the storage string directly — bypassing the scribetype
+        // since we already produced storage form. (Calling
+        // writeBoundValue with a display string would re-parse it.)
         this._writeRawAtField(item, storage);
         this.renderResults();
     };

@@ -130,15 +130,27 @@ exports.STRING_ARRAY_TYPE = "application/x-string-array";
 // gestures (Tab cycle, ↵ fire, Ctrl-↵ fire+stay, hold Ctrl preview)
 // appear in every variant so the user always sees the escape hatches.
 exports.HINT_INPUT   = "Tab section · ↓ menu · ↵ fire · Ctrl-↵ fire+stay · Esc back · Shift-Esc close · hold Ctrl detail · ? help";
-exports.HINT_MENU    = "Tab section · ↑↓ select · → drill · ← back · Space actions/toggle/edit · +/- adjust · ↵ fire · Esc input · hold Ctrl detail";
-// Same as HINT_MENU plus the Alt-↵ row-icon gesture. Surfaced when the
-// selected row has at least one row-icon resolved.
-exports.HINT_MENU_ROW_ICON = "Tab section · ↑↓ select · → drill · Alt-↵ open · ↵ fire · Esc input · hold Ctrl detail";
-// As HINT_MENU_ROW_ICON, but surfaces the icon's ''secondary'' gesture
-// (Ctrl-Alt-↵) when present. Shown e.g. on rows with the shipped `url`
-// icon, where the primary action opens the URL and the alt action
-// copies it to the clipboard.
-exports.HINT_MENU_ROW_ICON_ALT = "Tab section · Alt-↵ open · Ctrl-Alt-↵ copy · ↵ fire · Esc input · hold Ctrl detail";
+// Menu hint is composed per-row from the tokens below in `_renderHint`'s
+// menu branch — each token is gated on a capability of the selected row
+// (`picked.kind`, `picked._rowIcons`, `loadActionsForType`, etc.) so the
+// hint only advertises gestures that actually do something on this row.
+exports.HINT_TOKENS = {
+    "tab-section":      "Tab section",
+    "select":           "↑↓ select",
+    "drill":            "→ drill",
+    "back":             "← back",
+    "actions":          "Space actions",
+    "pin":              "Space pin",
+    "toggle":           "Space toggle",
+    "edit":             "Space edit",
+    "adjust":           "+/- adjust",
+    "fire":             "↵ fire",
+    "open-icon":        "Alt-↵ open",
+    "copy-icon":        "Ctrl-Alt-↵ copy",
+    "esc-input":        "Esc input",
+    "esc-tiddler":      "Esc tiddler",
+    "hold-ctrl-detail": "hold Ctrl detail"
+};
 exports.HINT_DETAILS = "Tab section · ↑↓ scroll · Esc input · ↵ fire";
 exports.HINT_PREVIEW = "Tab section · ↑↓ scroll · Esc input";
 exports.HINT_PREVIEW_PILLS = "Tab section · ←→ switch preview · ↑↓ scroll · Esc input";
