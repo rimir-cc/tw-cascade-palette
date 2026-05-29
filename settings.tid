@@ -30,6 +30,9 @@ Both are listed below — UI-surfaced settings are marked ''Settings row availab
 ;<code>$:/config/rimir/cascade-palette/details-always-on</code>
 :If ''`yes`'', the details drawer below the result list stays open (instead of requiring Ctrl-hold). Default ''`no`''. ''Settings row available''.
 
+;<code>$:/config/rimir/cascade-palette/pin-pill-rows</code>
+:If ''`yes`'', every pill strip (Visibility, Reach, Search-in, Filter) is rendered even when no pills are pushed. Useful as a dev / discoverability aid — lets you see where each strip sits before populating it. Default ''`no`''. ''Settings row available''.
+
 ;<code>$:/config/rimir/cascade-palette/soft-depth-warning</code>
 :Engine logs a console warning when the stage stack exceeds this depth. Default 10. No hard cap — this is purely a development aid. ''Settings row available''.
 

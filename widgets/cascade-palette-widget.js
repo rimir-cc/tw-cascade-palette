@@ -247,6 +247,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         var popup = this.document.createElement("div");
         popup.className = "rcp-popup";
         this.popupEl = popup;
+        this._updatePinPillRows();
 
         this.breadcrumbEl = this.document.createElement("div");
         this.breadcrumbEl.className = "rcp-breadcrumb";
@@ -572,6 +573,9 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 // atomically with the toggle row's bound value updating.
                 if (changes[C.DETAILS_ALWAYS_ON_CONFIG]) {
                     self._updateDetailsVisibility();
+                }
+                if (changes[C.PIN_PILL_ROWS_CONFIG]) {
+                    self._updatePinPillRows();
                 }
                 // Invalidate the details cache when the displayed tiddler
                 // changes — its rendered template DOM is now stale.
@@ -930,6 +934,21 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         var raw = this.wiki.getTiddlerText(C.DETAILS_ALWAYS_ON_CONFIG, C.DEFAULT_FALSE_VALUE);
         var s = String(raw || "").toLowerCase().trim();
         return s === "yes" || s === "true" || s === "on" || s === "1";
+    };
+
+    CascadePaletteWidget.prototype.isPinPillRows = function () {
+        var raw = this.wiki.getTiddlerText(C.PIN_PILL_ROWS_CONFIG, C.DEFAULT_FALSE_VALUE);
+        var s = String(raw || "").toLowerCase().trim();
+        return s === "yes" || s === "true" || s === "on" || s === "1";
+    };
+
+    // Toggle the `rcp-pin-pill-rows` class on the popup. When set, CSS
+    // forces every pill strip (visibility / reach / fields / filter)
+    // to render even with zero pushed pills. Idempotent; safe to call
+    // any time popupEl exists.
+    CascadePaletteWidget.prototype._updatePinPillRows = function () {
+        if (!this.popupEl) return;
+        this.popupEl.classList.toggle("rcp-pin-pill-rows", this.isPinPillRows());
     };
 
     // Recompute detailsOpen from its two sources (ctrlHeld OR always-on).

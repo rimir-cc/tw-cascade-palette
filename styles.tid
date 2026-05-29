@@ -986,6 +986,17 @@ type: text/css
     box-shadow: inset 2px 0 0 0 #6d28d9;
 }
 
+/* Pin-all-pill-rows — settings toggle bound to
+   $:/config/rimir/cascade-palette/pin-pill-rows. When `yes`, the popup
+   picks up `rcp-pin-pill-rows` and every pill strip renders even when
+   no pills are pushed. Useful as a dev/discoverability aid. */
+.rcp-popup.rcp-pin-pill-rows .rcp-visibility-strip,
+.rcp-popup.rcp-pin-pill-rows .rcp-reach-strip,
+.rcp-popup.rcp-pin-pill-rows .rcp-fields-strip,
+.rcp-popup.rcp-pin-pill-rows .rcp-filter-strip {
+    display: flex;
+}
+
 /* Pill-focused colours per strip — overrides the default blue ring
    so each strip's accent reads through to its focused pill. */
 .rcp-reach-strip .rcp-pill-focused {

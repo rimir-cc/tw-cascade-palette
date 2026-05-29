@@ -71,6 +71,7 @@ exports.SOFT_DEPTH_CONFIG = "$:/config/rimir/cascade-palette/soft-depth-warning"
 exports.POPUP_WIDTH_CONFIG = "$:/config/rimir/cascade-palette/popup-width";
 exports.MAX_RESULTS_CONFIG = "$:/config/rimir/cascade-palette/max-results";
 exports.DETAILS_ALWAYS_ON_CONFIG = "$:/config/rimir/cascade-palette/details-always-on";
+exports.PIN_PILL_ROWS_CONFIG = "$:/config/rimir/cascade-palette/pin-pill-rows";
 exports.PERF_FOOTER_CONFIG = "$:/config/rimir/cascade-palette/show-perf-footer";
 // Space-separated list of fields scanned by the built-in `url` row-icon.
 // First field on a row's tiddler whose value matches an http/https/ftp/

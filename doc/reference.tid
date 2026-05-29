@@ -349,6 +349,7 @@ The plugin ships five axes for the common cases. All live under `$:/plugins/rimi
 |`$:/config/rimir/cascade-palette/max-results` |`30` |Cap on items shown per stage |
 |`$:/config/rimir/cascade-palette/soft-depth-warning` |`10` |Stage-stack depth that triggers a console warning. Adjust live via Settings → Soft depth warning. |
 |`$:/config/rimir/cascade-palette/details-always-on` |`no` |Keep the detail drawer visible without holding Ctrl. Toggle live via Settings → Details always on. |
+|`$:/config/rimir/cascade-palette/pin-pill-rows` |`no` |Render every pill strip (Visibility, Reach, Search-in, Filter) even when no pills are pushed. Dev / discoverability aid — lets you see where each strip sits before populating it. Toggle live via Settings → Pin all pill rows. |
 |`$:/config/rimir/cascade-palette/popup-width` |`50` |Popup width in `vw` (clamped to [20, 95]). |
 |`$:/config/rimir/cascade-palette/search-fields-default` |`name hint` |Per-item `ca-search-fields` fallback. Space-separated field names. |
 |`$:/config/rimir/cascade-palette/url-fields` |`url` |Space-separated list of fields scanned by the built-in `url` row-icon. First field on a row's tiddler whose value matches an http/https/ftp/mailto/tel URL prefix wins. |

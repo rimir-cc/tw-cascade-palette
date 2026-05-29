@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/settings/pin-pill-rows
+tags: $:/tags/rimir/cascade-palette/setting
+ca-name: Pin all pill rows
+ca-hint: Always show every pill strip (Visibility, Reach, Search-in, Filter), even when empty. Dev / discoverability aid — lets you see where each strip sits before you push pills into it.
+ca-kind: toggle
+ca-order: 45
+ca-bind-tiddler: $:/config/rimir/cascade-palette/pin-pill-rows
+ca-bind-field: text
+ca-true-value: yes
+ca-false-value: no
