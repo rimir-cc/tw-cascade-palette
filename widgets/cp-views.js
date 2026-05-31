@@ -1554,7 +1554,7 @@ function setup(proto) {
         });
     };
 
-    proto._setActiveView = function (viewTitle) {
+    proto._setActiveView = function (viewTitle, options) {
         var view = this._getViewByTitle(viewTitle);
         if (!view) return;
         var prev = this.activeView;
@@ -1565,6 +1565,22 @@ function setup(proto) {
             }
         } else {
             this._pickModeReturnTo = null;
+        }
+        // View-history back-stack. Push the previous view onto the stack
+        // when the caller opts in (action/leader-initiated jumps via the
+        // SET_VIEW_MESSAGE root handler). User-initiated view switches
+        // (view-pill Enter, preset apply) pass recordBack:false and
+        // additionally clear the stack — they break the side-quest chain.
+        // Restoring from back (this._restoringBack) is a no-op for the
+        // stack itself.
+        var opts = options || {};
+        if (!this._viewBackStack) this._viewBackStack = [];
+        if (opts.recordBack && prev && prev !== viewTitle) {
+            var savedQuery = "";
+            if (this.inputEl) savedQuery = this.inputEl.value || "";
+            this._viewBackStack.push({ view: prev, query: savedQuery });
+        } else if (!opts.recordBack && !opts.restoringBack) {
+            this._viewBackStack = [];
         }
         this.activeView = viewTitle;
         this.stack = [this.buildRootStage()];
@@ -1578,6 +1594,35 @@ function setup(proto) {
         this.renderStage();
         if (this._leaderFiring) this._flashActiveViewPill();
         this.setFocus("input");
+    };
+
+    // Pop one frame off the view-history back-stack. Returns true if a
+    // frame was consumed (caller should treat Esc as handled), false if
+    // the stack was empty or no surviving frame targeted a still-existing
+    // view (caller falls through to its default — usually close).
+    proto._popViewBack = function () {
+        if (!this._viewBackStack || this._viewBackStack.length === 0) return false;
+        // Skip frames whose target view has been deleted since push.
+        var frame = null;
+        while (this._viewBackStack.length > 0) {
+            var candidate = this._viewBackStack.pop();
+            if (this._getViewByTitle(candidate.view)) {
+                frame = candidate;
+                break;
+            }
+        }
+        if (!frame) return false;
+        this._setActiveView(frame.view, { restoringBack: true });
+        if (this.inputEl && frame.query) {
+            this.inputEl.value = frame.query;
+            var stage = this.topStage();
+            if (stage) {
+                stage.query = frame.query;
+                this.recomputeStage(stage);
+                this.renderStage();
+            }
+        }
+        return true;
     };
 
 }

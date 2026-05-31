@@ -253,9 +253,13 @@ module.exports = function (proto) {
             // action-subtree (entity drill → action menu → confirm) backs
             // out keystroke-by-keystroke instead of jumping all the way
             // out, and the user can revisit a wrong drill without
-            // restarting the whole flow.
+            // restarting the whole flow. At root depth, before closing,
+            // pop a view-history back-frame if any (action/leader-
+            // initiated view jumps are returnable side quests).
             if (this.stack.length > 1) {
                 this.popStage();
+            } else if (this._popViewBack && this._popViewBack()) {
+                // Handled — popped to previous view.
             } else {
                 this.close();
             }
@@ -288,13 +292,15 @@ module.exports = function (proto) {
             // focus on the menu — symmetric with ArrowLeft and with
             // Esc-in-input. The user walks the breadcrumb right-to-left
             // keystroke-by-keystroke from anywhere, instead of bouncing
-            // through input on the way. At root depth (no stage to pop),
-            // Esc refocuses input so the user can type to filter root
-            // results.
+            // through input on the way. At root depth, pop a view-history
+            // back-frame if any (action/leader-initiated side quest);
+            // otherwise refocus input so the user can type to filter
+            // root results.
             if (this.stack.length > 1) {
                 this.popStage();
                 return;
             }
+            if (this._popViewBack && this._popViewBack()) return;
             this.setFocus("input");
             return;
         }

@@ -198,6 +198,12 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // Pick-mode return-target — set when a pick-mode view is entered,
         // restored on commit or cancel.
         this._pickModeReturnTo = null;
+        // View-history back-stack — frames pushed by action/leader-initiated
+        // view jumps (SET_VIEW_MESSAGE with recordBack:true). Bare Esc at
+        // root depth pops a frame before falling through to close. Cleared
+        // on every user-initiated view switch (view-pill, preset apply)
+        // and on close.
+        this._viewBackStack = [];
         // Preset-strip cache + focus index. The strip sits above the view
         // strip and offers one-key apply for each saved preset. Cache is
         // invalidated via _invalidatePresetPills on relevant wiki changes.
@@ -873,7 +879,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             registerRootMessage(C.SET_VIEW_MESSAGE, function (event) {
                 var p = (event && event.paramObject) || {};
                 var viewTitle = p.view || (event && event.param) || "";
-                if (viewTitle) self._setActiveView(viewTitle);
+                if (viewTitle) self._setActiveView(viewTitle, { recordBack: true });
                 return false;
             });
             registerRootMessage(C.APPLY_PRESET_MESSAGE, function (event) {
@@ -1076,6 +1082,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             this.inputEl.classList.remove("rcp-input-leader-match");
         }
         this._pickModeReturnTo = null;
+        this._viewBackStack = [];
         this.saveMode = null;
         this.hideDetail();
         this._hideSidePreview();
