@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/actions/sticky-context-pin
+tags: $:/tags/rimir/cascade-palette/action
+ca-name: Pin to context
+ca-hint: Add this tiddler to the sticky context — appears in <<sticky-context-list>> for every context-aware view, layer, and filter.
+ca-icon: 📌
+ca-kind: leaf
+ca-order: 80
+ca-applies: [<currentTiddler>!is[shadow]] -[enlist<sticky-context-list>]
+ca-after-fire: keep
+ca-actions: <$action-sendmessage $message="rimir-cascade-palette-pin-context" title=<<currentTiddler>>/>

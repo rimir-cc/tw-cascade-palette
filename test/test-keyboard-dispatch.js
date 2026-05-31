@@ -105,10 +105,10 @@ describe("cascade-palette: keyboard dispatch table", function () {
     });
 
     describe("table contents", function () {
-        it("covers exactly the 12 dispatched sections", function () {
+        it("covers exactly the 13 dispatched sections", function () {
             var keys = Object.keys(keyboard.dispatchTableSnapshot()).sort();
             expect(keys).toEqual([
-                "details", "field", "filter", "input", "leader", "menu",
+                "context", "details", "field", "filter", "input", "leader", "menu",
                 "meta", "preset", "reach", "view", "viewconfig", "visibility"
             ]);
         });

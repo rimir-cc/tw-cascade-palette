@@ -1,0 +1,68 @@
+title: $:/plugins/rimir/cascade-palette/help/sticky-context
+tags: $:/tags/rimir/cascade-palette/help
+ca-name: Sticky context
+ca-icon: 📌
+ca-group: Pills
+ca-order: 210
+ca-hint: Pin tiddlers for the duration of a workday flow — call, meeting, focus.
+ca-kind: leaf
+ca-actions: <$action-navigate $to=<<picked>>/>
+type: text/vnd.tiddlywiki
+
+Sticky context is a list of pinned tiddler titles, persistent across cp close/reopen AND page reload. Use it to scope every view to a person you're talking to, the attendees of a meeting, or whatever entities you're focused on right now.
+
+! Verbs
+
+|!Verb |!How |!Effect |
+|''Pin to context (any row)'' |Space on any tiddler row → "Pin to context" |Adds the row's tiddler to the sticky context strip |
+|''Pin to context (typed)'' |In input: ''`+<title>`'' + Enter |Pins the typed title verbatim — no autocomplete (use Space-pin on a row for that). Indigo underline confirms the cue; bare `+` is a silent no-op |
+|''Unpin from context'' |Space on a pinned row → "Unpin from context" (only shown when pinned) |Removes that tiddler from the context |
+|''Clear sticky context'' |Leader ''`C`'' (capital, single keystroke + 500ms idle) |Empties the strip |
+
+Each pin appears as a pill in the ''Context'' strip (indigo, just below the preset strip). Click `×` on a pill — or focus the strip with Tab and press `Backspace` — to remove that one pin. The strip itself is reachable via Tab/Shift-Tab/Up/Down ONLY once it has at least one pill (universal cp convention — empty strips are hidden and skipped in navigation).
+
+! How views consume it
+
+Two variables are bound in every filter eval routed through cp (0.0.97+):
+
+* ''`<<sticky-context-list>>`'' — the raw title-list string (TW parseStringArray format). Feed it into `[enlist<sticky-context-list>]` to iterate.
+* ''`<<sticky-context-count>>`'' — string-typed count ("0", "1", "5"…). For badge text and conditional UI.
+
+Ambient EVERYWHERE — `ca-view-roots`, `ca-layer-children`, `ca-view-row-icon`, `ca-view-sort-key`, `ca-view-row-actions`, `:filter` predicates inside any of those, etc. You don't have to thread the variable through layer parameters.
+
+A view ''opts in'' to context-narrowing by referencing one of these in its layer filters AND declaring ''`ca-view-context-aware: yes`'' so the view pill paints a small indigo badge when context is non-empty. The flag is just a visual cue — the actual narrowing happens in your layer's filter expression.
+
+! Multiselect views (toggle pattern)
+
+For a checkbox-style view (pin/unpin via Enter on each row, palette stays open), four field overrides coordinate:
+
+* ''`ca-view-after-fire: stay`'' (view-wide keep-open default — every row fire stays open without per-row `ca-after-fire: keep`)
+* ''`ca-view-row-icon: [enlist<sticky-context-list>match<currentTiddler>then[☑]else[☐]]`'' — checkbox glyph mirrors pin state
+* ''`ca-view-sort: custom`'' + ''`ca-view-sort-key: [enlist<sticky-context-list>match<currentTiddler>then[0]else[1]addsuffix<currentTiddler>]`'' — pinned rows float to top
+* ''`ca-view-row-actions: <$action-sendmessage $message={{{ [enlist<sticky-context-list>match<currentTiddler>then[rimir-cascade-palette-unpin-context]else[rimir-cascade-palette-pin-context]] }}} title=<<currentTiddler>>/>'' — single widget; the inline-filter `$message` dispatches pin-or-unpin
+
+The shipped ''Pick attendees'' view in `rimir/worga` is a worked example.
+
+! Example: a "Topics for context" view
+
+```
+title: $:/plugins/.../views/topics-for-context
+tags: $:/tags/rimir/cascade-palette/view
+ca-view-name: Topics for context
+ca-view-context-aware: yes
+ca-view-roots: [all[tiddlers]has[stakeholders]] :filter[<currentTiddler>get[stakeholders]enlist-input[] :intersection[enlist<sticky-context-list>]]
+```
+
+This emits topics whose `stakeholders` field contains at least one pinned tiddler. Without `<<sticky-context-list>>` being referenced anywhere in the layer filters, the view simply lists all topics — opt-in is real.
+
+! Stale pins
+
+When the target tiddler is deleted, its pill renders greyed and struck-through. The pin stays — clear it via `×` or `Backspace` when you're ready. No auto-pruning (so undo flows aren't disturbed).
+
+! Lifetime
+
+Stored at ''`$:/temp/rimir/cascade-palette/sticky-context`'' (field `list`). ''Page-session only'' — full reload (F5) clears it, browser-tab close clears it. Never written to disk (by TW convention for `$:/temp/`). The intent: sticky context tracks one continuous flow (a call, a meeting, an hour of focused work). If you need it to outlive a reload, capture the pinned set as a ''preset'' (`s` leader) and recall later.
+
+! Where to put workday verbs
+
+cp ships only the generic Pin / Unpin / Clear verbs. ''Workflow-specific'' verbs ("Take call from <currentTiddler>", "Start meeting", "End focus") and ''context-aware views'' belong in a separate plugin — see ''`rimir/worga`'' for a worked example, or build your own by tagging tiddlers `$:/tags/rimir/cascade-palette/action` / `.../leader` / `.../view`.

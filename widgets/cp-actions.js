@@ -22,6 +22,7 @@ var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 var MAX_RESULTS_CONFIG = C.MAX_RESULTS_CONFIG;
 var DEFAULT_MAX_RESULTS = C.DEFAULT_MAX_RESULTS;
+var STICKY_CONTEXT_TITLE = C.STICKY_CONTEXT_TITLE;
 
 module.exports = function (proto) {
 
@@ -162,11 +163,33 @@ module.exports = function (proto) {
     // `payload` / `row-icon-key` / `row-icon-mode` / `keep-open` / etc.
     // without monkey-patching the returned object).
     proto.buildStageVariables = function (stage, picked, extras) {
+        // Sticky context — session-persistent list of pinned tiddler titles
+        // exposed to every filter/action site. Raw title-list string
+        // (TW parseStringArray format) so authors can pipe straight into
+        // `[enlist<sticky-context-list>]`. Count exposed separately for
+        // badge/conditional UI. Empty string when nothing is pinned —
+        // filters using `enlist<sticky-context-list>` then iterate zero
+        // titles, which is the natural "no narrowing" behaviour.
+        var stickyList = "";
+        var stickyCount = "0";
+        var stickyTid = this.wiki.getTiddler(STICKY_CONTEXT_TITLE);
+        if (stickyTid && stickyTid.fields && stickyTid.fields.list) {
+            var listField = stickyTid.fields.list;
+            var titles = Array.isArray(listField)
+                ? listField
+                : $tw.utils.parseStringArray(String(listField));
+            if (titles && titles.length) {
+                stickyList = $tw.utils.stringifyList(titles);
+                stickyCount = String(titles.length);
+            }
+        }
         var vars = {
             "query": (stage && stage.query) || "",
             "picked": picked || "",
             "parent-picked": (stage && stage.parentPicked) || "",
-            "context-tiddler": this.contextTiddler || ""
+            "context-tiddler": this.contextTiddler || "",
+            "sticky-context-list": stickyList,
+            "sticky-context-count": stickyCount
         };
         if (picked) vars["currentTiddler"] = picked;
         for (var i = 0; i < this.stack.length; i++) {
@@ -218,7 +241,36 @@ module.exports = function (proto) {
     //                          anchor a per-row filter to that one title
     //                          (axis key/label eval, etc.)
     proto._filterInScope = function (filterStr, vars, source) {
-        var fakeWidget = vars ? this.makeFakeWidget(vars) : null;
+        // Always make sticky-context-list / -count ambient in every filter
+        // eval routed through here. They're cp-owned global state (not
+        // stage-local), so per-row template filters (ca-view-row-icon,
+        // ca-view-sort-key, etc.), inner `:filter` predicates, and even
+        // view-level roots filters that pass null vars can reference
+        // `<<sticky-context-list>>` without each call site threading the
+        // values through. Cheap: one `wiki.getTiddler` + `parseStringArray`
+        // per filter eval, negligible vs the filter eval itself.
+        var augmented = vars ? {} : {};
+        if (vars) {
+            for (var k in vars) augmented[k] = vars[k];
+        }
+        if (augmented["sticky-context-list"] === undefined) {
+            var stickyTid = this.wiki.getTiddler(STICKY_CONTEXT_TITLE);
+            var stickyList = "";
+            var stickyCount = "0";
+            if (stickyTid && stickyTid.fields && stickyTid.fields.list) {
+                var listField = stickyTid.fields.list;
+                var titles = Array.isArray(listField)
+                    ? listField
+                    : $tw.utils.parseStringArray(String(listField));
+                if (titles && titles.length) {
+                    stickyList = $tw.utils.stringifyList(titles);
+                    stickyCount = String(titles.length);
+                }
+            }
+            augmented["sticky-context-list"] = stickyList;
+            augmented["sticky-context-count"] = stickyCount;
+        }
+        var fakeWidget = this.makeFakeWidget(augmented);
         return this.wiki.filterTiddlers(filterStr, fakeWidget, source);
     };
 

@@ -3,7 +3,7 @@
     "description": "Keyboard-driven cascading command palette — Tab to drill, Esc to back out, Enter to fire. Extensible via declarative action tiddlers.",
     "name": "cascade palette",
     "author": "rimir",
-    "version": "0.0.91",
+    "version": "0.0.97",
     "core-version": ">=5.4.0",
     "source": "https://github.com/rimir-cc/tw-cascade-palette",
     "plugin-type": "plugin",

@@ -139,4 +139,64 @@ describe("cascade-palette: buildStageVariables", function () {
         expect(vars.real).toBe("y");
         expect("shouldNotAppear" in vars).toBe(false);
     });
+
+    // ---- sticky-context-list / sticky-context-count ----
+    //
+    // The sticky-context vars are read from a single state tiddler
+    // (STICKY_CONTEXT_TITLE) on every call. We mutate $tw.wiki in each
+    // test and clean up afterwards so the rest of the suite stays stable.
+
+    var STICKY_TITLE = "$:/temp/rimir/cascade-palette/sticky-context";
+
+    afterEach(function () {
+        $tw.wiki.deleteTiddler(STICKY_TITLE);
+    });
+
+    it("sticky-context vars: empty when state tiddler is absent", function () {
+        var w = stub();
+        var vars = w.buildStageVariables({ query: "", parentPicked: "" }, null);
+        expect(vars["sticky-context-list"]).toBe("");
+        expect(vars["sticky-context-count"]).toBe("0");
+    });
+
+    it("sticky-context vars: empty when list field is empty string", function () {
+        $tw.wiki.addTiddler(new $tw.Tiddler({ title: STICKY_TITLE, list: "" }));
+        var w = stub();
+        var vars = w.buildStageVariables({ query: "", parentPicked: "" }, null);
+        expect(vars["sticky-context-list"]).toBe("");
+        expect(vars["sticky-context-count"]).toBe("0");
+    });
+
+    it("sticky-context vars: single title", function () {
+        $tw.wiki.addTiddler(new $tw.Tiddler({ title: STICKY_TITLE, list: "Alice" }));
+        var w = stub();
+        var vars = w.buildStageVariables({ query: "", parentPicked: "" }, null);
+        expect(vars["sticky-context-list"]).toBe("Alice");
+        expect(vars["sticky-context-count"]).toBe("1");
+    });
+
+    it("sticky-context vars: multiple titles, brackets preserved for spaces", function () {
+        $tw.wiki.addTiddler(new $tw.Tiddler({
+            title: STICKY_TITLE,
+            list: "Alice [[Bob Jones]] Carol"
+        }));
+        var w = stub();
+        var vars = w.buildStageVariables({ query: "", parentPicked: "" }, null);
+        // stringifyList wraps space-containing titles in [[..]]
+        expect(vars["sticky-context-list"]).toBe("Alice [[Bob Jones]] Carol");
+        expect(vars["sticky-context-count"]).toBe("3");
+    });
+
+    it("sticky-context vars: array-typed list field handled", function () {
+        // TW core may store `list` as a native array depending on the source.
+        // Build a tiddler whose list field is array-shaped via parseStringArray.
+        $tw.wiki.addTiddler(new $tw.Tiddler({
+            title: STICKY_TITLE,
+            list: $tw.utils.parseStringArray("X Y Z")
+        }));
+        var w = stub();
+        var vars = w.buildStageVariables({ query: "", parentPicked: "" }, null);
+        expect(vars["sticky-context-list"]).toBe("X Y Z");
+        expect(vars["sticky-context-count"]).toBe("3");
+    });
 });

@@ -347,6 +347,22 @@ type: text/css
     box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.35);
 }
 
+/* View-pill context-aware badge — small dot appended via ::after when
+   the view declares ca-view-context-aware: yes AND sticky context is
+   non-empty. Signals "this view will specialize for the pinned set"
+   without claiming anything about how (that lives in the layer
+   filters). Indigo to match the context strip accent. */
+.rcp-view-pill-context-aware::after {
+    content: "";
+    display: inline-block;
+    margin-left: 6px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #4f46e5;
+    vertical-align: middle;
+}
+
 /* View-config strip — read-only stacked layout depicting the active
    view's structure. The strip is a column of mini-rows, one per layer
    (plus a view-scoped header row). Each mini-row carries its own label
@@ -863,6 +879,7 @@ type: text/css
    pills scroll horizontally past it — opaque background masks pills
    passing underneath; the focused-strip tint carries through. */
 .rcp-preset-strip::before,
+.rcp-context-strip::before,
 .rcp-visibility-strip::before,
 .rcp-filter-strip::before,
 .rcp-view-strip::before,
@@ -895,6 +912,7 @@ type: text/css
     background: #fce7f3;
 }
 
+.rcp-context-strip::before    { content: "Context"; }
 .rcp-visibility-strip::before { content: "Visibility"; }
 .rcp-filter-strip::before     { content: "Filters"; }
 .rcp-view-strip::before       { content: "Views"; }
@@ -916,6 +934,7 @@ type: text/css
 
 @media (prefers-color-scheme: dark) {
     .rcp-preset-strip::before,
+    .rcp-context-strip::before,
     .rcp-visibility-strip::before,
     .rcp-filter-strip::before,
     .rcp-view-strip::before,
@@ -981,6 +1000,7 @@ type: text/css
    one pill is present). The strip stays in the DOM so focus mechanics
    work cleanly during transitions. */
 .rcp-filter-strip,
+.rcp-context-strip,
 .rcp-visibility-strip,
 .rcp-reach-strip,
 .rcp-meta-strip,
@@ -991,6 +1011,37 @@ type: text/css
     padding: 6px 14px;
     border-bottom: 1px solid #e5e7eb;
     outline: none;
+}
+
+/* Sticky-context strip — session-persistent pinned tiddler titles
+   exposed to context-aware views as <<sticky-context-list>>. Indigo
+   accent distinguishes it from the constraint family (filter blue /
+   visibility red / reach teal). Sits between preset and visibility. */
+.rcp-context-strip {
+    background: #eef2ff;
+}
+.rcp-popup.rcp-has-context .rcp-context-strip {
+    display: flex;
+}
+.rcp-popup[data-focus="context"] .rcp-context-strip {
+    background: #e0e7ff;
+    box-shadow: inset 2px 0 0 0 #4338ca;
+}
+
+/* Stale pin — the referenced tiddler no longer exists. Greyed text,
+   strike-through to communicate the broken reference without removing
+   it (user clears explicitly via ×/Backspace). */
+.rcp-context-strip .rcp-pill-stale {
+    background: #f3f4f6;
+    color: #9ca3af;
+    border-color: #d1d5db;
+    text-decoration: line-through;
+}
+
+.rcp-context-strip .rcp-pill-focused {
+    background: #c7d2fe;
+    border-color: #4338ca;
+    color: #312e81;
 }
 
 /* Reach strip — pills that decide WHERE in the cascade tree the search
@@ -1042,6 +1093,7 @@ type: text/css
    $:/config/rimir/cascade-palette/pin-pill-rows. When `yes`, the popup
    picks up `rcp-pin-pill-rows` and every pill strip renders even when
    no pills are pushed. Useful as a dev/discoverability aid. */
+.rcp-popup.rcp-pin-pill-rows .rcp-context-strip,
 .rcp-popup.rcp-pin-pill-rows .rcp-visibility-strip,
 .rcp-popup.rcp-pin-pill-rows .rcp-reach-strip,
 .rcp-popup.rcp-pin-pill-rows .rcp-meta-strip,
@@ -1164,6 +1216,15 @@ type: text/css
     background: #fffbeb;
 }
 
+/* Input cue when the current text matches the sticky-context "+" prefix.
+   Indigo underline + "↵ pin to context: …" in the footer. Enter pins
+   the typed title verbatim (no autocomplete — use Space-pin on a
+   menu row for that). */
+.rcp-input.rcp-input-context-match {
+    box-shadow: inset 0 -2px 0 0 #4f46e5;
+    border-bottom-color: #4f46e5;
+}
+
 /* Pill flash — brief amber pulse on a view/filter/visibility pill when
    a leader action just changed it. Pure perceptual reinforcement that
    the leader did something; no functional dependency. */
@@ -1184,6 +1245,23 @@ type: text/css
     }
     .rcp-popup[data-focus="filter"] .rcp-filter-strip {
         background: #1e3a8a;
+    }
+    .rcp-context-strip {
+        background: #1e1b3a;
+        border-bottom-color: #374151;
+    }
+    .rcp-popup[data-focus="context"] .rcp-context-strip {
+        background: #3730a3;
+    }
+    .rcp-context-strip .rcp-pill-focused {
+        background: #3730a3;
+        border-color: #a5b4fc;
+        color: #e0e7ff;
+    }
+    .rcp-context-strip .rcp-pill-stale {
+        background: #1f2937;
+        color: #6b7280;
+        border-color: #374151;
     }
     .rcp-visibility-strip {
         background: #1c1411;
@@ -1221,6 +1299,10 @@ type: text/css
         box-shadow: inset 0 -2px 0 0 #fbbf24;
         border-bottom-color: #fbbf24;
         background: #1f1d18;
+    }
+    .rcp-input.rcp-input-context-match {
+        box-shadow: inset 0 -2px 0 0 #a5b4fc;
+        border-bottom-color: #a5b4fc;
     }
     @keyframes rcp-pill-flash {
         0%   { background: #92400e; }

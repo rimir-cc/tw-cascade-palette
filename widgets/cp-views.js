@@ -166,6 +166,14 @@ function setup(proto) {
             includeEntries: (f["ca-view-include-entries"] || "auto").toLowerCase(),
             grouping:
                 (f["ca-view-grouping"] || "yes").toLowerCase() !== "no",
+            // Sticky-context badge — when "yes" AND sticky context is
+            // non-empty, the view pill paints a small badge so the user
+            // can scan which views will specialize for the pinned set.
+            // The actual narrowing happens in layer/filter expressions
+            // that reference <<sticky-context-list>>; this flag is just
+            // the visual cue.
+            contextAware:
+                (f["ca-view-context-aware"] || "").toLowerCase() === "yes",
             order: order,
             layers: []
         };
@@ -892,12 +900,18 @@ function setup(proto) {
             return;
         }
         var self = this;
+        var contextActive = !!(self.contextPills && self.contextPills.length);
         visible.forEach(function (view, i) {
             var pillEl = self.document.createElement("span");
             var cls = "rcp-view-pill";
             if (view.title === self.activeView) cls += " rcp-view-pill-active";
             if (self.focus === "view" && i === self.viewFocusIdx) {
                 cls += " rcp-view-pill-focused";
+            }
+            // Badge only when sticky context is non-empty AND the view
+            // declares ca-view-context-aware: yes.
+            if (contextActive && view.contextAware) {
+                cls += " rcp-view-pill-context-aware";
             }
             pillEl.className = cls;
             pillEl.textContent = view.name;

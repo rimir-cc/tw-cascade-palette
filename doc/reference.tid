@@ -232,6 +232,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-position` |string |entry |Position fallback used by every view when no per-view override is set. `at-root` (default), `none`, a tree path like `Tools/Search`, or multi-position via `:` / newlines |
 |`ca-position-<view-slug>` |string |entry |Per-view position override. Slug is the view tiddler's basename. Same value space as `ca-position` |
 |`ca-view-pick-mode` |`yes`\|empty |view |When `yes`, Enter on any row commits the row's effective path as a filter arg and returns to the prior view. Right-arrow still drills. |
+|`ca-view-context-aware` |`yes`\|empty |view |When `yes` AND the sticky context strip is non-empty, the view pill paints a small indigo badge. Signals "this view will specialize for the pinned set" — the actual narrowing happens in layer/filter expressions that reference `<<sticky-context-list>>`. Purely a visual cue; the engine does not auto-narrow anything. |
 |`ca-view-pick-emits-filter` |filter-title |view (pick-mode) |Filter tiddler whose `ca-filter-expr` receives the picked path as `<arg>` |
 |`ca-leader-key` |string |leader |Trigger string (single char or short multi-char). Required. |
 |`ca-leader-name` |string |leader |Display name (for catalogues / details rendering). |
@@ -371,6 +372,9 @@ The plugin ships five axes for the common cases. All live under `$:/plugins/rimi
 |`rimir-cascade-palette-apply-preset` |Preset-pill clicks, leaders |Replay a preset. Parameter: `preset`. |
 |`rimir-cascade-palette-save-preset` |`s` leader |Open the save mini-prompt. No parameters. |
 |`rimir-cascade-palette-recall-preset` |`r` leader |Move focus to the preset pill strip. No parameters. |
+|`rimir-cascade-palette-pin-context` |Universal ''Pin to context'' action, the typed ''`+<title>`'' input prefix, any row-action wikitext |Append the supplied title to the sticky-context state tiddler. Parameter: `title` (in `paramObject.title` or bare `param`). De-duplicates silently. |
+|`rimir-cascade-palette-unpin-context` |Universal ''Unpin from context'' action, any row-action wikitext |Remove the supplied title from the sticky-context state tiddler. Parameter: `title`. Silent no-op when absent. |
+|`rimir-cascade-palette-clear-context` |`C` leader, any row-action wikitext |Empty the sticky-context state tiddler. No parameters. |
 
 ! Filter substitution variables
 
@@ -381,6 +385,8 @@ The plugin ships five axes for the common cases. All live under `$:/plugins/rimi
 |`<<stage-N-picked>>` |entries, actions, filters |Title picked at stage index N (root = 0) |
 |`<<context-tiddler>>` |entries, actions, filters, visibility |Tiddler the user was looking at when the palette opened (focused `[data-tiddler-title]` ancestor, falling back to `$:/HistoryList`'s top entry). Empty when no context was captured. |
 |`<<stage-preview-context>>` |entries, actions, filters (inside a preview-bearing subtree) |Resolved value of `ca-preview-context` from the topmost stage that registered a side preview. Exposes "what the user is editing" to deeper stages' filters / actions, so drill logic inside the subtree can reach for the original entity without re-traversing the stack. Empty when no preview is active. |
+|`<<sticky-context-list>>` |entries, actions, filters, visibility |Raw title-list string (TW `parseStringArray` format) of the tiddlers currently pinned to the ''sticky context''. Page-session-only (stored under `$:/temp/`, clears on reload). Iterate via `[enlist<sticky-context-list>]`. Empty string when nothing is pinned — context-aware filters then naturally produce no narrowing. Mutated by the universal Pin / Unpin / Clear verbs, the ''`+<title>`'' input prefix, and any row action that sends `rimir-cascade-palette-pin-context` / `-unpin-context` / `-clear-context`. |
+|`<<sticky-context-count>>` |entries, actions, filters, visibility |Count of pinned tiddlers as a string (''"0"'', ''"1"'', …). For badge text and conditional UI inside templates. |
 |`<arg>` |filter / visibility tiddler `expr` field |The sanitised user-supplied argument. Operand-form: `[<arg>]`. |
 |`<<arg>>` |filter / visibility tiddler `chip` / `hint` / `help` fields |Plain-text version of the same argument. |
 

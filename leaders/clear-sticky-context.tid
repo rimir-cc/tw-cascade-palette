@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/leaders/clear-sticky-context
+tags: $:/tags/rimir/cascade-palette/leader
+ca-leader-key: C
+ca-leader-name: Clear sticky context
+ca-leader-hint: Empty the sticky context — drops every pinned tiddler.
+ca-leader-help: Empties the sticky-context pill strip in one step. Equivalent to clicking the × on every context pill or hitting Backspace on each. Filters, visibilities, presets, view selection, and the input are unaffected. Bound to capital `C` (uppercase) so the lowercase letter remains free for future user-authored leaders.
+ca-leader-actions: <$action-sendmessage $message="rimir-cascade-palette-clear-context"/>
+ca-order: 110

@@ -226,6 +226,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     require("$:/plugins/rimir/cascade-palette/widgets/cp-utils");
     require("$:/plugins/rimir/cascade-palette/widgets/cp-filters")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-visibility")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-context-pills")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-input-prefix")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-views")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-leaders")(CascadePaletteWidget.prototype);
@@ -273,6 +274,18 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.presetStripEl = this.document.createElement("div");
         this.presetStripEl.className = "rcp-preset-strip";
         this.presetStripEl.setAttribute("tabindex", "-1");
+
+        // Sticky-context strip — pills naming the tiddlers the user has
+        // pinned for the current workday flow (call, meeting, focus).
+        // Sits between preset and visibility in the visual stack so it
+        // reads as the most session-meaningful constraint. Revealed via
+        // `rcp-has-context` on the popup. State source of truth is
+        // STICKY_CONTEXT_TITLE — pin/unpin/clear messages write that
+        // tiddler; the change-event hook re-renders this strip live.
+        this.contextStripEl = this.document.createElement("div");
+        this.contextStripEl.className = "rcp-context-strip";
+        this.contextStripEl.setAttribute("tabindex", "-1");
+        this.contextFocusIdx = 0;
 
         // View strip — thin row of pills naming each registered view,
         // sitting between the constraint strips and the input. Hidden via
@@ -389,6 +402,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.cascadeColEl.className = "rcp-cascade-col";
         this.cascadeColEl.appendChild(this.breadcrumbEl);
         this.cascadeColEl.appendChild(this.presetStripEl);
+        this.cascadeColEl.appendChild(this.contextStripEl);
         this.cascadeColEl.appendChild(this.visibilityStripEl);
         this.cascadeColEl.appendChild(this.reachStripEl);
         this.cascadeColEl.appendChild(this.metaStripEl);
@@ -442,13 +456,19 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             self.recomputeStage(stage);
             self.renderStage();
             // Leader detection runs first — leader-pending state takes
-            // precedence over the constraint-prefix cue.
+            // precedence over every other cue. Then the sticky-context
+            // "+" cue (separate semantics: pins a literal title rather
+            // than commits a filter/visibility constraint). Finally the
+            // generic filter/visibility prefix cue.
             var leaderPending = self._updateLeaderCue();
             if (!leaderPending) {
-                // Visual cue when the input matches a filter/visibility
-                // prefix: input picks up a coloured underline and the
-                // hint footer changes to "↵ commit".
-                self._updateConstraintPrefixCue();
+                var contextPrefix = self._updateContextPrefixCue();
+                if (!contextPrefix) {
+                    // Visual cue when the input matches a filter/visibility
+                    // prefix: input picks up a coloured underline and the
+                    // hint footer changes to "↵ commit".
+                    self._updateConstraintPrefixCue();
+                }
             }
         });
 
@@ -567,6 +587,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             });
         }
         wireStripFocus(this.filterStripEl, "filter");
+        wireStripFocus(this.contextStripEl, "context");
         wireStripFocus(this.visibilityStripEl, "visibility");
         wireStripFocus(this.reachStripEl, "reach");
         wireStripFocus(this.metaStripEl, "meta");
@@ -691,6 +712,18 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                     self._invalidateLeadersCache();
                     if (self.open) self._renderLeaderStrip();
                 }
+                // Sticky context — refresh the strip when the state
+                // tiddler changes (own writes via pin/unpin, external
+                // writes via row actions sending the messages). The
+                // view strip is also re-rendered because the per-view
+                // context-aware badge derives from contextPills.length.
+                if (changes[C.STICKY_CONTEXT_TITLE]) {
+                    self._refreshContextPills();
+                    if (self.open) {
+                        self._renderContextStrip();
+                        self._renderViewStrip();
+                    }
+                }
                 if (self.open) {
                     // Any tiddler change while open might affect a bound
                     // setting row's displayed value — cheap to re-render.
@@ -735,6 +768,26 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             });
             registerRootMessage(C.RESET_FILTERS_MESSAGE, function () {
                 self._clearAllFilters();
+                return false;
+            });
+            // Sticky context — three universal verbs callable from any
+            // row action / leader / external trigger. Payload is the
+            // tiddler title (in `param` for ad-hoc senders, in
+            // `paramObject.title` for structured callers).
+            registerRootMessage(C.PIN_CONTEXT_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var title = p.title || (event && event.param) || "";
+                if (title) self._pinStickyContext(title);
+                return false;
+            });
+            registerRootMessage(C.UNPIN_CONTEXT_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var title = p.title || (event && event.param) || "";
+                if (title) self._unpinStickyContext(title);
+                return false;
+            });
+            registerRootMessage(C.CLEAR_CONTEXT_MESSAGE, function () {
+                self._clearStickyContext();
                 return false;
             });
             registerRootMessage(C.RESET_VISIBILITY_MESSAGE, function () {
@@ -898,6 +951,8 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.applyPopupWidth();
         this.backdropEl.style.display = "flex";
         this._renderPresetStrip();
+        this._refreshContextPills();
+        this._renderContextStrip();
         this._renderViewStrip();
         this._renderVisibilityStrip();
         this._renderReachStrip();
@@ -1034,12 +1089,17 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     CascadePaletteWidget.prototype.setFocus = function (section) {
         if (section !== "input" && section !== "menu" &&
             section !== "details" && section !== "preview" &&
-            section !== "filter" &&
+            section !== "filter" && section !== "context" &&
             section !== "visibility" && section !== "view" &&
             section !== "preset" && section !== "viewconfig" &&
             section !== "leader" &&
             section !== "reach" && section !== "meta" &&
             section !== "field") return;
+        // Same guard for context as for other strips — don't focus an
+        // empty pill row (dead-end UX).
+        if (section === "context" && (!this.contextPills || this.contextPills.length === 0)) {
+            section = "input";
+        }
         // Don't allow focusing a strip with no pills — it would be a dead
         // end visually and a confusing Tab destination.
         if (section === "filter" && (!this.filters || this.filters.length === 0)) {
@@ -1116,6 +1176,14 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             this.filterStripEl.focus();
             this._renderFilterStrip();
             this._maybeRenderFilterHelp();
+        } else if (section === "context") {
+            if (!this.contextPills) this._refreshContextPills();
+            if (this.contextFocusIdx >= this.contextPills.length) {
+                this.contextFocusIdx = Math.max(0, this.contextPills.length - 1);
+            }
+            this.contextStripEl.focus();
+            this._renderContextStrip();
+            this._maybeRenderContextHelp();
         } else if (section === "visibility") {
             if (this.visibilityFocusIdx >= this.visibilities.length) {
                 this.visibilityFocusIdx = Math.max(0, this.visibilities.length - 1);
@@ -1182,6 +1250,9 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (prevFocus === "filter" || section === "filter") {
             this._renderFilterStrip();
         }
+        if (prevFocus === "context" || section === "context") {
+            this._renderContextStrip();
+        }
         if (prevFocus === "visibility" || section === "visibility") {
             this._renderVisibilityStrip();
         }
@@ -1209,7 +1280,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // Leaving a strip-focus while details is open: the pane was showing
         // strip help — refresh it to show the current menu selection so
         // the user gets per-row preview again.
-        var stripFoci = { filter: 1, visibility: 1, view: 1, preset: 1, viewconfig: 1, leader: 1 };
+        var stripFoci = { filter: 1, context: 1, visibility: 1, view: 1, preset: 1, viewconfig: 1, leader: 1 };
         if (stripFoci[prevFocus] && !stripFoci[section] && this.detailsOpen) {
             this.renderDetails();
         }

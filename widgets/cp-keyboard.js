@@ -32,6 +32,7 @@ var SECTION_HANDLERS = {
     "input":      "_handleKeydownInput",
     "menu":       "_handleKeydownMenu",
     "filter":     "_handleKeydownFilter",
+    "context":    "_handleKeydownContext",
     "visibility": "_handleKeydownVisibility",
     "reach":      "_handleKeydownReach",
     "meta":       "_handleKeydownMeta",
@@ -201,6 +202,13 @@ module.exports = function (proto) {
                 }
             }
             if (this.focus === "input" && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                // Sticky-context "+<title>" prefix runs first — it lives
+                // in cp-context-pills.js (separate semantics from the
+                // filter/visibility prefix family).
+                if (this._commitContextFromInput && this._commitContextFromInput()) {
+                    e.preventDefault();
+                    return;
+                }
                 if (this._commitConstraintFromInput()) {
                     e.preventDefault();
                     return;
@@ -583,6 +591,22 @@ module.exports = function (proto) {
         }
     };
 
+    var CONTEXT_KEY_DESC = {
+        getCount:    function () { return (this.contextPills || []).length; },
+        getFocusIdx: function () { return this.contextFocusIdx || 0; },
+        setFocusIdx: function (i) { this.contextFocusIdx = i; },
+        render:      function () { this._renderContextStrip(); },
+        maybeHelp:   function () { this._maybeRenderContextHelp(); },
+        onDelete:    function (i) { this._removeContextPillAt(i); },
+        onEnter:     function () {
+            if (!this.detailsOpen) {
+                this.detailsOpen = true;
+                this._maybeRenderContextHelp();
+            }
+            this.setFocus("details");
+        }
+    };
+
     var VISIBILITY_KEY_DESC = {
         getCount:    function () { return this.visibilities.length; },
         getFocusIdx: function () { return this.visibilityFocusIdx; },
@@ -800,6 +824,7 @@ module.exports = function (proto) {
     };
 
     proto._handleKeydownFilter     = function (e) { this._handleKeydownPillStrip(e, FILTER_KEY_DESC); };
+    proto._handleKeydownContext    = function (e) { this._handleKeydownPillStrip(e, CONTEXT_KEY_DESC); };
     proto._handleKeydownVisibility = function (e) { this._handleKeydownPillStrip(e, VISIBILITY_KEY_DESC); };
     proto._handleKeydownView       = function (e) { this._handleKeydownPillStrip(e, VIEW_KEY_DESC); };
     proto._handleKeydownPreset     = function (e) { this._handleKeydownPillStrip(e, PRESET_KEY_DESC); };
@@ -991,6 +1016,9 @@ module.exports = function (proto) {
     proto._pillsCycle = function () {
         var order = [];
         if (this._presetPillCount() >= 1) order.push("preset");
+        // Sticky context sits between preset and visibility — DOM and
+        // Tab order match (top-to-bottom).
+        if (this.contextPills && this.contextPills.length) order.push("context");
         if (this.visibilities && this.visibilities.length) order.push("visibility");
         // Reach + Meta + Field strips sit just above the filter strip
         // in the visual stack; same order in the Tab cycle so navigation

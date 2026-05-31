@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/actions/sticky-context-unpin
+tags: $:/tags/rimir/cascade-palette/action
+ca-name: Unpin from context
+ca-hint: Remove this tiddler from the sticky context.
+ca-icon: 📍
+ca-kind: leaf
+ca-order: 81
+ca-applies: [enlist<sticky-context-list>] +[match<currentTiddler>]
+ca-after-fire: keep
+ca-actions: <$action-sendmessage $message="rimir-cascade-palette-unpin-context" title=<<currentTiddler>>/>

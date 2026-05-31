@@ -504,6 +504,14 @@ module.exports = function (proto) {
         // hide the result. Applied before var-build so the action sees
         // the effective keep-open value.
         if (action.afterFire === "keep") keepOpen = true;
+        // View-level `ca-view-after-fire: stay` opts the whole view into
+        // keep-open semantics for every row fire — used by multiselect
+        // views (worga's pick-attendees, settings drills) where each
+        // Enter is one tick of a longer selection flow rather than a
+        // commit-and-close. Per-row `ca-after-fire: keep` wins if set;
+        // this is the view-wide default below it.
+        var fireView = this._getViewByTitle(stage.viewTitle || this.activeView);
+        if (fireView && fireView.afterFire === "stay") keepOpen = true;
         // Expose Ctrl-Enter (or ca-after-fire="keep") to action wikitext
         // as `<<keep-open>>` = "yes" | "". Lets a single save-leaf branch
         // on "mass-create" vs "single create + navigate" without needing
@@ -814,10 +822,31 @@ module.exports = function (proto) {
             this.pushStage(dynActStage);
             return;
         }
-        // Right-arrow on a leaf without an entity-type or next-scope is a
-        // no-op — Space on that leaf would also no-op since the kind-
-        // specific Space handlers (toggle/text/etc.) don't claim it
-        // either. Use Enter to fire the leaf's action.
+        // Tree-view leaf / generic real-tiddler row with applicable actions —
+        // mirrors the Space-key fallback (cp-keyboard.js _handleKeydownMenu).
+        // Right-arrow on a row that has no tree children, no entity-type,
+        // and no next-scope but DOES have action tiddlers whose `ca-applies`
+        // filter matches the title should open the action menu (same gesture
+        // as Space). Pre-flight `loadActionsForType` so empty matches still
+        // no-op rather than opening an empty stage.
+        if (picked.title && !picked.isSynthetic) {
+            var fallbackType = picked.entityType ||
+                (picked.isItem ? stage.entityType : null) ||
+                null;
+            var fallbackApplicable = this.loadActionsForType(
+                fallbackType, picked.title
+            );
+            if (fallbackApplicable && fallbackApplicable.length > 0) {
+                var fallbackActStage = this.buildActionMenuStage(
+                    picked.title, fallbackType, picked.name
+                );
+                this._attachPreviewToStage(fallbackActStage, picked, stage);
+                this.pushStage(fallbackActStage);
+                return;
+            }
+        }
+        // Right-arrow on a leaf without an entity-type, next-scope, or any
+        // applicable actions is a no-op.
     };
 
     // Read `ca-preview-*` fields from a row and attach the resolved

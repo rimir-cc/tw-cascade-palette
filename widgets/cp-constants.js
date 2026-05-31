@@ -12,6 +12,9 @@ sibling files require these — keep this file free of imports.
 // ---- TW messages ----
 exports.OPEN_MESSAGE = "rimir-cascade-palette-open";
 exports.OPEN_ENTRY_MESSAGE = "rimir-cascade-palette-open-entry";
+exports.PIN_CONTEXT_MESSAGE = "rimir-cascade-palette-pin-context";
+exports.UNPIN_CONTEXT_MESSAGE = "rimir-cascade-palette-unpin-context";
+exports.CLEAR_CONTEXT_MESSAGE = "rimir-cascade-palette-clear-context";
 exports.ADD_FILTER_MESSAGE = "rimir-cascade-palette-add-filter";
 exports.SET_FILTER_MESSAGE = "rimir-cascade-palette-set-filter";
 exports.ADD_VISIBILITY_MESSAGE = "rimir-cascade-palette-add-visibility";
@@ -105,6 +108,16 @@ exports.SAVED_STACK_TIDDLER = "$:/temp/rimir/cascade-palette/saved-stack";
 // Lives under $:/state/ so it survives reload but isn't filesystem-synced.
 // Body is JSON: { "axes": [ "<axis-title>", ... ] }.
 exports.LAYER_AXES_STATE_PREFIX = "$:/state/rimir/cascade-palette/layer-axes/";
+// Sticky context — list of tiddler titles the user has pinned for the
+// duration of a workday flow (call, meeting, focus). Single field `list`
+// in TW parseStringArray format. Lives under $:/temp/ so it's purely
+// page-session — closes with the browser tab AND clears on full reload.
+// Matches the user's expectation that workday context tracks one
+// continuous flow, not a multi-session memory. Exposed to every filter
+// eval as the <<sticky-context-list>> / <<sticky-context-count>>
+// variables; rendered as a dedicated pill strip above the visibility
+// strip.
+exports.STICKY_CONTEXT_TITLE = "$:/temp/rimir/cascade-palette/sticky-context";
 
 // ---- Defaults for nullable / fallback fields ----
 exports.DEFAULT_ORDER = 100;
@@ -155,6 +168,7 @@ exports.HINT_DETAILS = "Tab section · ↑↓ scroll · Esc input · ↵ fire";
 exports.HINT_PREVIEW = "Tab section · ↑↓ scroll · Esc input";
 exports.HINT_PREVIEW_PILLS = "Tab section · ←→ switch preview · ↑↓ scroll · Esc input";
 exports.HINT_FILTER     = "Tab section · ←→ select · DEL remove · Ctrl-DEL clear all · Esc input";
+exports.HINT_CONTEXT    = "Tab section · ←→ select · DEL remove · Esc input";
 exports.HINT_VISIBILITY = "Tab section · ←→ select · DEL remove · Ctrl-DEL clear all · Esc input";
 exports.HINT_REACH      = "Tab section · ←→ select · DEL remove · Esc input";
 exports.HINT_META       = "Tab section · ←→ select · DEL remove · Esc input";
