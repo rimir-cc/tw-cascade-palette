@@ -354,6 +354,19 @@ module.exports = function (proto) {
             var fields = { title: item.bindTiddler };
             if (converted === undefined || converted === null) {
                 fields[item.bindField] = "";
+            } else if (item.bindType === STRING_ARRAY_TYPE && $tw.utils.isArray(converted)) {
+                // Whole-field string-array → store a TW titlelist (entries with
+                // spaces wrapped in [[...]]), NOT a JSON array literal. This is
+                // the universal TW convention for list-valued fields (tags,
+                // list, and every rimir/kind multi-value field — all read with
+                // enlist-input / parseStringArray / $action-listops). The old
+                // JSON-literal storage broke those readers and self-corrupted
+                // on repeated toggles (read-back via parseStringArray couldn't
+                // re-parse the JSON). Sub-path writes (below) still embed the
+                // raw array into the host JSON document, where an array is
+                // correct. fromField already reads both forms, so existing
+                // JSON-stored fields keep working and convert on next write.
+                fields[item.bindField] = $tw.utils.stringifyList(converted);
             } else if (typeof converted === "string") {
                 fields[item.bindField] = converted;
             } else {
