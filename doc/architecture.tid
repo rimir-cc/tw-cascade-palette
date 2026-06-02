@@ -30,7 +30,7 @@ The palette is a stack of stages, growing on Right-arrow / Space / Enter-on-dril
 The keyboard router does one of:
 
 * ''Type'' → update current stage's `query`, recompute items.
-* ''Up/Down'' → move `selectedIndex`.
+* ''Up/Down'' → move `selectedIndex` via `_moveMenuSelection` — a lightweight class-swap (move `rcp-row-selected` between two cached row `<li>`s, scroll into view, refresh hint) rather than a full `renderResults()`, so key auto-repeat stays smooth. The per-row side-preview refresh is debounced (`_scheduleRowChangePreview`, ~90ms) so the heavy preview/graph render fires only for the row the user settles on.
 * ''Right-arrow'' → drill from the selected item (push new stage). On tree containers, descends children; on typed catalogue leaves, pushes the action-menu stage.
 * ''Space'' → on toggle/text/number/date kinds, kind-specific edit; on any other tiddler row whose action-discovery scan produces at least one applicable action (catalogue or `ca-applies`-filter), pushes the action-menu stage. Empty match → silent no-op. Works in tree views (By namespace / By parent / Hybrid), not just the catalogue.
 * ''Tab'' → cycle focus //between sections// (input → preset → filter → view → menu → details → …). Never drills. ''Shift-Tab'' jumps between the pill-group (top strips) and the main group (input/menu/details/preview).

@@ -132,6 +132,13 @@ module.exports = function (proto) {
         }
         var self = this;
         this._selectedRowEl = null;
+        // Result-index → row <li> map, rebuilt each render. Lets arrow-key
+        // navigation move the selection by toggling one class on two rows
+        // (see _moveMenuSelection) instead of tearing down and rebuilding
+        // the whole list every keystroke — the source of the laggy,
+        // jumps-5-rows-at-once feel under key auto-repeat. Group-header
+        // <li>s are NOT in this map (they carry no result index).
+        this._rowEls = [];
 
         // Headers suppressed when all results belong to a single group
         // (matches breadcrumb-hide-on-root behaviour) AND for tree views
@@ -304,7 +311,67 @@ module.exports = function (proto) {
         if (i === stage.selectedIndex) {
             this._selectedRowEl = rowEl;
         }
+        if (this._rowEls) this._rowEls[i] = rowEl;
         this.resultsEl.appendChild(rowEl);
+    };
+
+    // Lightweight selection move for arrow-key navigation. Instead of a
+    // full renderResults() (which rebuilds every row — expensive under
+    // key auto-repeat, so events back up and the marker lurches several
+    // rows at once), this just moves the `rcp-row-selected` class from
+    // the old row to the new one, scrolls it into view, refreshes the
+    // hint, and schedules a (debounced) side-preview refresh. Falls back
+    // to a full render when the row-element map is missing (defensive).
+    // Returns true if it handled the move.
+    proto._moveMenuSelection = function (stage, newIndex) {
+        if (!this._rowEls || !this._rowEls.length) {
+            stage.selectedIndex = newIndex;
+            this.renderResults();
+            this._scheduleRowChangePreview();
+            return true;
+        }
+        var oldEl = this._rowEls[stage.selectedIndex];
+        var newEl = this._rowEls[newIndex];
+        stage.selectedIndex = newIndex;
+        if (oldEl) oldEl.classList.remove("rcp-row-selected");
+        if (newEl) {
+            newEl.classList.add("rcp-row-selected");
+            this._selectedRowEl = newEl;
+            if (newEl.scrollIntoView) newEl.scrollIntoView({ block: "nearest" });
+        }
+        // Detail drawer (Ctrl-hold) mirrors the selected row — same as the
+        // old renderResults path. Cheap unless the drawer is open.
+        if (this.detailsOpen) this.renderDetails();
+        this._renderHint();
+        this._scheduleRowChangePreview();
+        return true;
+    };
+
+    // Coalesce side-preview re-renders during rapid row changes. The
+    // preview can be heavy (a kind context GRAPH rebuilt via makeWidget),
+    // and its cache misses on every row (keyed by the selected row's
+    // context), so rendering it synchronously per keystroke is the main
+    // cause of the hang. Debounce on a short idle so the preview renders
+    // only for the row the user settles on, not every row they scroll
+    // past. Non-row-change callers (stage push/pop, pill clicks) keep
+    // calling _renderSidePreview directly.
+    proto._scheduleRowChangePreview = function () {
+        if (!this._shouldRerenderPreviewOnRowChange ||
+            !this._shouldRerenderPreviewOnRowChange()) {
+            return;
+        }
+        var self = this;
+        if (typeof setTimeout !== "function") {
+            this._renderSidePreview();
+            return;
+        }
+        if (this._previewDebounceTimer) {
+            clearTimeout(this._previewDebounceTimer);
+        }
+        this._previewDebounceTimer = setTimeout(function () {
+            self._previewDebounceTimer = null;
+            self._renderSidePreview();
+        }, 90);
     };
 
     // Match-highlight helpers. `_match` is stamped by filterByQuery /

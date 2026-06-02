@@ -1117,6 +1117,12 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             clearTimeout(this._leaderTimer);
             this._leaderTimer = null;
         }
+        // Cancel any pending debounced side-preview render so it doesn't
+        // fire against the torn-down stack / DOM after close.
+        if (this._previewDebounceTimer) {
+            clearTimeout(this._previewDebounceTimer);
+            this._previewDebounceTimer = null;
+        }
         this._leaderPending = null;
         if (this.inputEl) {
             this.inputEl.classList.remove("rcp-input-leader-match");

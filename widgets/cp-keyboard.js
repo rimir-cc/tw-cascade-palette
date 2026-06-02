@@ -358,11 +358,10 @@ module.exports = function (proto) {
         if (e.key === "ArrowUp") {
             e.preventDefault();
             if (stage.selectedIndex > 0) {
-                stage.selectedIndex -= 1;
-                this.renderResults();
-                if (this._shouldRerenderPreviewOnRowChange()) {
-                    this._renderSidePreview();
-                }
+                // Lightweight class-swap move (see _moveMenuSelection) —
+                // no full re-render, so key auto-repeat stays smooth. The
+                // side-preview refresh is debounced inside the move.
+                this._moveMenuSelection(stage, stage.selectedIndex - 1);
             } else {
                 // Moving up past the top row returns focus to the input
                 // so the user can refine the query without an extra Tab.
@@ -373,11 +372,7 @@ module.exports = function (proto) {
         if (e.key === "ArrowDown") {
             e.preventDefault();
             if (stage.selectedIndex < stage.results.length - 1) {
-                stage.selectedIndex += 1;
-                this.renderResults();
-                if (this._shouldRerenderPreviewOnRowChange()) {
-                    this._renderSidePreview();
-                }
+                this._moveMenuSelection(stage, stage.selectedIndex + 1);
             }
             return;
         }

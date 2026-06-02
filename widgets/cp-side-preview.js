@@ -330,6 +330,13 @@ module.exports = function (proto) {
     // popup again.
     proto._renderSidePreview = function () {
         if (!this.popupEl || !this.sidePreviewEl) return;
+        // A direct render supersedes any debounced row-change render
+        // (cp-rendering._scheduleRowChangePreview) — clear it so the
+        // queued timer can't fire a redundant pass afterward.
+        if (this._previewDebounceTimer) {
+            clearTimeout(this._previewDebounceTimer);
+            this._previewDebounceTimer = null;
+        }
         var resolved = this._resolvePreviewCandidates();
         var candidates = resolved.candidates;
         if (!candidates.length) {
