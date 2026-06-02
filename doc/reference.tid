@@ -102,6 +102,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`$:/tags/rimir/cascade-palette/help` |In-palette help section — drillable via the ''Help'' entry or the `?` leader. Uses standard cascade-item fields (`ca-name`, `ca-icon`, `ca-group`, `ca-order`, `ca-hint`); body wikitext renders in the side preview |
 |`$:/tags/rimir/cascade-palette/side-preview` |Side-preview candidate — auto-attached to the right-pane preview when `ca-preview-applies` matches the active context. The tagged tiddler IS the template by default (override via `ca-preview-template`). Fields: `ca-preview-applies` (filter), `ca-preview-name` (pill label), `ca-preview-title` (caption), `ca-preview-order` (sort). When two or more candidates apply at once, a pill row appears at the top of the pane — ←/→ when focus is on the preview cycles between them. |
 |`$:/tags/rimir/cascade-palette/row-icon` |Row-icon registration — declares a small glyph that renders in a footer strip beneath any tiddler-bearing row whose `ca-row-icon-applies` filter matches (or, for the built-in `ca-row-icon-key: url`, whose URL field carries a value). Alt-↵ on the row (or clicking the glyph) fires the icon's `ca-row-icon-action` / `ca-row-icon-message`. Fields: `ca-row-icon-key`, `-glyph`, `-hint`, `-applies`, `-payload`, `-action`, `-message`, `-primary`, `-order`. |
+|`$:/tags/rimir/cascade-palette/row-label` |Row-label pill — declares an alternative way of rendering each data row's display name. Filter `ca-row-label-filter` is evaluated per row with `<currentTiddler>` bound to the row's backing tiddler title; the first non-empty result replaces `item.name` at render time. Only one row-label can be active at a time (single-select pill strip). Inactive pill or empty filter result → row falls back to its default name. Fields: `ca-row-label-name`, `-chip`, `-hint`, `-help`, `-filter`, `-default` (`yes` activates on first load when no state stored), `ca-order`. Active pill title persisted in `$:/state/rimir/cascade-palette/row-label`. |
 
 ! Fields
 
@@ -234,6 +235,9 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-position-<view-slug>` |string |entry |Per-view position override. Slug is the view tiddler's basename. Same value space as `ca-position` |
 |`ca-view-pick-mode` |`yes`\|empty |view |When `yes`, Enter on any row commits the row's effective path as a filter arg and returns to the prior view. Right-arrow still drills. |
 |`ca-view-context-aware` |`yes`\|empty |view |When `yes` AND the sticky context strip is non-empty, the view pill paints a small indigo badge. Signals "this view will specialize for the pinned set" — the actual narrowing happens in layer/filter expressions that reference `<<sticky-context-list>>`. Purely a visual cue; the engine does not auto-narrow anything. |
+|`ca-row-label-filter` |filter |row-label |Per-row name resolution — evaluated with `<currentTiddler>` bound to the row's backing tiddler title; the first non-empty result replaces `item.name` at render time on data rows only (view-built rows and ca-next-scope items; static palette entries / actions stay on their explicit `ca-name`). Empty result → row falls back to default name. |
+|`ca-row-label-name` / `-chip` / `-hint` / `-help` |string |row-label |Pill display name, the chip text shown in the strip, short tooltip, and the long-form help line surfaced in the detail drawer when the pill is focused. |
+|`ca-row-label-default` |`yes`\|empty |row-label |When `yes`, this pill is activated on first load if no `$:/state/rimir/cascade-palette/row-label` state is stored. Shipped on the ''Caption → Title'' pill so a fresh install shows captions uniformly across all views. |
 |`ca-view-pick-emits-filter` |filter-title |view (pick-mode) |Filter tiddler whose `ca-filter-expr` receives the picked path as `<arg>` |
 |`ca-leader-key` |string |leader |Trigger string (single char or short multi-char). Required. |
 |`ca-leader-name` |string |leader |Display name (for catalogues / details rendering). |
@@ -376,6 +380,8 @@ The plugin ships five axes for the common cases. All live under `$:/plugins/rimi
 |`rimir-cascade-palette-pin-context` |Universal ''Pin to context'' action, the typed ''`+<title>`'' input prefix, any row-action wikitext |Append the supplied title to the sticky-context state tiddler. Parameter: `title` (in `paramObject.title` or bare `param`). De-duplicates silently. |
 |`rimir-cascade-palette-unpin-context` |Universal ''Unpin from context'' action, any row-action wikitext |Remove the supplied title from the sticky-context state tiddler. Parameter: `title`. Silent no-op when absent. |
 |`rimir-cascade-palette-clear-context` |`C` leader, any row-action wikitext |Empty the sticky-context state tiddler. No parameters. |
+|`rimir-cascade-palette-set-row-label` |Row-label pill clicks, leaders / external triggers |Activate the named row-label pill (single-select). Empty / missing parameter clears the override. Parameter: `row-label` (in `paramObject["row-label"]` or bare `param`). |
+|`rimir-cascade-palette-reset-row-label` |Leaders |Clear the active row-label pill. Rows fall back to their default name. No parameters. |
 
 ! Filter substitution variables
 

@@ -146,6 +146,31 @@ A row-icon is a small glyph rendered in a footer strip below the main row line, 
 
 ''Firing'' — `fireRowIcon(item, icon, e, mode)` is the single dispatch point. `mode` is `"primary"` (default, bound to Alt-↵ and glyph click) or `"alt"` (bound to Ctrl-Alt-↵). In `primary` mode it reads `icon.message` / `icon.action`; in `alt` mode it reads `icon.altMessage` / `icon.altAction`. Built-in messages: `open-url` → `window.open(payload, "_blank", "noopener,noreferrer")`; `copy-payload` → `$tw.utils.copyToClipboard(payload)` (TW core helper — handles modern Clipboard API + execCommand fallback + emits a tm-notify). If a wikitext action is set, it runs via `invokeViaNavigator` with `<<payload>>`, `<<row-icon-key>>`, `<<row-icon-mode>>` (`"primary"` / `"alt"`), and the standard stage variables. Both message and action fire when both are set. Alt-↵ routes to `primaryRowIcon(item)` (honours `ca-row-icon-primary: yes`, falls back to the first applicable icon). Ctrl-Alt-↵ targets the same icon but with `mode: "alt"` — silently no-ops if the icon declares no alt action, so users who reflex-press it on a primary-only icon don't see surprise behaviour. Clicking an individual glyph fires that specific icon's primary mode and `stopPropagation`s so the row's main selection / fire handler doesn't also run.
 
+! Row-label pills
+
+A row-label pill is a global, single-select strip that overrides how each //data row// renders its display name — a filter is evaluated per row with `<currentTiddler>` bound to the row's backing tiddler title, and the first non-empty result replaces `item.name` at render time. Lives in `widgets/cp-row-label-pills.js`; the strip is mounted in `cascadeColEl` directly below the view strip with cyan/teal accent so the two display-preference choices read as siblings.
+
+''Why it exists'' — pre-pills, two unrelated code paths decided each row's name:
+
+* ''ca-next-scope drill'' (cp-actions.js#`evaluateFilterStage`) — synthesises items with `name: caption || title`, i.e. captions surface naturally.
+* ''view-built row'' (cp-views.js#`_buildRowsForView` via `_applyLayerRowFilters`) — applies the view's `ca-view-row-name` filter (often just `[<currentTiddler>]`, returning the raw title).
+
+The same kind-instance tiddler therefore appeared as ''Acme Corp'' in ''Find entity'' but as `acme/companies/acme-corp` in ''All tiddlers''. The pill provides one global rule that overrides BOTH paths at render time.
+
+''Registration'' — tiddler tagged ''`$:/tags/rimir/cascade-palette/row-label`'' with `ca-row-label-filter` (the rule). Optional `ca-row-label-name` / `-chip` / `-hint` / `-help` decorate the pill; `ca-row-label-default: yes` activates the pill on first load when no `$:/state/rimir/cascade-palette/row-label` is stored. `ca-order` sorts the strip. Ship as many pills as you like — the strip is fully extensible.
+
+''Shipped pills'' — three out of the box: ''Title'' (`[<currentTiddler>]`), ''Caption'' (`[<currentTiddler>get[caption]]` — empty result → row falls back to default name, so non-captioned rows keep their default rendering), ''Caption → Title'' (`[<currentTiddler>get[caption]else<currentTiddler>]` — marked default, the smart "captioned tiddlers caption-first, everything else by title" rule).
+
+''Data-row gate'' — `_resolveRowLabel` short-circuits when `item.dataRow !== true`. The flag is set by `evaluateFilterStage` (ca-next-scope rows) and `_buildRowsForView` (view rows) — i.e. every row that represents a user tiddler. Static cascade-palette entries / actions / settings keep their explicit `ca-name` because the override would otherwise replace ''Find entity'' with the caption of `$:/plugins/rimir/kind/entries/find-entity` (meaningless). Synthetic ca-items-from rows have empty title and skip silently. The filter-result fallback (empty string → null → caller uses `item.name`) is the second safety net — rows never render blank.
+
+''State'' — active pill title persisted in `$:/state/rimir/cascade-palette/row-label` (text body). Survives reload, not filesystem-synced. First-load seed reads the default pill from the registry; the user's pick overrides it permanently from that point. The synthetic ''(none)'' head pill in the strip writes "" to clear.
+
+''Caches'' — two layers. (1) Pill registry cached on the widget instance, invalidated by the wiki change-event hook when a tagged tiddler is created/edited/deleted OR when the state tiddler changes. (2) Per-render result cache keyed by `(active pill, row title)` reset at the top of every `renderResults` — keeps a 60-row stage from re-evaluating the same filter pairs per keystroke, but fresh enough that an edit to the source tiddler's caption surfaces on the next render.
+
+''Keyboard'' — single-select model with Enter / Space to activate, ←/→ to focus, DEL to clear, Esc to return to input. `SECTION_HANDLERS["rowlabel"]` dispatches via the shared `_handleKeydownPillStrip` helper using `ROW_LABEL_KEY_DESC`. The strip joins `_pillsCycle()` directly after `"view"` so Tab walks top-to-bottom matching DOM order.
+
+''Messages'' — `rimir-cascade-palette-set-row-label` (`row-label` param = pill tiddler title; empty / missing clears) and `rimir-cascade-palette-reset-row-label` (no params) for leader / external triggers.
+
 ! Footer hint
 
 The bottom strip (`<div class="rcp-hint">`) advertises the gestures available right now. Non-menu sections (input, filter, visibility, preset, view, viewconfig, leader, details, preview) use fixed constants — one string per section — because every gesture in those sections applies uniformly to every pill / cell.

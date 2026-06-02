@@ -32,6 +32,8 @@ exports.SET_VIEW_MESSAGE = "rimir-cascade-palette-set-view";
 exports.APPLY_PRESET_MESSAGE = "rimir-cascade-palette-apply-preset";
 exports.SAVE_PRESET_MESSAGE = "rimir-cascade-palette-save-preset";
 exports.RECALL_PRESET_MESSAGE = "rimir-cascade-palette-recall-preset";
+exports.SET_ROW_LABEL_MESSAGE = "rimir-cascade-palette-set-row-label";
+exports.RESET_ROW_LABEL_MESSAGE = "rimir-cascade-palette-reset-row-label";
 
 // ---- Tags consumed by the engine ----
 exports.ENTRY_TAG = "$:/tags/rimir/cascade-palette/entry";
@@ -77,6 +79,15 @@ exports.SIDE_PREVIEW_TAG = "$:/tags/rimir/cascade-palette/side-preview";
 // the configured URL fields). Alt-Enter on the row fires the primary
 // icon's action / message. See `widgets/cp-row-icons.js`.
 exports.ROW_ICON_TAG = "$:/tags/rimir/cascade-palette/row-icon";
+// Row-label registration. Tiddlers tagged with this declare an
+// alternative way of rendering each row's display name. A row-label
+// pill carries a `ca-row-label-filter` evaluated per data row with
+// `<currentTiddler>` bound to the row's backing tiddler title; the
+// first filter result replaces `item.name` at render time. Only one
+// row-label can be active at a time (single-select pill strip). When
+// no pill is active, rows show whatever name the view / next-scope
+// path already assigned. See `widgets/cp-row-label-pills.js`.
+exports.ROW_LABEL_TAG = "$:/tags/rimir/cascade-palette/row-label";
 
 // ---- Config tiddler titles ----
 exports.SOFT_DEPTH_CONFIG = "$:/config/rimir/cascade-palette/soft-depth-warning";
@@ -118,6 +129,11 @@ exports.LAYER_AXES_STATE_PREFIX = "$:/state/rimir/cascade-palette/layer-axes/";
 // variables; rendered as a dedicated pill strip above the visibility
 // strip.
 exports.STICKY_CONTEXT_TITLE = "$:/temp/rimir/cascade-palette/sticky-context";
+// Active row-label pill — tiddler title of the currently selected
+// row-label pill, or empty when none is active. Lives under
+// $:/state/ so the user's display preference survives reload but
+// isn't filesystem-synced. Updated by `_setRowLabel` / `_clearRowLabel`.
+exports.ROW_LABEL_STATE_TITLE = "$:/state/rimir/cascade-palette/row-label";
 
 // ---- Defaults for nullable / fallback fields ----
 exports.DEFAULT_ORDER = 100;
@@ -174,6 +190,7 @@ exports.HINT_REACH      = "Tab section · ←→ select · DEL remove · Esc inp
 exports.HINT_META       = "Tab section · ←→ select · DEL remove · Esc input";
 exports.HINT_FIELD      = "Tab section · ←→ select · DEL remove · Esc input";
 exports.HINT_VIEW       = "Tab section · ←→ select · ↵ activate · Esc input";
+exports.HINT_ROW_LABEL  = "Tab section · ←→ select · ↵ activate · DEL clear · Esc input";
 exports.HINT_LEADER     = "Tab section · ←→ select · ↵/Space fire · Esc input";
 exports.HINT_VIEWCONFIG_COMPACT  = "Tab section · ↵/Space/→ expand · Esc input";
 exports.HINT_VIEWCONFIG_EXPANDED = "Tab section · ↑↓←→ navigate pills · hold Ctrl preview · Esc collapse";

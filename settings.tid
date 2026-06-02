@@ -44,6 +44,11 @@ Both are listed below — UI-surfaced settings are marked ''Settings row availab
 ;<code>$:/config/rimir/cascade-palette/url-fields</code>
 :Space-separated field list scanned by the built-in 🌐 row-icon. First field whose value matches an `http://` / `https://` / `ftp://` / `ftps://` / `mailto:` / `tel:` prefix wins; rows with a match get a 🌐 glyph in their footer strip that opens the URL in a new tab on Alt-↵ or click. Default ''`url`''. Raw-edit only.
 
+! Row labels
+
+;<code>$:/state/rimir/cascade-palette/row-label</code>
+:Tiddler title of the currently active row-label pill (the single-select strip below the view strip that overrides how each data row's display name renders). Written via the row-label pill click; empty body = no override (rows fall back to their default name). First load seeds the default pill (one tagged ''`ca-row-label-default: yes`'' — shipped as ''Caption → Title''). Survives reload; not filesystem-synced. Authors can ship more pills by tagging tiddlers with ''`$:/tags/rimir/cascade-palette/row-label`'' and declaring a ''`ca-row-label-filter`''. Raw-edit only.
+
 ! Action discovery
 
 ;<code>$:/config/rimir/cascade-palette/entity-type-field</code>

@@ -363,6 +363,63 @@ type: text/css
     vertical-align: middle;
 }
 
+/* Row-label strip — single-select pills that override how each data
+   row's display name is rendered (cp-row-label-pills.js). Sits directly
+   below the view strip; same chrome but cyan/teal accent to read as a
+   sibling display-preference choice. Hidden via `rcp-has-row-label` when
+   no row-label pills are registered. */
+.rcp-row-label-strip {
+    display: none;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px 14px;
+    background: #f0fdfa;
+    border-bottom: 1px solid #e5e7eb;
+    outline: none;
+}
+
+.rcp-popup.rcp-has-row-label .rcp-row-label-strip {
+    display: flex;
+}
+
+.rcp-popup[data-focus="rowlabel"] .rcp-row-label-strip {
+    background: #ccfbf1;
+    box-shadow: inset 2px 0 0 0 #0d9488;
+}
+
+.rcp-row-label-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    background: #f3f4f6;
+    color: #1f2937;
+    border-radius: 12px;
+    font-size: 11px;
+    line-height: 1.4;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    border: 1px solid #e5e7eb;
+}
+
+.rcp-row-label-pill:hover {
+    background: #e5e7eb;
+}
+
+.rcp-row-label-pill-active {
+    background: #99f6e4;
+    color: #134e4a;
+    border-color: #0d9488;
+    font-weight: 600;
+}
+
+.rcp-row-label-pill-focused {
+    background: #5eead4;
+    border-color: #0f766e;
+    color: #042f2e;
+    box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.35);
+}
+
 /* View-config strip — read-only stacked layout depicting the active
    view's structure. The strip is a column of mini-rows, one per layer
    (plus a view-scoped header row). Each mini-row carries its own label
@@ -684,6 +741,32 @@ type: text/css
         color: #fef3c7;
         box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.45);
     }
+    .rcp-row-label-strip {
+        background: #1c2624;
+        border-bottom-color: #374151;
+    }
+    .rcp-popup[data-focus="rowlabel"] .rcp-row-label-strip {
+        background: #134e4a;
+    }
+    .rcp-row-label-pill {
+        background: #2a2f32;
+        color: #f3f4f6;
+        border-color: #134e4a;
+    }
+    .rcp-row-label-pill:hover {
+        background: #374151;
+    }
+    .rcp-row-label-pill-active {
+        background: #115e59;
+        color: #ccfbf1;
+        border-color: #5eead4;
+    }
+    .rcp-row-label-pill-focused {
+        background: #0f766e;
+        border-color: #99f6e4;
+        color: #ccfbf1;
+        box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.45);
+    }
 }
 
 /* Preset strip — thin row of pills, one per saved preset. Sits above
@@ -883,6 +966,7 @@ type: text/css
 .rcp-visibility-strip::before,
 .rcp-filter-strip::before,
 .rcp-view-strip::before,
+.rcp-row-label-strip::before,
 .rcp-reach-strip::before,
 .rcp-meta-strip::before,
 .rcp-field-strip::before,
@@ -916,6 +1000,7 @@ type: text/css
 .rcp-visibility-strip::before { content: "Visibility"; }
 .rcp-filter-strip::before     { content: "Filters"; }
 .rcp-view-strip::before       { content: "Views"; }
+.rcp-row-label-strip::before  { content: "Labels"; }
 .rcp-reach-strip::before      { content: "Reach"; }
 .rcp-meta-strip::before       { content: "⌕ Meta"; }
 .rcp-field-strip::before      { content: "⌕ Field"; }
@@ -938,6 +1023,7 @@ type: text/css
     .rcp-visibility-strip::before,
     .rcp-filter-strip::before,
     .rcp-view-strip::before,
+    .rcp-row-label-strip::before,
     .rcp-reach-strip::before,
     .rcp-meta-strip::before,
     .rcp-field-strip::before,

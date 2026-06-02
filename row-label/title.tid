@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/row-label/title
+tags: $:/tags/rimir/cascade-palette/row-label
+ca-row-label-name: Title
+ca-row-label-chip: 🆔 Title
+ca-row-label-hint: Show each row's raw tiddler title.
+ca-row-label-help: Replaces every data row's display name with the bare tiddler title — regardless of caption / name / kind-specific overrides. Useful when you need to disambiguate similarly-captioned tiddlers or to copy the canonical title from a row.
+ca-row-label-filter: [<currentTiddler>]
+ca-order: 100

@@ -38,6 +38,7 @@ var SECTION_HANDLERS = {
     "meta":       "_handleKeydownMeta",
     "field":      "_handleKeydownField",
     "view":       "_handleKeydownView",
+    "rowlabel":   "_handleKeydownRowLabel",
     "viewconfig": "_handleKeydownViewConfig",
     "leader":     "_handleKeydownLeader",
     "preset":     "_handleKeydownPreset",
@@ -698,6 +699,34 @@ module.exports = function (proto) {
         }
     };
 
+    // Row-label strip — single-select, with a synthetic "(none)" entry
+    // at index 0 so the user can clear without leaving the strip. The
+    // entry list is `[(none)] + registered pills`, so onEnter/onDelete
+    // index 0 means "clear" and indices ≥1 map to pills[i-1].
+    var ROW_LABEL_KEY_DESC = {
+        getCount:    function () { return this._rowLabelPillCount(); },
+        getFocusIdx: function () { return this.rowLabelFocusIdx || 0; },
+        setFocusIdx: function (i) { this.rowLabelFocusIdx = i; },
+        render:      function () { this._renderRowLabelStrip(); },
+        maybeHelp:   function () { this._maybeRenderRowLabelHelp(); },
+        enterAcceptsSpace: true,
+        onEnter:     function (i) {
+            var pills = this._loadRowLabelPills();
+            if (i === 0) {
+                this._clearRowLabel();
+            } else {
+                var pill = pills[i - 1];
+                if (!pill) return;
+                this._setRowLabel(pill.title);
+            }
+            // _setRowLabel re-renders the strip but doesn't change focus;
+            // staying on the strip lets the user keep cycling pills with
+            // ←/→ to compare display modes.
+            this.setFocus("rowlabel");
+        },
+        onDelete:    function () { this._clearRowLabel(); }
+    };
+
     var PRESET_KEY_DESC = {
         getCount:    function () { return this._presetPillCount(); },
         getFocusIdx: function () { return this.presetFocusIdx; },
@@ -837,6 +866,7 @@ module.exports = function (proto) {
     proto._handleKeydownContext    = function (e) { this._handleKeydownPillStrip(e, CONTEXT_KEY_DESC); };
     proto._handleKeydownVisibility = function (e) { this._handleKeydownPillStrip(e, VISIBILITY_KEY_DESC); };
     proto._handleKeydownView       = function (e) { this._handleKeydownPillStrip(e, VIEW_KEY_DESC); };
+    proto._handleKeydownRowLabel   = function (e) { this._handleKeydownPillStrip(e, ROW_LABEL_KEY_DESC); };
     proto._handleKeydownPreset     = function (e) { this._handleKeydownPillStrip(e, PRESET_KEY_DESC); };
     proto._handleKeydownLeader     = function (e) { this._handleKeydownPillStrip(e, LEADER_KEY_DESC); };
     proto._handleKeydownReach      = function (e) { this._handleKeydownPillStrip(e, REACH_KEY_DESC); };
@@ -881,8 +911,8 @@ module.exports = function (proto) {
         f = f || this.focus;
         return f === "preset" || f === "visibility" ||
                f === "reach" || f === "meta" || f === "field" ||
-               f === "filter" || f === "view" || f === "viewconfig" ||
-               f === "leader";
+               f === "filter" || f === "view" || f === "rowlabel" ||
+               f === "viewconfig" || f === "leader";
     };
 
     // Step out of viewconfig vertically into an adjacent pill section
@@ -1038,6 +1068,13 @@ module.exports = function (proto) {
         if (this.fieldPills && this.fieldPills.length) order.push("field");
         if (this.filters && this.filters.length) order.push("filter");
         if (this._visibleViews().length >= 2) order.push("view");
+        // Row-label sits directly after the view strip in the DOM; same
+        // position in the Tab cycle. Joins the cycle whenever any
+        // row-label pill is registered (count is +1 for the synthetic
+        // "(none)" entry, so a true 0 means no pills registered at all).
+        if (this._rowLabelPillCount && this._rowLabelPillCount() > 0) {
+            order.push("rowlabel");
+        }
         // Structure (viewconfig) sits below view in the visual stack and
         // is conceptually "more detail about the active view" — place it
         // last in the pill cycle so Tab walks through configuration top-

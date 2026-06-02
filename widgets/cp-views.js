@@ -554,6 +554,11 @@ function setup(proto) {
             }
             var item = self._buildCascadeItem(fieldsObj, title);
             item._layerIdx = layerIdx;
+            // Mark as a data row so the row-label override pill
+            // (cp-row-label-pills.js#_resolveRowLabel) applies. View-built
+            // rows always represent user tiddlers, never palette config —
+            // safe to enable the override regardless of the layer.
+            item.dataRow = true;
             // Ancestor-only marker — set when filter pills are active
             // and this row is in the revealed set but didn't itself
             // match the filter (i.e. it's shown only because a

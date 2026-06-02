@@ -115,6 +115,11 @@ module.exports = function (proto) {
         this._actionPreviewCountCache = {};
         this._actionPreviewMs = 0;
         this._actionPreviewRows = 0;
+        // Row-label results cache is also per-render: re-resolves on
+        // every renderResults so tiddler edits to the captioned source
+        // surface immediately, and a switched active pill never gets
+        // shadowed by a stale (pill, title) hit from the prior render.
+        this._rowLabelResultCache = null;
         var stage = this.topStage();
         if (!stage) return;
         if (stage.results.length === 0) {
@@ -333,6 +338,15 @@ module.exports = function (proto) {
     };
 
     proto._renderRowNameContent = function (nameEl, item) {
+        // Active row-label pill (cp-row-label-pills.js) replaces the
+        // displayed name on data rows. Skip the name-match highlight when
+        // the override fired — the match coordinates were computed against
+        // item.name, not the new text, so overlaying them would mis-align.
+        var override = this._resolveRowLabel && this._resolveRowLabel(item);
+        if (override !== null && override !== undefined) {
+            nameEl.textContent = override;
+            return;
+        }
         if (item._match && item._match.field === "name") {
             this._renderHighlighted(nameEl, item.name || "",
                 item._match.start, item._match.len);

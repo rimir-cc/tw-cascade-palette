@@ -249,6 +249,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     require("$:/plugins/rimir/cascade-palette/widgets/cp-reach-pills")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-search-meta-pills")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-search-field-pills")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-row-label-pills")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-deep-search")(CascadePaletteWidget.prototype);
 
     /* ---------- lifecycle ---------- */
@@ -301,6 +302,17 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.viewStripEl = this.document.createElement("div");
         this.viewStripEl.className = "rcp-view-strip";
         this.viewStripEl.setAttribute("tabindex", "-1");
+
+        // Row-label strip — single-select pills that override how each
+        // data row's display name is rendered. Sits just below the view
+        // strip in the visual stack: changing the active view and changing
+        // the row-label are sibling display-preference choices.
+        // Hidden via `rcp-has-row-label` on the popup when no row-label
+        // pills are registered.
+        this.rowLabelStripEl = this.document.createElement("div");
+        this.rowLabelStripEl.className = "rcp-row-label-strip";
+        this.rowLabelStripEl.setAttribute("tabindex", "-1");
+        this.rowLabelFocusIdx = 0;
 
         // View-config strip — pills depicting the active view's
         // primitives (roots / children / leaf / label filters). Hidden
@@ -415,6 +427,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.cascadeColEl.appendChild(this.fieldStripEl);
         this.cascadeColEl.appendChild(this.filterStripEl);
         this.cascadeColEl.appendChild(this.viewStripEl);
+        this.cascadeColEl.appendChild(this.rowLabelStripEl);
         this.cascadeColEl.appendChild(this.viewConfigStripEl);
         this.cascadeColEl.appendChild(this.leaderStripEl);
         this.cascadeColEl.appendChild(this.inputEl);
@@ -609,6 +622,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         wireStripFocus(this.metaStripEl, "meta");
         wireStripFocus(this.fieldStripEl, "field");
         wireStripFocus(this.viewStripEl, "view");
+        wireStripFocus(this.rowLabelStripEl, "rowlabel");
         wireStripFocus(this.presetStripEl, "preset");
         wireStripFocus(this.viewConfigStripEl, "viewconfig");
         wireStripFocus(this.leaderStripEl, "leader");
@@ -742,6 +756,19 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 if (isTaggedChange({ tag: C.LEADER_TAG, cachedTitles: leaderTitles })) {
                     self._invalidateLeadersCache();
                     if (self.open) self._renderLeaderStrip();
+                }
+                // Row-label pills — invalidate the cache when a tagged
+                // tiddler changes, when the active-pill state moves, or
+                // when one of the cached pill tiddlers is edited.
+                var rowLabelTitles = (self._rowLabelPillsCache || [])
+                    .map(function (p) { return p.title; });
+                if (changes[C.ROW_LABEL_STATE_TITLE] ||
+                    isTaggedChange({
+                        tag: C.ROW_LABEL_TAG,
+                        cachedTitles: rowLabelTitles
+                    })) {
+                    self._invalidateRowLabelPills();
+                    if (self.open) self._renderRowLabelStrip();
                 }
                 // Sticky context — refresh the strip when the state
                 // tiddler changes (own writes via pin/unpin, external
@@ -907,6 +934,16 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 if (viewTitle) self._setActiveView(viewTitle, { recordBack: true });
                 return false;
             });
+            registerRootMessage(C.SET_ROW_LABEL_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var rlTitle = p["row-label"] || (event && event.param) || "";
+                self._addRowLabelByTitle(rlTitle);
+                return false;
+            });
+            registerRootMessage(C.RESET_ROW_LABEL_MESSAGE, function () {
+                self._clearRowLabel();
+                return false;
+            });
             registerRootMessage(C.APPLY_PRESET_MESSAGE, function (event) {
                 var p = (event && event.paramObject) || {};
                 var presetTitle = p.preset || (event && event.param) || "";
@@ -985,6 +1022,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this._refreshContextPills();
         this._renderContextStrip();
         this._renderViewStrip();
+        this._renderRowLabelStrip();
         this._renderVisibilityStrip();
         this._renderReachStrip();
         this._renderFieldStrip();
@@ -1123,6 +1161,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             section !== "details" && section !== "preview" &&
             section !== "filter" && section !== "context" &&
             section !== "visibility" && section !== "view" &&
+            section !== "rowlabel" &&
             section !== "preset" && section !== "viewconfig" &&
             section !== "leader" &&
             section !== "reach" && section !== "meta" &&
@@ -1153,6 +1192,12 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // there's nothing to navigate between. Pick-mode views are
         // hidden so they don't count.
         if (section === "view" && this._visibleViews().length < 2) {
+            section = "input";
+        }
+        // Row-label strip joins the cycle whenever at least one pill is
+        // registered. Count is +1 for the synthetic "(none)" entry so a
+        // true 0 means no pills shipped or installed yet.
+        if (section === "rowlabel" && this._rowLabelPillCount() === 0) {
             section = "input";
         }
         // Same for the preset strip when no presets exist.
@@ -1276,6 +1321,28 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             this.viewStripEl.focus();
             this._renderViewStrip();
             this._maybeRenderViewHelp();
+        } else if (section === "rowlabel") {
+            // Anchor focus on the active pill so ←/→ starts adjacent to
+            // the user's current selection, and Enter re-applies it as a
+            // no-op rather than silently switching. Mirrors the view strip's
+            // setFocus branch. Indices: 0 is the synthetic "(none)" head,
+            // 1..N map to pills[0..N-1].
+            var rlCount = this._rowLabelPillCount();
+            var rlPills = this._loadRowLabelPills();
+            var rlActive = this._readActiveRowLabelTitle();
+            var rlIdx = 0;
+            if (rlActive) {
+                for (var rli = 0; rli < rlPills.length; rli++) {
+                    if (rlPills[rli].title === rlActive) {
+                        rlIdx = rli + 1;
+                        break;
+                    }
+                }
+            }
+            this.rowLabelFocusIdx = Math.min(rlIdx, Math.max(0, rlCount - 1));
+            this.rowLabelStripEl.focus();
+            this._renderRowLabelStrip();
+            this._maybeRenderRowLabelHelp();
         }
         // Re-render the strip when focus changes so pill-focused styling
         // updates (focused class only on pills of the focused strip).
@@ -1300,6 +1367,9 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (prevFocus === "view" || section === "view") {
             this._renderViewStrip();
         }
+        if (prevFocus === "rowlabel" || section === "rowlabel") {
+            this._renderRowLabelStrip();
+        }
         if (prevFocus === "preset" || section === "preset") {
             this._renderPresetStrip();
         }
@@ -1312,7 +1382,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // Leaving a strip-focus while details is open: the pane was showing
         // strip help — refresh it to show the current menu selection so
         // the user gets per-row preview again.
-        var stripFoci = { filter: 1, context: 1, visibility: 1, view: 1, preset: 1, viewconfig: 1, leader: 1 };
+        var stripFoci = { filter: 1, context: 1, visibility: 1, view: 1, rowlabel: 1, preset: 1, viewconfig: 1, leader: 1 };
         if (stripFoci[prevFocus] && !stripFoci[section] && this.detailsOpen) {
             this.renderDetails();
         }
@@ -1338,6 +1408,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         else if (section === "meta") this.metaStripEl.focus();
         else if (section === "field") this.fieldStripEl.focus();
         else if (section === "view") this.viewStripEl.focus();
+        else if (section === "rowlabel") this.rowLabelStripEl.focus();
         else if (section === "viewconfig") this.viewConfigStripEl.focus();
         else if (section === "leader") this.leaderStripEl.focus();
         else this.inputEl.focus();
@@ -1474,6 +1545,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         else if (this.focus === "meta")       this.hintEl.textContent = C.HINT_META;
         else if (this.focus === "field")      this.hintEl.textContent = C.HINT_FIELD;
         else if (this.focus === "view")       this.hintEl.textContent = C.HINT_VIEW;
+        else if (this.focus === "rowlabel")   this.hintEl.textContent = C.HINT_ROW_LABEL;
         else if (this.focus === "viewconfig") {
             this.hintEl.textContent = this.viewConfigExpanded
                 ? C.HINT_VIEWCONFIG_EXPANDED

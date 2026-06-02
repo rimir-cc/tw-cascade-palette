@@ -16,6 +16,7 @@ Each tiddler has a tag and a small set of `ca-*` fields. The engine reads them a
 
 * ''`$:/tags/rimir/cascade-palette/entry`'' — root-stage menu item
 * ''`$:/tags/rimir/cascade-palette/action`'' — appears in the action menu for one entity type
+* ''`$:/tags/rimir/cascade-palette/row-label`'' — single-select display-name override pill (one rule active at a time, applies to every data row across views)
 
 ! Fields
 
@@ -235,6 +236,25 @@ ca-kind: leaf
 ca-order: 200
 ca-actions: <$action-sendmessage $message="tm-edit-tiddler" $param=<<picked>>/>
 ```
+
+! Worked example 10 — A custom row-label pill
+
+A row-label pill changes how every data row's name renders — applies uniformly across views (Find entity, All tiddlers, By namespace, etc.) so the same tiddler reads consistently regardless of how it was reached. Only one pill is active at a time (single-select); the user picks via the strip (←/→ + Enter) or you can ship a default via `ca-row-label-default: yes`.
+
+```
+title: $:/plugins/example/row-label/caption-with-kind
+tags: $:/tags/rimir/cascade-palette/row-label
+ca-row-label-name: Caption · Kind
+ca-row-label-chip: 💬 Caption · Kind
+ca-row-label-hint: Caption with the kind type appended in parentheses.
+ca-row-label-help: For each row tiddler, renders ''caption (kind.type)'' — e.g. ''Acme Corp (company)''. Rows without a kind show just the caption; rows without a caption fall back to the title with the kind appended where present.
+ca-row-label-filter: [<currentTiddler>get[caption]else<currentTiddler>addsuffix[ (]addsuffix{!!kind.type}addsuffix[)]] :else[<currentTiddler>get[caption]else<currentTiddler>]
+ca-order: 300
+```
+
+The filter is evaluated per row with `<currentTiddler>` bound to the row's tiddler title; the first non-empty result wins. Use `:else` chains or `function`s for complex resolution — anything `wiki.filterTiddlers` understands works.
+
+The override only applies to ''data rows'' (view-built rows and ca-next-scope items). Static cascade-palette entries / actions / settings keep their explicit `ca-name` regardless of the active pill — so the "Find entity" entry stays named "Find entity" even when you select a caption-derived label pill.
 
 ! Tips
 

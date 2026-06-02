@@ -93,7 +93,13 @@ module.exports = function (proto) {
                 kind: "item",
                 order: DEFAULT_ORDER,
                 group: self.resolveGroup(title, fields),
-                isItem: true
+                isItem: true,
+                // Marks this as a "data row" — represents a user tiddler,
+                // not a palette config entry. The row-label override
+                // (cp-row-label-pills.js) only applies to data rows so
+                // static entries like "Find entity" keep their explicit
+                // ca-name regardless of the active label pill.
+                dataRow: true
             };
         });
     };
