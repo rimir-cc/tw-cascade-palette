@@ -555,13 +555,23 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // work. mousedown captures before the inner widgets' own focus
         // handling so we win the focus race.
         this.sidePreviewEl.addEventListener("mousedown", function (e) {
+            var tgt = e.target;
+            // Preview header (title row or pills-row background) acts as
+            // a focus-restore handle — pulls focus back into whichever
+            // section last held it, rather than re-anchoring to the
+            // preview pane. Pill buttons themselves stop propagation in
+            // their own click handler so they keep switching templates.
+            if (tgt === self.sidePreviewTitleEl ||
+                tgt === self.sidePreviewPillsEl) {
+                e.preventDefault();
+                self.restoreFocus();
+                return;
+            }
             // Don't steal focus from interactive descendants — if the user
             // clicked on an input/button inside the rendered template, let
             // it handle the focus itself.
-            var tgt = e.target;
             if (tgt && tgt !== self.sidePreviewEl &&
-                tgt !== self.sidePreviewBodyEl &&
-                tgt !== self.sidePreviewTitleEl) {
+                tgt !== self.sidePreviewBodyEl) {
                 var tag = (tgt.tagName || "").toLowerCase();
                 if (tag === "input" || tag === "textarea" ||
                     tag === "select" || tag === "button" || tag === "a") {
@@ -602,6 +612,21 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         wireStripFocus(this.presetStripEl, "preset");
         wireStripFocus(this.viewConfigStripEl, "viewconfig");
         wireStripFocus(this.leaderStripEl, "leader");
+
+        // Breadcrumb header — clicking the background (or a non-clickable
+        // segment / separator) restores focus to the section that last
+        // held it. Useful when a preview-body widget or off-popup target
+        // grabbed native focus and the user wants to pull it back without
+        // re-anchoring to a default. Clickable segments have their own
+        // mousedown handler in renderBreadcrumb (pop to depth + input
+        // focus) — skip those so both don't compete.
+        this.breadcrumbEl.addEventListener("mousedown", function (e) {
+            var tgt = e.target;
+            if (tgt && tgt.classList &&
+                tgt.classList.contains("rcp-breadcrumb-clickable")) return;
+            e.preventDefault();
+            self.restoreFocus();
+        });
 
         this.backdropEl.addEventListener("mousedown", function (e) {
             if (e.target === self.backdropEl) self.close();
@@ -1291,6 +1316,31 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (stripFoci[prevFocus] && !stripFoci[section] && this.detailsOpen) {
             this.renderDetails();
         }
+    };
+
+    // Re-apply browser-level focus to whichever section this.focus already
+    // names. Used when the popup lost native focus (e.g., a widget inside
+    // the preview body grabbed it and was then removed) and the user clicks
+    // a header element to pull focus back into the popup — without changing
+    // the logical focus section.
+    CascadePaletteWidget.prototype.restoreFocus = function () {
+        if (!this.open) return;
+        var section = this.focus || "input";
+        if (section === "input") this.inputEl.focus();
+        else if (section === "menu") this.resultsEl.focus();
+        else if (section === "details") this.detailEl.focus();
+        else if (section === "preview") this.sidePreviewEl.focus();
+        else if (section === "preset") this.presetStripEl.focus();
+        else if (section === "filter") this.filterStripEl.focus();
+        else if (section === "context") this.contextStripEl.focus();
+        else if (section === "visibility") this.visibilityStripEl.focus();
+        else if (section === "reach") this.reachStripEl.focus();
+        else if (section === "meta") this.metaStripEl.focus();
+        else if (section === "field") this.fieldStripEl.focus();
+        else if (section === "view") this.viewStripEl.focus();
+        else if (section === "viewconfig") this.viewConfigStripEl.focus();
+        else if (section === "leader") this.leaderStripEl.focus();
+        else this.inputEl.focus();
     };
 
     CascadePaletteWidget.prototype._applyFocusAttr = function () {
