@@ -465,30 +465,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.domNodes.push(this.backdropEl);
 
         this.inputEl.addEventListener("input", function () {
-            // While editing a bound value or naming a save, the input IS
-            // the value editor — typing must not re-filter the results.
-            if (self.editMode || self.saveMode) return;
-            var stage = self.topStage();
-            if (!stage) return;
-            stage.query = self.inputEl.value;
-            stage.selectedIndex = 0;
-            self.recomputeStage(stage);
-            self.renderStage();
-            // Leader detection runs first — leader-pending state takes
-            // precedence over every other cue. Then the sticky-context
-            // "+" cue (separate semantics: pins a literal title rather
-            // than commits a filter/visibility constraint). Finally the
-            // generic filter/visibility prefix cue.
-            var leaderPending = self._updateLeaderCue();
-            if (!leaderPending) {
-                var contextPrefix = self._updateContextPrefixCue();
-                if (!contextPrefix) {
-                    // Visual cue when the input matches a filter/visibility
-                    // prefix: input picks up a coloured underline and the
-                    // hint footer changes to "↵ commit".
-                    self._updateConstraintPrefixCue();
-                }
-            }
+            self._onInputChanged();
         });
 
         // Keydown/keyup live on the popup (not the input) so they reach us
@@ -1156,6 +1133,55 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     // to the section's DOM node (so keyboard events flow there); this.focus
     // is the canonical state; the popup's data-focus attribute is the
     // visual cue.
+    // Recompute + re-render the active stage from the current input
+    // value, refreshing all the typing-driven cues. Shared by the
+    // inputEl "input" listener and the type-ahead redirect
+    // (_typeAheadToInput), which mutates inputEl.value programmatically
+    // — a programmatic value set does NOT dispatch an "input" event, so
+    // the redirect path calls this directly.
+    CascadePaletteWidget.prototype._onInputChanged = function () {
+        // While editing a bound value or naming a save, the input IS the
+        // value editor — typing must not re-filter the results.
+        if (this.editMode || this.saveMode) return;
+        var stage = this.topStage();
+        if (!stage) return;
+        stage.query = this.inputEl.value;
+        stage.selectedIndex = 0;
+        this.recomputeStage(stage);
+        this.renderStage();
+        // Leader detection runs first — leader-pending state takes
+        // precedence over every other cue. Then the sticky-context "+"
+        // cue (separate semantics: pins a literal title rather than
+        // commits a filter/visibility constraint). Finally the generic
+        // filter/visibility prefix cue.
+        var leaderPending = this._updateLeaderCue();
+        if (!leaderPending) {
+            var contextPrefix = this._updateContextPrefixCue();
+            if (!contextPrefix) {
+                // Visual cue when the input matches a filter/visibility
+                // prefix: input picks up a coloured underline and the
+                // hint footer changes to "↵ commit".
+                this._updateConstraintPrefixCue();
+            }
+        }
+    };
+
+    // Type-ahead redirect: a printable character pressed while focus is
+    // anywhere but the input jumps to the input and appends the char
+    // (command-palette convention — start typing from any section to
+    // filter). Called from handleKeydown's Tier 4 after the active
+    // section handler declined the key. Appends at the end and moves the
+    // caret there (focus wasn't in the input, so there's no meaningful
+    // selection to preserve), then recomputes via the shared path.
+    CascadePaletteWidget.prototype._typeAheadToInput = function (ch) {
+        this.setFocus("input");
+        if (!this.inputEl) return;
+        this.inputEl.value = this.inputEl.value + ch;
+        var end = this.inputEl.value.length;
+        try { this.inputEl.setSelectionRange(end, end); } catch (e) { /* no-op */ }
+        this._onInputChanged();
+    };
+
     CascadePaletteWidget.prototype.setFocus = function (section) {
         if (section !== "input" && section !== "menu" &&
             section !== "details" && section !== "preview" &&

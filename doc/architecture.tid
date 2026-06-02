@@ -37,6 +37,7 @@ The keyboard router does one of:
 * ''Enter'' → fire the selected item's default behaviour (leaf action OR push if drill).
 * ''Esc'' → pop one stage. From input at root depth, closes the palette; from menu at root depth, refocuses input.
 * ''Shift-Esc'' → close the palette from any focus and any depth in one keystroke. Freezes the current stack to `$:/temp/rimir/cascade-palette/saved-stack` so the next open resumes here.
+* ''Type-ahead (Tier 4)'' → a printable character (single-char `key`, no Ctrl/Alt/Meta, not IME) pressed in any section //other// than the input, that the section handler did not consume, refocuses the input and appends the character. The dispatcher runs this last and gates on `e.defaultPrevented`, so every section-specific single-char gesture (Space-to-toggle, ±-on-number-rows, pill Space/Enter) wins first — they signal ownership by calling `preventDefault`. Lets you start typing to filter from anywhere, the standard command-palette convention.
 
 ! Axes — per-layer grouping chains
 

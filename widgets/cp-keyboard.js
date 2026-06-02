@@ -229,6 +229,34 @@ module.exports = function (proto) {
         if (handlerName && typeof this[handlerName] === "function") {
             this[handlerName](e, stage);
         }
+
+        // Tier 4 — type-ahead redirect. A printable character that the
+        // section handler did NOT consume, pressed while focus is
+        // anywhere but the input, jumps to the input and appends the
+        // character (command-palette convention: start typing from any
+        // section to filter). Runs LAST so every section-specific
+        // single-char gesture wins first — they signal "mine" by calling
+        // e.preventDefault(), which we read back via e.defaultPrevented.
+        // Guards:
+        //   - focus === "input"      → native typing already handles it
+        //   - e.defaultPrevented     → a handler (or an earlier tier)
+        //                              claimed this key; don't steal it
+        //   - key.length !== 1       → not a single printable char
+        //                              (Enter, Tab, Backspace, arrows, …)
+        //   - Ctrl/Alt/Meta          → a shortcut chord, never text
+        //   - isComposing / kc 229   → IME / dead-key; let the browser
+        //                              route multi-stroke input natively
+        // We preventDefault + append manually rather than relying on the
+        // refocused input to catch the same keystroke (focus changes
+        // mid-keydown don't reliably re-route the character).
+        if (this.focus !== "input" && !e.defaultPrevented &&
+            e.key && e.key.length === 1 &&
+            !e.ctrlKey && !e.altKey && !e.metaKey &&
+            !e.isComposing && e.keyCode !== 229 &&
+            typeof this._typeAheadToInput === "function") {
+            e.preventDefault();
+            this._typeAheadToInput(e.key);
+        }
     };
 
     proto._handleKeydownEdit = function (e) {

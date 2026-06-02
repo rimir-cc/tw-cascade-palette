@@ -23,6 +23,7 @@ type: text/vnd.tiddlywiki
 |`Alt-↵` |Fire row's primary icon (e.g. 🌐 opens URL in new tab) |
 |`Ctrl-Alt-↵` |Fire row icon's secondary action (e.g. 🌐 copies URL) |
 |`Space` |Open action menu on any row whose tiddler has applicable actions (works in tree views via `ca-applies` filter); also: toggle / edit kind-specific rows |
+|any character |Type-ahead: a printable key pressed in any non-input section that no section gesture claimed jumps focus to the input and appends the character — start typing from anywhere to filter |
 |`Esc` |Pop stage; from root, close |
 |`Shift-Esc` |Close palette outright |
 |`DEL` |Remove focused pill / reset row to default |

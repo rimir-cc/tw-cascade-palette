@@ -105,6 +105,88 @@ describe("cascade-palette: keyboard dispatch table", function () {
         });
     });
 
+    describe("type-ahead redirect (Tier 4)", function () {
+        // Drive the real handleKeydown against a stub. A printable char
+        // pressed on any non-input focus that no section handler consumed
+        // should jump to the input and append the char.
+        function makeStub(focus) {
+            var stub = {
+                focus: focus,
+                editMode: false,
+                saveMode: false,
+                _pickModeReturnTo: null,
+                filters: [],
+                visibilities: [],
+                activePresetTitle: null,
+                topStage: function () { return { results: [], selectedIndex: 0 }; },
+                _typeAheadCalls: [],
+                _typeAheadToInput: function (ch) { this._typeAheadCalls.push(ch); }
+            };
+            keyboard(stub);
+            return stub;
+        }
+        function ev(key, extra) {
+            return {
+                key: key,
+                keyCode: (extra && extra.keyCode) || 0,
+                ctrlKey: !!(extra && extra.ctrlKey),
+                altKey: !!(extra && extra.altKey),
+                metaKey: !!(extra && extra.metaKey),
+                shiftKey: !!(extra && extra.shiftKey),
+                isComposing: !!(extra && extra.isComposing),
+                defaultPrevented: false,
+                preventDefault: function () { this.defaultPrevented = true; }
+            };
+        }
+
+        it("appends a printable char and prevents default on a non-input focus", function () {
+            var stub = makeStub("preview"); // no section handler → Tier 4 reached
+            var e = ev("a");
+            stub.handleKeydown(e);
+            expect(stub._typeAheadCalls).toEqual(["a"]);
+            expect(e.defaultPrevented).toBe(true);
+        });
+
+        it("does NOT redirect when focus is already the input", function () {
+            var stub = makeStub("input");
+            // input focus has a handler; stub it out so it can't preventDefault.
+            stub._handleKeydownInput = function () {};
+            stub.handleKeydown(ev("a"));
+            expect(stub._typeAheadCalls).toEqual([]);
+        });
+
+        it("ignores modifier chords (Ctrl/Alt/Meta + char)", function () {
+            ["ctrlKey", "altKey", "metaKey"].forEach(function (mod) {
+                var stub = makeStub("preview");
+                var extra = {}; extra[mod] = true;
+                stub.handleKeydown(ev("a", extra));
+                expect(stub._typeAheadCalls).toEqual([]);
+            });
+        });
+
+        it("ignores non-printable keys (multi-char key names)", function () {
+            var stub = makeStub("preview");
+            stub.handleKeydown(ev("ArrowDown"));
+            stub.handleKeydown(ev("Backspace"));
+            expect(stub._typeAheadCalls).toEqual([]);
+        });
+
+        it("ignores IME composition (isComposing / keyCode 229)", function () {
+            var stub = makeStub("preview");
+            stub.handleKeydown(ev("a", { isComposing: true }));
+            stub.handleKeydown(ev("a", { keyCode: 229 }));
+            expect(stub._typeAheadCalls).toEqual([]);
+        });
+
+        it("does NOT steal a char a section handler already consumed", function () {
+            var stub = makeStub("menu");
+            // Simulate a section handler claiming the key (e.g. Space-to-toggle).
+            stub._handleKeydownMenu = function (e) { e.preventDefault(); };
+            stub.handleKeydown(ev("a"));
+            expect(stub._typeAheadCalls).toEqual([]);
+        });
+    });
+
     describe("table contents", function () {
         it("covers exactly the 14 dispatched sections", function () {
             var keys = Object.keys(keyboard.dispatchTableSnapshot()).sort();
