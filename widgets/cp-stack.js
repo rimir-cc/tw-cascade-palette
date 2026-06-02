@@ -643,7 +643,10 @@ module.exports = function (proto) {
         var visFilter = f["ca-visibility-filter"];
         if (!visFilter) return true;
         try {
-            var results = this.wiki.filterTiddlers(visFilter);
+            // Route through _filterInScope so the filter gets a real widget
+            // (prefix/`:filter`/`:map`-safe), the entry bound as
+            // <currentTiddler>, and the ambient sticky-context vars.
+            var results = this._filterInScope(visFilter, { currentTiddler: title });
             return results.length > 0;
         } catch (err) {
             if (console && console.warn) {

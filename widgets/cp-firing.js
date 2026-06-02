@@ -379,7 +379,12 @@ module.exports = function (proto) {
         }
         node[parts[parts.length - 1]] = value;
         var newFields = { title: item.bindTiddler };
-        newFields[item.bindField] = JSON.stringify(root, null, 4);
+        // Compact JSON only. Pretty-printing (indent > 0) injects newlines
+        // into the field value; TW's filesystem adaptor treats control chars
+        // in non-text fields as "unsafe" and silently switches the tiddler
+        // from .tid to .json file format, orphaning the .tid file on disk.
+        // (Mirrors the fix in cp-items.js.)
+        newFields[item.bindField] = JSON.stringify(root);
         this.wiki.addTiddler(new $tw.Tiddler(
             (t && t.fields) || {},
             newFields

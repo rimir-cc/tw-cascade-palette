@@ -1,10 +1,14 @@
 title: $:/plugins/rimir/cascade-palette/doc/tw-internals
 tags: $:/tags/rimir/doc-template
 rdt.plugin-name: cascade palette
-rdt.section: tw-internals
-rdt.section-order: 45
-rdt.title: TW Internals
+rdt.order: 45
+rdt.plugin-key: cascade-palette
+rdt.plugin-subtitle: Keyboard-driven cascading command palette — extensible via declarative tiddlers
+rdt.section: TW Internals
 type: text/vnd.tiddlywiki
+
+<$transclude $tiddler="$:/plugins/rimir/doc-template/templates/page">
+<$fill $name="body">
 
 This page documents the TiddlyWiki-specific machinery cascade-palette uses (and the traps it dodges). Most of it lives in `widgets/cascade-palette-widget.js` and a handful of subsystem libraries. Read this when you're about to touch the engine source — not when authoring declarative content.
 
@@ -121,3 +125,6 @@ The `groupBy` / `sortGroups` primitive is loaded from `$:/plugins/rimir/mindmap/
 * [[Architecture|$:/plugins/rimir/cascade-palette/doc/architecture]] — high-level component map
 * [[Protocol|$:/plugins/rimir/cascade-palette/doc/protocol]] — declarative authoring surface
 * [[Dev Workflow|$:/plugins/rimir/cascade-palette/doc/dev-workflow]] — how to contribute & test
+
+</$fill>
+</$transclude>

@@ -443,15 +443,16 @@ module.exports = function (proto) {
     };
 
     // Read the shadow's value for a bound item — i.e. what the value
-    // would be if the override were deleted. Uses the boot-time
-    // shadowTiddlers map (semi-private API) since `wiki.getTiddler`
-    // resolves overrides first.
+    // would be if the override were deleted. Goes through the public
+    // shadow accessors (`getShadowSource` + `getSubTiddler`) since
+    // `wiki.getTiddler` resolves the user override first.
     proto.getDefaultValue = function (item) {
         if (!item || !item.bindTiddler) return undefined;
-        var src = $tw.boot && $tw.boot.shadowTiddlers && $tw.boot.shadowTiddlers[item.bindTiddler];
-        if (!src || !src.tiddler) return undefined;
-        var fields = src.tiddler.fields || {};
-        return fields[item.bindField];
+        var source = this.wiki.getShadowSource(item.bindTiddler);
+        if (!source) return undefined;
+        var shadowTid = this.wiki.getSubTiddler(source, item.bindTiddler);
+        if (!shadowTid) return undefined;
+        return (shadowTid.fields || {})[item.bindField];
     };
 
     proto.readNumberValue = function (item) {

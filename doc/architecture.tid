@@ -1,10 +1,14 @@
 title: $:/plugins/rimir/cascade-palette/doc/architecture
 tags: $:/tags/rimir/doc-template
 rdt.plugin-name: cascade palette
-rdt.section: architecture
-rdt.section-order: 40
-rdt.title: Architecture
+rdt.order: 40
+rdt.plugin-key: cascade-palette
+rdt.plugin-subtitle: Keyboard-driven cascading command palette — extensible via declarative tiddlers
+rdt.section: Architecture
 type: text/vnd.tiddlywiki
+
+<$transclude $tiddler="$:/plugins/rimir/doc-template/templates/page">
+<$fill $name="body">
 
 ! Components
 
@@ -245,3 +249,6 @@ Two kinds of extension:
 ''Adding cascade edges'' — write entry / action tiddlers in your own plugin or in user tiddler space. Tag with the right tag, set `ca-*` fields, save. No JS, no widget changes. See the ''Protocol'' and ''Examples'' tabs.
 
 ''Modifying engine behaviour'' — fork the plugin. The widget is ~500 LOC of self-contained JS. Common extension points: a new stage kind (e.g. ''form'' for multi-field input), a new selection gesture, or a custom item renderer.
+
+</$fill>
+</$transclude>

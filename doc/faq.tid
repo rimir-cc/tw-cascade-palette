@@ -1,10 +1,14 @@
 title: $:/plugins/rimir/cascade-palette/doc/faq
 tags: $:/tags/rimir/doc-template
 rdt.plugin-name: cascade palette
-rdt.section: faq
-rdt.section-order: 50
-rdt.title: FAQ
+rdt.order: 50
+rdt.plugin-key: cascade-palette
+rdt.plugin-subtitle: Keyboard-driven cascading command palette — extensible via declarative tiddlers
+rdt.section: FAQ
 type: text/vnd.tiddlywiki
+
+<$transclude $tiddler="$:/plugins/rimir/doc-template/templates/page">
+<$fill $name="body">
 
 ! FAQ
 
@@ -82,3 +86,6 @@ type: text/vnd.tiddlywiki
 
 ;What's coming in future versions?
 :The next milestone is ''context-driven actions'' — actions that operate on the entity currently selected in the running orga app (no need to re-pick). Also ''form stages'' for multi-field input (e.g. ''New Project'' with name + description + due-date inline). And eventually a builder UI so users can author action tiddlers without editing wikitext.
+
+</$fill>
+</$transclude>

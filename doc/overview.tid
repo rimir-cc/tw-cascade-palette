@@ -1,10 +1,17 @@
 title: $:/plugins/rimir/cascade-palette/doc/overview
 tags: $:/tags/rimir/doc-template
 rdt.plugin-name: cascade palette
-rdt.section: overview
-rdt.section-order: 10
-rdt.title: Overview
+rdt.hub-category: ui
+rdt.hub-category-name: UI
+rdt.hub-order: 1
+rdt.order: 10
+rdt.plugin-key: cascade-palette
+rdt.plugin-subtitle: Keyboard-driven cascading command palette — extensible via declarative tiddlers
+rdt.section: Overview
 type: text/vnd.tiddlywiki
+
+<$transclude $tiddler="$:/plugins/rimir/doc-template/templates/page">
+<$fill $name="body">
 
 ! What it is
 
@@ -32,3 +39,6 @@ The cascade engine on its own ships only a couple of generic demo entries (Searc
 ! Prerequisites
 
 * TiddlyWiki ≥ 5.4.0
+
+</$fill>
+</$transclude>

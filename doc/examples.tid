@@ -1,10 +1,14 @@
 title: $:/plugins/rimir/cascade-palette/doc/examples
 tags: $:/tags/rimir/doc-template
 rdt.plugin-name: cascade palette
-rdt.section: examples
-rdt.section-order: 30
-rdt.title: Examples
+rdt.order: 30
+rdt.plugin-key: cascade-palette
+rdt.plugin-subtitle: Keyboard-driven cascading command palette — extensible via declarative tiddlers
+rdt.section: Examples
 type: text/vnd.tiddlywiki
+
+<$transclude $tiddler="$:/plugins/rimir/doc-template/templates/page">
+<$fill $name="body">
 
 ! Patterns to copy
 
@@ -273,3 +277,6 @@ The plugin ships four filter operators (`cp-child-of`, `cp-actions-for`, `cp-act
 * ''Heavy filters in `ca-next-scope`'' — re-runs on every keystroke. If you can't avoid an expensive filter, cache the result in a state tiddler at palette-open time and have the scope read from the cache.
 * ''Nested `$navigator` widgets in `ca-actions`'' — the engine already routes actions through the page's existing navigator. Wrapping your own navigator inside `ca-actions` won't change behaviour but adds noise.
 * ''Side effects in `ca-next-scope` filters'' — TW filter operators are pure functions of tiddler state; don't try to write tiddlers from inside a scope filter. Use `ca-actions` / `ca-next-default-action` for mutations.
+
+</$fill>
+</$transclude>

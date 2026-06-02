@@ -1,10 +1,14 @@
 title: $:/plugins/rimir/cascade-palette/doc/deep-search
 tags: $:/tags/rimir/doc-template
 rdt.plugin-name: cascade palette
-rdt.section: deep-search
-rdt.section-order: 55
-rdt.title: Deep-tree search
+rdt.order: 55
+rdt.plugin-key: cascade-palette
+rdt.plugin-subtitle: Keyboard-driven cascading command palette — extensible via declarative tiddlers
+rdt.section: Deep-tree search
 type: text/vnd.tiddlywiki
+
+<$transclude $tiddler="$:/plugins/rimir/doc-template/templates/page">
+<$fill $name="body">
 
 ! What it does
 
@@ -152,3 +156,6 @@ The diagnostics drill ''Deprecations'' (under Configurations) lists any tiddlers
 * Result ranking is BFS-natural (shallower matches first; same-depth keeps cascade's sort). Exact-match boost and other ranking are on the roadmap.
 * Pills don't persist across sessions or get saved into Presets yet — they're session-local. Preset integration is on the roadmap.
 * No ''+ Add Meta / + Add Field'' picker pill yet (à la Presets' `+` save pill) — pills are pushed only via leaders or external messages for now.
+
+</$fill>
+</$transclude>

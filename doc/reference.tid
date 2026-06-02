@@ -1,10 +1,14 @@
 title: $:/plugins/rimir/cascade-palette/doc/reference
 tags: $:/tags/rimir/doc-template
 rdt.plugin-name: cascade palette
-rdt.section: reference
-rdt.section-order: 60
-rdt.title: Reference
+rdt.order: 60
+rdt.plugin-key: cascade-palette
+rdt.plugin-subtitle: Keyboard-driven cascading command palette — extensible via declarative tiddlers
+rdt.section: Reference
 type: text/vnd.tiddlywiki
+
+<$transclude $tiddler="$:/plugins/rimir/doc-template/templates/page">
+<$fill $name="body">
 
 ! Focus model
 
@@ -411,3 +415,6 @@ The widget only logs on error paths (no boot noise):
 * `[cascade-palette] ca-template-applies error on ...` — a template's filter threw; template is excluded
 * `[cascade-palette] template render error ...` — the template body wikitext failed to parse; the drawer shows the error message in place of the template
 * `[cascade-palette] stack depth N exceeds soft warning M — possible cascade loop?` — the user has drilled past the soft-depth-warning threshold
+
+</$fill>
+</$transclude>

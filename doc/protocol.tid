@@ -1,10 +1,14 @@
 title: $:/plugins/rimir/cascade-palette/doc/protocol
 tags: $:/tags/rimir/doc-template
 rdt.plugin-name: cascade palette
-rdt.section: protocol
-rdt.section-order: 20
-rdt.title: Protocol
+rdt.order: 20
+rdt.plugin-key: cascade-palette
+rdt.plugin-subtitle: Keyboard-driven cascading command palette — extensible via declarative tiddlers
+rdt.section: Protocol
 type: text/vnd.tiddlywiki
+
+<$transclude $tiddler="$:/plugins/rimir/doc-template/templates/page">
+<$fill $name="body">
 
 ! The cascade-palette protocol
 
@@ -1117,3 +1121,6 @@ Plugin-contributed leaders / pills / entries already appear automatically in the
 * ''Action-menu walking'' — deep search doesn't currently descend into action menus, only entity and drill rows. Authors who want actions reachable from search can wire them via `ca-items-from` synthetic rows.
 * ''Per-keystroke memo cache'' — each keystroke recomputes the deep walk; caps keep this fast. A memo invalidated by the wiki change hook is on the roadmap.
 * ''Result ranking'' — deep results are in BFS-natural order (shallower matches first; same-depth keeps the cascade's sort). Exact-match boost and other ranking are Phase 2.
+
+</$fill>
+</$transclude>

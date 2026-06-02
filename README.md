@@ -9,11 +9,18 @@ A keyboard-driven, cascading command palette engine for TiddlyWiki. Open with a 
 - **Generic engine.** Knows nothing about your data model. Catalogue plugins like `rimir/orga-palette` ship the entries/actions; the engine just walks them.
 - **Filter substitution.** Filter expressions in entries and actions receive `<<query>>`, `<<picked>>`, `<<parent-picked>>` so cascades can chain naturally.
 
-## Status
+## Features
 
-- v0.0.1 — initial scaffold, no widget yet.
-- v0.0.2 (planned) — single-stage widget + Ctrl-Space binding.
-- v0.1.0 (target) — full keyboard cascade (Right/Space/Esc/Enter) with breadcrumb and action discovery.
+The engine ships well beyond the core cascade:
+
+- **Views & structure layers** — compose the result list as Entries / All tiddlers / By namespace / By parent / Hybrid / By date, picked from a pill strip.
+- **Axes** — per-layer grouping chains (year → month → day, status → prefix, etc.), editable live.
+- **Filters, visibility & presets** — pill strips that narrow results, hide entries, and save/replay view + filter combinations.
+- **Leaders** — single-key shortcuts (clear constraints, tree-picker, save preset, help, …).
+- **Side-preview pane** — per-menu or tag-auto-attached wikitext preview of the focused row.
+- **Row icons, row-label pills, sticky context, deep-tree search**, and a typed-field edit protocol (toggle / number / text / date settings, confirm gestures, reorder).
+
+See the in-plugin documentation tab for the full protocol and authoring guide.
 
 ## Inspiration
 

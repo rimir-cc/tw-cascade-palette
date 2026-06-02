@@ -4,6 +4,7 @@ type: text/vnd.tiddlywiki
 ! Changelog
 
 |!Version |!Date |!Changes |
+|0.0.105 |2026-06-02 |''Fixes: JSON sub-path commits now serialize compactly (prevents the `.tid`→`.json` file swap); doc-template integration repaired (correct `rdt.*` fields + page-template wrapping) so the documentation tab renders branded tabs; `ca-visibility-filter` now evaluated in widget scope; `getDefaultValue` uses the public shadow API; README refreshed.'' |
 |0.0.104 |2026-06-02 |''Perf: smooth arrow-key navigation over the menu — holding ↑/↓ no longer hangs and jumps several rows at once.'' |
 |0.0.103 |2026-06-02 |''Type-ahead from any section — a printable character pressed outside the input now jumps focus to the input and appends it (standard command-palette convention).'' |
 |0.0.102 |2026-06-02 |''Fix: whole-field `application/x-string-array` writes now store a TW titlelist, not a JSON array literal (`widgets/cp-items.js`).'' |
