@@ -849,6 +849,8 @@ Distinct from the ''detail'' drawer (Ctrl-hold or `details-always-on`): the deta
 
 ''Tag-only opt-in.'' If you want the side-preview pane to activate but don't have a specific template in mind, omit `ca-preview-template` and set just `ca-preview-context` (or `ca-preview-per-row: yes`). The pane will populate purely from ''tag-based candidates'' (below) that match the resolved context. Useful for entity-browsing entries that want auto-attached previews.
 
+''Auto-open.'' Since 0.0.100 you usually don't need either of those opt-ins: every view auto-opens the pane on rows whose title matches a tag-based candidate's `ca-preview-applies` filter, unless the view sets ''`ca-view-show-side-preview: no`''. Reach for the explicit per-menu / opt-in fields when you want a specific template pinned regardless of tag matches, when you want a fixed-context (non-per-row) preview, or when you want the pane to open even without any tag match.
+
 ! ! (b) Tag-based — declare a self-contained template + applicability filter
 
 Any tiddler tagged ''`$:/tags/rimir/cascade-palette/side-preview`'' is a candidate that auto-attaches to the preview pane whenever the active context matches its `ca-preview-applies` filter. The tagged tiddler is BOTH the registration AND (by default) the template body — no separate template tiddler needed.

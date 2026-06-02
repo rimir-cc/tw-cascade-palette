@@ -331,7 +331,9 @@ module.exports = function (proto) {
             if (stage.selectedIndex > 0) {
                 stage.selectedIndex -= 1;
                 this.renderResults();
-                if (stage._previewPerRow) this._renderSidePreview();
+                if (this._shouldRerenderPreviewOnRowChange()) {
+                    this._renderSidePreview();
+                }
             } else {
                 // Moving up past the top row returns focus to the input
                 // so the user can refine the query without an extra Tab.
@@ -344,7 +346,9 @@ module.exports = function (proto) {
             if (stage.selectedIndex < stage.results.length - 1) {
                 stage.selectedIndex += 1;
                 this.renderResults();
-                if (stage._previewPerRow) this._renderSidePreview();
+                if (this._shouldRerenderPreviewOnRowChange()) {
+                    this._renderSidePreview();
+                }
             }
             return;
         }

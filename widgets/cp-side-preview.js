@@ -72,16 +72,27 @@ var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
 
 module.exports = function (proto) {
 
-    // Resolve the active context for the preview pane from the topmost
-    // preview-bearing stage. A stage qualifies as preview-bearing if it
-    // sets ANY of:
-    //   _previewTemplate  (explicit per-menu candidate)
-    //   _previewPerRow    (opt-in to tag-based per-row preview)
-    //   _previewContext   (explicit context for tag-based candidates)
-    // Per-row stages re-resolve the context to the title of the
-    // currently-selected row (live ↑/↓ tracking); non-per-row stages
-    // return the stamped context (or empty for tag-only stages with
-    // no selected row).
+    // Resolve the active context for the preview pane. Walks the stack
+    // top-down, picking the first stage that signals preview interest.
+    // A stage qualifies via either:
+    //
+    //   Explicit signal — any of:
+    //     _previewTemplate  (per-menu candidate stamped at drill-time)
+    //     _previewPerRow    (opt-in to tag-based per-row preview)
+    //     _previewContext   (explicit context for tag-based candidates)
+    //
+    //   Auto-open fallback — no explicit signal, but the stage's view
+    //     allows side preview (ca-view-show-side-preview: yes/default)
+    //     AND the stage has a selected row with a title. The pane treats
+    //     the row title as the context; tag-based candidates whose
+    //     `ca-preview-applies` matches will then surface. When no tag
+    //     candidate matches, `_resolvePreviewCandidates` returns empty
+    //     and `_renderSidePreview` hides the pane — no placeholder.
+    //
+    // Per-row stages (explicit) and auto-open at the TOP stage re-resolve
+    // the context to the currently-selected row (live ↑/↓ tracking).
+    // Deeper stages return their stage-time pinned row, locking the
+    // preview to the entity the user drilled into (action menus etc.).
     proto._activePreviewContext = function () {
         if (!this.stack) return { context: "", depth: -1, stage: null };
         for (var i = this.stack.length - 1; i >= 0; i--) {
@@ -90,22 +101,83 @@ module.exports = function (proto) {
             var hasMenu = !!s._previewTemplate;
             var hasPerRow = !!s._previewPerRow;
             var hasCtx = !!s._previewContext;
-            if (!hasMenu && !hasPerRow && !hasCtx) continue;
-            var context = s._previewContext || "";
-            if (hasPerRow && i === this.stack.length - 1 &&
+            // Explicit-signal path — original behaviour.
+            if (hasMenu || hasPerRow || hasCtx) {
+                var context = s._previewContext || "";
+                if (hasPerRow && i === this.stack.length - 1 &&
+                    s.results && s.results.length > 0 &&
+                    s.selectedIndex >= 0 && s.selectedIndex < s.results.length) {
+                    var row = s.results[s.selectedIndex];
+                    if (row && row.title) context = row.title;
+                }
+                // Tag-only stages with no resolvable context can't surface
+                // any candidates — skip up to the next stage. Menu stages
+                // proceed even with empty context (the template renders
+                // without a currentTiddler binding).
+                if (!hasMenu && !context) continue;
+                return { context: context, depth: i, stage: s };
+            }
+            // Auto-open fallback. Pane opens whenever the active view
+            // doesn't opt out and the selected row has a title; the
+            // candidate-list emptiness check downstream handles the
+            // "nothing to render" case by hiding the pane. Skipped on
+            // stages whose rows aren't entities (action menus, confirm
+            // stages) — walk past them to find the entity-bearing stage
+            // further down, so action-menu navigation doesn't re-anchor
+            // the preview to action titles.
+            if (s.kind !== "actions" && s.kind !== "confirm" &&
+                this._stageAllowsAutoOpenSidePreview(s) &&
                 s.results && s.results.length > 0 &&
                 s.selectedIndex >= 0 && s.selectedIndex < s.results.length) {
-                var row = s.results[s.selectedIndex];
-                if (row && row.title) context = row.title;
+                var topRow = s.results[s.selectedIndex];
+                var topTitle = (topRow && topRow.title) || "";
+                if (topTitle) {
+                    return { context: topTitle, depth: i, stage: s };
+                }
             }
-            // Tag-only stages with no resolvable context can't surface
-            // any candidates — skip up to the next stage. Menu stages
-            // proceed even with empty context (the template renders
-            // without a currentTiddler binding).
-            if (!hasMenu && !context) continue;
-            return { context: context, depth: i, stage: s };
         }
         return { context: "", depth: -1, stage: null };
+    };
+
+    // Per-view opt-out gate for the auto-open fallback. Walks the stack
+    // upward from the given stage looking for the nearest `viewTitle`
+    // (root + tree stages carry it; filter / action / confirm stages
+    // inherit). Falls back to `this.activeView`. Permissive default —
+    // unknown views are treated as allowing the pane.
+    proto._stageAllowsAutoOpenSidePreview = function (stage) {
+        if (!stage) return false;
+        var viewTitle = stage.viewTitle || null;
+        if (!viewTitle && this.stack) {
+            for (var i = this.stack.length - 1; i >= 0; i--) {
+                if (this.stack[i] && this.stack[i].viewTitle) {
+                    viewTitle = this.stack[i].viewTitle;
+                    break;
+                }
+            }
+        }
+        viewTitle = viewTitle || this.activeView;
+        if (!viewTitle) return true;
+        var view = this._getViewByTitle && this._getViewByTitle(viewTitle);
+        if (!view) return true;
+        return view.showSidePreview !== false;
+    };
+
+    // True when ↑/↓ on the top stage should re-render the side preview
+    // because the context tracks the row. Two cases: explicit per-row
+    // opt-in, OR auto-open is active at the top stage (which is
+    // inherently per-row — the synthetic context IS the selected row).
+    // Returns false on action / confirm tops since their rows aren't
+    // entities — the preview there is anchored to a deeper stage and
+    // doesn't move with top selection.
+    proto._shouldRerenderPreviewOnRowChange = function () {
+        var top = this.stack && this.stack[this.stack.length - 1];
+        if (!top) return false;
+        if (top._previewPerRow) return true;
+        var hasMenu = !!top._previewTemplate;
+        var hasCtx = !!top._previewContext;
+        if (hasMenu || hasCtx) return false;
+        if (top.kind === "actions" || top.kind === "confirm") return false;
+        return this._stageAllowsAutoOpenSidePreview(top);
     };
 
     // Load tag-registered preview candidates once per wiki-change cycle.

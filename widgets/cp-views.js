@@ -160,6 +160,8 @@ function setup(proto) {
             countFormat: f["ca-view-count-format"] || " (<<count>>)",
             showActionPreview:
                 (f["ca-view-show-action-preview"] || "yes").toLowerCase() !== "no",
+            showSidePreview:
+                (f["ca-view-show-side-preview"] || "yes").toLowerCase() !== "no",
             pickMode: (f["ca-view-pick-mode"] || "").toLowerCase() === "yes",
             pickEmitsFilter: f["ca-view-pick-emits-filter"] || "",
             afterFire: (f["ca-view-after-fire"] || "").toLowerCase(),
