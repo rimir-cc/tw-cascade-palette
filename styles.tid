@@ -567,6 +567,11 @@ type: text/css
 .rcp-view-config-pill-pick .rcp-view-config-pill-label        { color: #be185d; }
 .rcp-view-config-pill-entries-mode .rcp-view-config-pill-label { color: #6b7280; }
 .rcp-view-config-pill-grouping .rcp-view-config-pill-label    { color: #475569; }
+/* Structure-toggle pills (boolean on/off switches, e.g. kind's "Kind
+   icons"). Indigo label marks them as interactive switches; the ☑/☐
+   value glyph carries the on/off state. */
+.rcp-view-config-pill-struct-toggle .rcp-view-config-pill-label { color: #4f46e5; }
+.rcp-view-config-pill-struct-toggle .rcp-view-config-pill-value { font-size: 1.05em; }
 
 /* Axis pills — derived/computed dimension, distinct hue from declarative
    pills above. The label colour deliberately reads as accent-on-cream, so

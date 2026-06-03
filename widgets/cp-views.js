@@ -1309,6 +1309,13 @@ function setup(proto) {
                 value: "off"
             });
         }
+        // Structure toggles — global on/off switches contributed by
+        // plugins (e.g. kind's "Kind icons"). They aren't view-scoped, but
+        // the view-header row is the natural home for cross-layer config.
+        // Flipped in expanded mode via Space/Enter (cp-keyboard.js).
+        if (this._structureTogglePills) {
+            this._structureTogglePills().forEach(function (p) { pills.push(p); });
+        }
         return pills;
     };
 

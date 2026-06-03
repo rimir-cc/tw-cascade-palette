@@ -1068,6 +1068,16 @@ module.exports = function (proto) {
                 return;
             }
         }
+        // Structure-toggle pills (e.g. kind's "Kind icons") flip on
+        // Space/Enter. _flipStructureToggle re-renders the strip + result
+        // list so the row icons appear / vanish immediately.
+        if (focusedPill && focusedPill.kind === "struct-toggle") {
+            if (e.key === "Enter" || e.key === " " || e.code === "Space") {
+                e.preventDefault();
+                this._flipStructureToggle(focusedPill.toggleTitle);
+                return;
+            }
+        }
         // Expanded mode: 4-arrow grid navigation. Up at the top-most row
         // and Down at the bottom-most row cross the strip boundary —
         // collapse and step into the adjacent pill section (or input).

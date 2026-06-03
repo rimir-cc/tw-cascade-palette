@@ -89,6 +89,19 @@ exports.ROW_ICON_TAG = "$:/tags/rimir/cascade-palette/row-icon";
 // path already assigned. See `widgets/cp-row-label-pills.js`.
 exports.ROW_LABEL_TAG = "$:/tags/rimir/cascade-palette/row-label";
 
+// Structure-toggle pills — boolean on/off switches surfaced in the
+// Structure (viewconfig) strip's view header row. A tagged tiddler
+// declares `ca-struct-name` (label), optional `ca-struct-hint` /
+// `ca-struct-help`, `ca-struct-default` (yes/no — initial state),
+// `ca-struct-when` (applicability filter; empty = always shown), and
+// optionally `ca-struct-row-icon-filter` — a per-data-row filter
+// (`<currentTiddler>` = row title) whose first non-empty result becomes
+// the row's leading icon glyph WHILE the toggle is on. State persists in
+// STRUCTURE_TOGGLE_STATE_PREFIX + <slug>. Generic mechanism; the
+// `rimir/kind` plugin ships a "Kind icons" toggle that resolves each
+// instance's type icon. See `widgets/cp-structure-toggles.js`.
+exports.STRUCTURE_TOGGLE_TAG = "$:/tags/rimir/cascade-palette/structure-toggle";
+
 // ---- Config tiddler titles ----
 exports.SOFT_DEPTH_CONFIG = "$:/config/rimir/cascade-palette/soft-depth-warning";
 exports.POPUP_WIDTH_CONFIG = "$:/config/rimir/cascade-palette/popup-width";
@@ -134,6 +147,12 @@ exports.STICKY_CONTEXT_TITLE = "$:/temp/rimir/cascade-palette/sticky-context";
 // $:/state/ so the user's display preference survives reload but
 // isn't filesystem-synced. Updated by `_setRowLabel` / `_clearRowLabel`.
 exports.ROW_LABEL_STATE_TITLE = "$:/state/rimir/cascade-palette/row-label";
+
+// Per-structure-toggle on/off state. Slug = last segment of the toggle
+// tiddler title. Body text "yes" = on, "no"/empty = off; absent state
+// tiddler falls back to the toggle's `ca-struct-default`. Lives under
+// $:/state/ so the user's choice survives reload but isn't fs-synced.
+exports.STRUCTURE_TOGGLE_STATE_PREFIX = "$:/state/rimir/cascade-palette/structure-toggle/";
 
 // ---- Defaults for nullable / fallback fields ----
 exports.DEFAULT_ORDER = 100;

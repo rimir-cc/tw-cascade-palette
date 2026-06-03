@@ -256,6 +256,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     require("$:/plugins/rimir/cascade-palette/widgets/cp-search-meta-pills")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-search-field-pills")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-row-label-pills")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-structure-toggles")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-deep-search")(CascadePaletteWidget.prototype);
 
     /* ---------- lifecycle ---------- */
@@ -752,6 +753,22 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                     })) {
                     self._invalidateRowLabelPills();
                     if (self.open) self._renderRowLabelStrip();
+                }
+                // Structure toggles — invalidate when a tagged toggle
+                // tiddler changes or any per-toggle state tiddler moves
+                // (state titles share STRUCTURE_TOGGLE_STATE_PREFIX).
+                var structToggleTitles = (self._structureTogglesCache || [])
+                    .map(function (t) { return t.title; });
+                var structStateChanged = Object.keys(changes).some(function (k) {
+                    return k.indexOf(C.STRUCTURE_TOGGLE_STATE_PREFIX) === 0;
+                });
+                if (structStateChanged ||
+                    isTaggedChange({
+                        tag: C.STRUCTURE_TOGGLE_TAG,
+                        cachedTitles: structToggleTitles
+                    })) {
+                    self._invalidateStructureToggles();
+                    if (self.open) self._renderViewConfigStrip();
                 }
                 // Sticky context — refresh the strip when the state
                 // tiddler changes (own writes via pin/unpin, external

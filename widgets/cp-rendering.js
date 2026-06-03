@@ -120,6 +120,10 @@ module.exports = function (proto) {
         // surface immediately, and a switched active pill never gets
         // shadowed by a stale (pill, title) hit from the prior render.
         this._rowLabelResultCache = null;
+        // Row-icon override results are per-render for the same reasons:
+        // re-resolve so toggling "Kind icons" or editing a type's icon
+        // surfaces immediately, and the enabled-toggle set is recomputed.
+        this._rowIconResultCache = null;
         var stage = this.topStage();
         if (!stage) return;
         if (stage.results.length === 0) {
@@ -473,10 +477,17 @@ module.exports = function (proto) {
             rowEl.appendChild(cbEl);
             return;
         }
-        if (item.icon) {
+        // Explicit per-item / per-view icon wins; otherwise an active
+        // structure-toggle row-icon source (e.g. kind's "Kind icons")
+        // may supply a leading glyph for data rows.
+        var glyph = item.icon;
+        if (!glyph && this._resolveRowIconOverride) {
+            glyph = this._resolveRowIconOverride(item);
+        }
+        if (glyph) {
             var iconEl = this.document.createElement("span");
             iconEl.className = "rcp-row-icon";
-            iconEl.textContent = item.icon;
+            iconEl.textContent = glyph;
             rowEl.appendChild(iconEl);
         }
     };
