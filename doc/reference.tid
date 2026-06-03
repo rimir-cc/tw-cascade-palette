@@ -75,6 +75,7 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''← / →'' |details |Switch template tab when multiple templates apply |
 |''↑ / ↓'' |details |Scroll the drawer natively |
 |''Hold Ctrl'' |any |Open the detail drawer; release to hide. Always-on mode keeps it visible. Suppressed in edit mode. |
+|''← / →'' |preview |Cycle between candidate previews when two or more apply — applies on landing (selecting IS navigating; no Enter/Space). No-op with a single candidate. |
 |''Esc'' |preview |Return focus to the input. The pane stays visible — it's stack-attached, not focus-attached. |
 |''↑ / ↓'' |preview |Native scroll inside the pane. |
 |''Click'' on a result row |menu |Sets focus → selects → fires (Shift-click = keep open) |

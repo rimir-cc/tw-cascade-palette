@@ -4,6 +4,7 @@ type: text/vnd.tiddlywiki
 ! Changelog
 
 |!Version |!Date |!Changes |
+|0.0.108 |2026-06-03 |''Side-preview pane: ←/→ now cycle between candidate previews when two or more apply, applying each on landing (no Enter/Space). The handler and hint text already existed but `"preview"` was never registered in the keyboard dispatch table — now wired up; Esc-from-preview (return to input) also starts working as a side effect.'' |
 |0.0.107 |2026-06-03 |''Single-select pill strips (view / preset / row-label) now apply on ←/→ landing — navigating onto a pill selects it, no Space/Enter needed. Space/Enter still work; preset's trailing "+" save pill stays an explicit gesture. Driven by a central `selectOnMove` descriptor flag in `_handleKeydownPillStrip`.'' |
 |0.0.106 |2026-06-03 |''Shift-Tab now restores the focus you last held in the group you switch into (the menu row, the filter pill you were editing, …) instead of always snapping to input / the bottom-most pill; falls back to the old defaults when that slot has disappeared or was never visited.'' |
 |0.0.105 |2026-06-02 |''Fixes: JSON sub-path commits now serialize compactly (prevents the `.tid`→`.json` file swap); doc-template integration repaired (correct `rdt.*` fields + page-template wrapping) so the documentation tab renders branded tabs; `ca-visibility-filter` now evaluated in widget scope; `getDefaultValue` uses the public shadow API; README refreshed.'' |

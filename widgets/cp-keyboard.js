@@ -42,15 +42,15 @@ var SECTION_HANDLERS = {
     "viewconfig": "_handleKeydownViewConfig",
     "leader":     "_handleKeydownLeader",
     "preset":     "_handleKeydownPreset",
-    "details":    "_handleKeydownDetails"
-    // "preview" focus has no per-section keydown handler — the side-
-    // preview pane is a natively focusable DOM element, so the browser
-    // handles cursor / scroll directly. The pre-Phase-E switch had a
-    // stray `case "preview": this._handleKeydownPreview(e, stage)` that
-    // would have thrown TypeError (the handler was never defined); the
-    // table-driven dispatch fixes the latent bug by simply not routing
-    // preview focus to anything (the typeof guard in handleKeydown
-    // silently no-ops unknown focus values).
+    "details":    "_handleKeydownDetails",
+    // Preview pane (handler in cp-side-preview.js): ←/→ cycle between
+    // candidate pills when ≥2 apply, applying each on landing — selecting
+    // IS navigating, no Enter/Space. Esc returns to input; ↑/↓/PageUp/Down
+    // scroll the pane natively. Form widgets inside the rendered template
+    // still receive their keys natively — the global keydown listener
+    // short-circuits via _keydownTargetIsInsidePreviewWidget before
+    // dispatch when the target is a focusable element (input/button/link).
+    "preview":    "_handleKeydownPreview"
 };
 
 // Resolve the section handler for a focus value. Returns the handler
