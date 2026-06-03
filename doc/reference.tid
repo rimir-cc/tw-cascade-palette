@@ -38,10 +38,11 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''Esc'' |any (in pick-mode) |Cancel pick-mode — return to prior view without committing a filter |
 |''Esc'' |preset / visibility / filter / view / details |Return focus to the input (without closing) |
 |''Esc'' |menu |Pop one stage (back). At root depth, refocuses input (since there's nothing to pop). Symmetric with ArrowLeft-in-menu. |
-|''← / →'' |preset / visibility / filter / view |Move focus between pills within the row (clamps at edges) |
+|''← / →'' |visibility / filter |Move focus between pills within the row (clamps at edges) |
+|''← / →'' |view / preset / row-label |Move focus between pills ''and apply on landing'' — these are single-select strips, so navigating IS selecting (no Space/Enter needed; clamps at edges). On preset the trailing ''+'' save pill is skipped — it stays an explicit Enter/Space gesture. |
 |''↑ / ↓'' |preset / visibility / filter / view / leader |Walk between pill rows. ↓ at the bottom-most row drops into input; ↑ at the top-most row no-ops. |
-|''Enter / Space'' |view |Activate the highlighted view — pops the stack to root, rebuilds the menu |
-|''Enter / Space'' |preset |Apply the focused preset (replaces filters + visibility, switches view, keeps palette open). The applied preset becomes the ''active'' preset until cleared. On the trailing ''+'' pill: open the save-as prompt to capture current state as a new preset (same as the `s` leader). |
+|''Enter / Space'' |view |Activate the highlighted view — pops the stack to root, rebuilds the menu. (←/→ already applies on landing, so this is mostly redundant on the view strip.) |
+|''Enter / Space'' |preset |Apply the focused preset (replaces filters + visibility, switches view, keeps palette open). The applied preset becomes the ''active'' preset until cleared. (←/→ also applies on landing; only the ''+'' pill still requires Enter/Space.) On the trailing ''+'' pill: open the save-as prompt to capture current state as a new preset (same as the `s` leader). |
 |''Ctrl-Enter'' |preset |Overwrite the focused preset with the current state. Only effective when the focused pill IS the active preset AND it's dirty (current state diverges from the captured baseline). No-op on the ''+'' pill. |
 |''DEL / Backspace'' |preset |Push a confirm-drill to permanently delete the focused preset tiddler. Confirm with Enter, cancel with Esc. No-op on the ''+'' pill. |
 |''Home / End'' |preset |Jump focus to the first preset / to the ''+'' save pill (last position) |

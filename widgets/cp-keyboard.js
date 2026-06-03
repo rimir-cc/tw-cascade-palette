@@ -606,6 +606,10 @@ module.exports = function (proto) {
     //   onDelete(idx)       (optional) Delete / Backspace
     //   enterAcceptsSpace   (optional) true on view / preset
     //   homeEnd             (optional) true on preset
+    //   selectOnMove        (optional) bool | (idx)->bool — fire onEnter on
+    //                       ←/→/Home/End landing (single-select strips:
+    //                       view, row-label, preset). Predicate form lets
+    //                       preset exclude its trailing "+" save pill.
     //
     var FILTER_KEY_DESC = {
         getCount:    function () { return this.filters.length; },
@@ -712,6 +716,7 @@ module.exports = function (proto) {
         render:      function () { this._renderViewStrip(); },
         maybeHelp:   function () { this._maybeRenderViewHelp(); },
         enterAcceptsSpace: true,
+        selectOnMove: true,
         onEnter:     function (i) {
             var view = this._visibleViews()[i];
             if (!view) return;
@@ -733,6 +738,7 @@ module.exports = function (proto) {
         render:      function () { this._renderRowLabelStrip(); },
         maybeHelp:   function () { this._maybeRenderRowLabelHelp(); },
         enterAcceptsSpace: true,
+        selectOnMove: true,
         onEnter:     function (i) {
             var pills = this._loadRowLabelPills();
             if (i === 0) {
@@ -758,6 +764,10 @@ module.exports = function (proto) {
         maybeHelp:   function () { this._maybeRenderPresetHelp(); },
         enterAcceptsSpace: true,
         homeEnd:     true,
+        // Apply a preset on ←/→ landing — but NOT the trailing "+" pill
+        // (index === pill count), which opens save-mode and must stay an
+        // explicit Enter/Space gesture.
+        selectOnMove: function (i) { return i < this._loadPresetPills().length; },
         onEnter:     function (i) {
             var presets = this._loadPresetPills();
             // The trailing "+" pill (last navigable index) triggers the
@@ -808,6 +818,19 @@ module.exports = function (proto) {
             d.setFocusIdx.call(self, target);
             d.render.call(self);
             if (d.maybeHelp) d.maybeHelp.call(self);
+            // Single-select strips (view / row-label / preset) apply the
+            // pill the instant the highlight lands on it via ←/→ / Home /
+            // End — navigating IS selecting, no Space/Enter needed. Up/Down
+            // leave the strip and don't route through moveTo, so they never
+            // auto-activate. `selectOnMove` is either a boolean or a
+            // per-index predicate (preset uses the predicate to skip its
+            // trailing "+" save pill, which must stay Enter/Space-only).
+            if (d.selectOnMove) {
+                var doSelect = (typeof d.selectOnMove === "function")
+                    ? d.selectOnMove.call(self, target)
+                    : true;
+                if (doSelect) d.onEnter.call(self, target);
+            }
         }
         if (e.key === "ArrowRight") {
             e.preventDefault();
