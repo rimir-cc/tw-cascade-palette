@@ -122,6 +122,12 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // section gets the browser-level focus AND a visual cue via the
         // [data-focus="..."] attribute on popupEl. Default "input" on open.
         this.focus = "input";
+        // Last focus held within each Tab group (pills vs main), tracked by
+        // setFocus. Shift-Tab (_jumpFocusGroup) restores these so the user
+        // returns to where they were rather than always snapping to input /
+        // the bottom-most pill. Undefined until each group is first entered.
+        this._lastPillFocus = undefined;
+        this._lastMainFocus = "input";
         // Active template tab when multiple templates apply to the picked
         // item. Reset on selection change.
         this.detailsTemplateIdx = 0;
@@ -1258,6 +1264,19 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // toggles visibility).
         if (section === "preview" && !this._isSidePreviewVisible()) {
             section = "input";
+        }
+        // Remember the last focus within each of the two Tab groups (pills
+        // vs main) so Shift-Tab can return to exactly where the user was,
+        // rather than always snapping to input / the bottom-most pill. The
+        // resolved `section` is used (post-normalization), so a downgraded
+        // dead-end strip records as "input" — consistent with where focus
+        // actually lands. Context isn't in either Tab cycle, so it's
+        // deliberately recorded in neither group.
+        if (this._isPillFocus(section)) {
+            this._lastPillFocus = section;
+        } else if (section === "input" || section === "menu" ||
+                   section === "details" || section === "preview") {
+            this._lastMainFocus = section;
         }
         var prevFocus = this.focus;
         if (this.focus === section) {

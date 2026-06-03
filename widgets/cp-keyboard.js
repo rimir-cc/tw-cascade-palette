@@ -927,9 +927,11 @@ module.exports = function (proto) {
     //   pills group:  preset → visibility → filter → view (top-to-bottom)
     //   main group:   input → menu → details
     // Tab cycles within the current group; Shift-Tab jumps to the other
-    // group (lands on the bottom-most pill when entering pills, on input
-    // when returning to main). A row joins its group's cycle only when
-    // it has something to navigate.
+    // group, restoring the focus the user last held there (tracked in
+    // setFocus as _lastPillFocus / _lastMainFocus). Falls back to the
+    // bottom-most pill (entering pills) or input (returning to main) when
+    // the remembered slot is gone or was never visited. A row joins its
+    // group's cycle only when it has something to navigate.
     proto._isPillFocus = function (f) {
         f = f || this.focus;
         return f === "preset" || f === "visibility" ||
@@ -1146,14 +1148,28 @@ module.exports = function (proto) {
 
     proto._jumpFocusGroup = function () {
         if (this._isPillFocus()) {
-            this.setFocus("input");
+            // Leaving pills → return to where we last were in the main
+            // group (input/menu/details/preview), defaulting to input if
+            // that slot is no longer in the current main cycle (e.g. the
+            // preview pane closed) or was never visited.
+            var mainCycle = this._mainCycle();
+            var mainTarget = this._lastMainFocus;
+            if (!mainTarget || mainCycle.indexOf(mainTarget) < 0) {
+                mainTarget = "input";
+            }
+            this.setFocus(mainTarget);
             return;
         }
         var pills = this._pillsCycle();
         if (pills.length === 0) return;
-        // Enter pills at the bottom-most active row (visually closest to
-        // the input the user is jumping from).
-        this.setFocus(pills[pills.length - 1]);
+        // Entering pills → return to where we last were in the pill group,
+        // defaulting to the bottom-most active row (visually closest to the
+        // input the user is jumping from) if that strip is gone or unvisited.
+        var pillTarget = this._lastPillFocus;
+        if (!pillTarget || pills.indexOf(pillTarget) < 0) {
+            pillTarget = pills[pills.length - 1];
+        }
+        this.setFocus(pillTarget);
     };
 
 };
