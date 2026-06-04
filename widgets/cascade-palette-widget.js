@@ -259,6 +259,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     require("$:/plugins/rimir/cascade-palette/widgets/cp-lens-editor")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-row-decorations")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-view-editor")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-axis-editor")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-deep-search")(CascadePaletteWidget.prototype);
 
     /* ---------- lifecycle ---------- */
@@ -1014,6 +1015,22 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 var p = (event && event.paramObject) || {};
                 var t = p.lens || (event && event.param) || "";
                 if (t && self._deleteLens) self._deleteLens(t);
+                return false;
+            });
+            registerRootMessage(C.NEW_AXIS_MESSAGE, function () {
+                if (self._newAxisScratchpad) self._newAxisScratchpad();
+                return false;
+            });
+            registerRootMessage(C.CLONE_AXIS_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var t = p.axis || (event && event.param) || "";
+                if (t && self._cloneAxisToUser) self._cloneAxisToUser(t);
+                return false;
+            });
+            registerRootMessage(C.DELETE_AXIS_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var t = p.axis || (event && event.param) || "";
+                if (t && self._deleteAxis) self._deleteAxis(t);
                 return false;
             });
             registerRootMessage(C.APPLY_PRESET_MESSAGE, function (event) {

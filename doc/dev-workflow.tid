@@ -21,7 +21,7 @@ Cascade-palette is engineered to be extended by ''one tiddler per cascade edge''
 |A new visibility (hide-predicate) pill |`$:/tags/rimir/cascade-palette/visibility` |`ca-visibility-name`, `ca-visibility-expr` |[[Protocol]] §"Worked example — Hide a group" |
 |A new view (root-stage strategy) |`$:/tags/rimir/cascade-palette/view` |`ca-view-name`, `ca-view-roots` |[[Protocol]] §"Views" |
 |A new structure-layer (sub-component of a view) |`$:/tags/rimir/cascade-palette/structure-layer` |`ca-layer-name`, `ca-layer-roots` |[[Protocol]] §"Multi-layer views" |
-|A new grouping axis |`$:/tags/rimir/cascade-palette/axis` |`ca-axis-name`, `ca-axis-key` |[[Protocol]] §"Axes" |
+|A new grouping axis |`$:/tags/rimir/cascade-palette/axis` |`ca-axis-name`, `ca-axis-key` |[[Protocol]] §"Axes" (or create it in-palette: ''Manage axes'' → ''+ New axis…'') |
 |A new leader-key gesture |`$:/tags/rimir/cascade-palette/leader` |`ca-leader-key`, `ca-leader-actions` |[[Protocol]] §"Leader keys" |
 |A new side-preview template |`$:/tags/rimir/cascade-palette/side-preview` |`ca-preview-applies` or `ca-preview-context`, body wikitext |[[Protocol]] §"Side preview" |
 |A new row icon |`$:/tags/rimir/cascade-palette/row-icon` |`ca-row-icon-applies`, `ca-row-icon-glyph`, action/message |[[Protocol]] §"Row icons" |

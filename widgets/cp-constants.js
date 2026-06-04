@@ -48,6 +48,16 @@ exports.CLONE_LENS_MESSAGE = "rimir-cascade-palette-clone-lens";
 // pushed from a lens slot strip, or by ca-on-delete on a "Manage lenses" row.
 exports.DELETE_LENS_MESSAGE = "rimir-cascade-palette-delete-lens";
 
+// Axis lifecycle — fired from the "Manage axes" menu (cp-axis-editor),
+// mirroring the lens lifecycle. NEW seeds a scratch axis + opens the live
+// match-count key editor; CLONE copies a SHIPPED (shadow-only) axis to an
+// editable USER axis under AXES_NS (paramObject.axis = source title); DELETE
+// removes a user axis (paramObject.axis = title), behind the engine's
+// ca-on-delete confirm on the "Manage axes" row.
+exports.NEW_AXIS_MESSAGE = "rimir-cascade-palette-new-axis";
+exports.CLONE_AXIS_MESSAGE = "rimir-cascade-palette-clone-axis";
+exports.DELETE_AXIS_MESSAGE = "rimir-cascade-palette-delete-axis";
+
 // ---- Tags consumed by the engine ----
 exports.ENTRY_TAG = "$:/tags/rimir/cascade-palette/entry";
 exports.ACTION_TAG = "$:/tags/rimir/cascade-palette/action";

@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/entries/manage-axes
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Manage axes
+ca-hint: Create, edit or delete group-by axes (the chain pivots used by views)
+ca-icon: 🧭
+ca-kind: drill
+ca-order: 61
+ca-items-from: [cp-axis-rows[]]
+ca-next-title: Manage axes
+type: text/vnd.tiddlywiki
