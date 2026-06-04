@@ -47,14 +47,18 @@ a live match-count). Structural facets map onto `ca-view-*` fields via
 "use strict";
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
+var parseChainSpec =
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-axes").parseChainSpec;
 var VIEW_TAG = C.VIEW_TAG;
 var STRUCTURE_LAYER_TAG = C.STRUCTURE_LAYER_TAG;
+var AXIS_TAG = C.AXIS_TAG;
 var SCRATCHPAD_PREFIX = C.SCRATCHPAD_PREFIX;
 var SCRATCH_KIND_FIELD = C.SCRATCH_KIND_FIELD;
 var SCRATCH_SOURCE_FIELD = C.SCRATCH_SOURCE_FIELD;
 var SCRATCH_PREVIEW_ONLY_FIELD = C.SCRATCH_PREVIEW_ONLY_FIELD;
 var VIEWS_NS = C.VIEWS_NS;
 var LAYERS_NS = C.LAYERS_NS;
+var AXES_NS = C.AXES_NS;
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 
 // Suffix appended to a scratchpad view's display name so the active-view
@@ -255,14 +259,10 @@ module.exports = function (proto) {
 
         // Clone the layer.
         var scratchLayer = this._scratchTitleFor(layerTitle, "layer");
-        var lFields = {
-            title: scratchLayer,
-            tags: [STRUCTURE_LAYER_TAG],
-            type: "text/vnd.tiddlywiki"
-        };
-        Object.keys(lf).forEach(function (k) {
-            if (k.indexOf("ca-layer-") === 0) lFields[k] = lf[k];
-        });
+        var lFields = this._copyLayerFields(lf);
+        lFields.title = scratchLayer;
+        lFields.tags = [STRUCTURE_LAYER_TAG];
+        lFields.type = "text/vnd.tiddlywiki";
         lFields["ca-layer-name"] =
             (lf["ca-layer-name"] || layerTitle.split("/").pop()) + SCRATCH_NAME_SUFFIX;
         lFields[SCRATCH_KIND_FIELD] = "layer";
@@ -1170,12 +1170,30 @@ module.exports = function (proto) {
         return this._cloneViewToScratchpad(this.activeView);
     };
 
+    // Copy a structure-layer's authoring fields (ca-layer-*) from `src` into
+    // a fresh field set. Bookkeeping (cp-scratch-*) and tags/type/title are
+    // NOT copied — the caller sets those. Shared by _beginLayerEdit (clone for
+    // editing) and _forkLayer (deep view-fork) so the layer field set lives in
+    // one place — sibling of cp-axis-editor's _copyAxisFields.
+    proto._copyLayerFields = function (src) {
+        var out = {};
+        Object.keys(src || {}).forEach(function (k) {
+            if (k.indexOf("ca-layer-") === 0) out[k] = src[k];
+        });
+        return out;
+    };
+
     // Fork a view into an independent PERSISTED copy (not a scratchpad) and
-    // make it active. Phase-1 implicit views carry their whole structure on
-    // the view tiddler, so copying ca-view-* fields is a complete fork. For
-    // explicit-layer views the shared layers/axes are referenced, NOT copied
-    // (deep-copy of parts is a later phase) — logged so it isn't silent.
+    // make it active. A fork is a DEEP clone: the view's ca-view-* fields are
+    // copied, and every explicit structure-layer and grouping axis it
+    // references is copied into a private part (title rewritten in the new
+    // view's ca-view-layers / ca-view-axes, and in each forked layer's
+    // ca-layer-axes). Nothing the fork references is shared with the source,
+    // so editing the fork's structure never touches the original. The
+    // synthetic built-in entries layer is referenced, not copied (it carries
+    // no editable structure); an unresolvable reference is kept verbatim.
     proto._forkView = function (sourceTitle) {
+        var self = this;
         var srcView = this._getViewByTitle(sourceTitle);
         if (!srcView) return null;
         var srcTid = this.wiki.getTiddler(sourceTitle);
@@ -1192,14 +1210,86 @@ module.exports = function (proto) {
         });
         delete fields["ca-view-default"]; // a fork is never the default
         fields["ca-view-name"] = name;
-        if (srcView.layers && srcView.layers.some(function (l) { return !l.isImplicit; })
-            && console && console.info) {
-            console.info("[cascade-palette] fork copied view fields only — " +
-                "shared layers/axes still referenced, not deep-copied:", sourceTitle);
+
+        // Deep-copy referenced explicit layers (private copies, refs rewritten).
+        var layerRefs = this._viewLayerRefs(sourceTitle);
+        if (layerRefs.length) {
+            fields["ca-view-layers"] = layerRefs.map(function (t) {
+                return self._forkLayer(t);
+            }).join(" ");
         }
+        // Deep-copy the view-level axis chain (implicit-layer views).
+        if ((srcFields["ca-view-axes"] || "").trim()) {
+            fields["ca-view-axes"] = this._forkAxisChain(srcFields["ca-view-axes"]);
+        }
+
         this.wiki.addTiddler(new $tw.Tiddler(fields));
         this._reloadViewsPreservingActive();
         this._setActiveView(newTitle);
+        return newTitle;
+    };
+
+    // Copy a referenced structure-layer into a private persisted layer and
+    // return its new title. The layer's own axis chain (ca-layer-axes) is
+    // deep-copied too. The built-in entries layer (no editable structure) and
+    // any unresolvable reference are returned verbatim — never copied.
+    proto._forkLayer = function (layerTitle) {
+        if (layerTitle === BUILTIN_ENTRIES_LAYER_TITLE) return layerTitle;
+        var lt = this.wiki.getTiddler(layerTitle);
+        if (!lt) return layerTitle;
+        var lf = lt.fields || {};
+        var baseName = (lf["ca-layer-name"] || layerTitle.split("/").pop())
+            .replace(/\s*✎\s*$/, "").trim();
+        var name = baseName + " (copy)";
+        var newTitle = this._slugTitle(name, LAYERS_NS);
+        var fields = this._copyLayerFields(lf);
+        fields.title = newTitle;
+        fields.tags = [STRUCTURE_LAYER_TAG];
+        fields.type = "text/vnd.tiddlywiki";
+        fields["ca-layer-name"] = name;
+        if ((lf["ca-layer-axes"] || "").trim()) {
+            fields["ca-layer-axes"] = this._forkAxisChain(lf["ca-layer-axes"]);
+        }
+        this.wiki.addTiddler(new $tw.Tiddler(fields));
+        return newTitle;
+    };
+
+    // Deep-copy every axis named in a chain spec (space-separated titles OR a
+    // JSON `[{title,params}]` array — parseChainSpec normalises both) into
+    // private axes, returning a rewritten chain spec. Per-axis params are
+    // preserved; the result is re-serialised as JSON only when some entry
+    // carries params, else as a plain title list (keeps simple chains compact).
+    proto._forkAxisChain = function (raw) {
+        var self = this;
+        var entries = parseChainSpec(raw);
+        if (!entries.length) return raw || "";
+        var hasParams = false;
+        var rewired = entries.map(function (e) {
+            if (e.params) hasParams = true;
+            return { title: self._forkAxis(e.title), params: e.params || null };
+        });
+        if (hasParams) return JSON.stringify(rewired);
+        return rewired.map(function (e) { return e.title; }).join(" ");
+    };
+
+    // Copy a single axis tiddler into a private persisted axis and return its
+    // new title. Reuses cp-axis-editor's _copyAxisFields (ca-axis-* + ca-order)
+    // so the axis field set lives in one place. An unresolvable reference is
+    // returned verbatim.
+    proto._forkAxis = function (axisTitle) {
+        var at = this.wiki.getTiddler(axisTitle);
+        if (!at) return axisTitle;
+        var af = at.fields || {};
+        var baseName = (af["ca-axis-name"] || axisTitle.split("/").pop())
+            .replace(/\s*✎\s*$/, "").trim();
+        var name = baseName + " (copy)";
+        var newTitle = this._slugTitle(name, AXES_NS);
+        var fields = this._copyAxisFields(af);
+        fields.title = newTitle;
+        fields.tags = [AXIS_TAG];
+        fields.type = "text/vnd.tiddlywiki";
+        fields["ca-axis-name"] = name;
+        this.wiki.addTiddler(new $tw.Tiddler(fields));
         return newTitle;
     };
 

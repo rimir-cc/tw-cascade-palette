@@ -60,6 +60,9 @@ module.exports = function (proto) {
         });
         return out;
     }
+    // Shared with the deep view-fork (_forkAxis in cp-view-editor.js) so axis
+    // field-copying lives in exactly one place.
+    proto._copyAxisFields = copyAxisFields;
 
     // ---- scratch identity -------------------------------------------------
 
