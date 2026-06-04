@@ -232,5 +232,30 @@ describe("cascade-palette: actions via lens (H4 slice 3)", function () {
                 .map(function (a) { return a.title; });
             expect(titles).toEqual(["$:/act/clear-vac"]);
         });
+
+        it("unions the catalogue path AND the lens path, deduped across both", function () {
+            // Full 4-path entry point: one action surfaces only via the
+            // catalogue (global ca-entity-type "*"), one only via the lens
+            // filter, and the lens redundantly re-contributes the global —
+            // the result is the union with the duplicate collapsed.
+            var w = makeWidget([
+                actionFields({ title: "$:/act/global", "ca-name": "Global", "ca-entity-type": "*" }),
+                actionFields({ title: "$:/act/clear-vac", "ca-name": "Clear vacation" }),
+                lensFields({
+                    title: "$:/lens/vac", "ca-lens-name": "Vacation",
+                    "ca-lens-actions": "F_VAC_ACTIONS"
+                })
+            ], {
+                withStack: true,
+                filters: {
+                    F_VAC_ACTIONS: function () {
+                        return ["$:/act/clear-vac", "$:/act/global"];
+                    }
+                }
+            });
+            var titles = w.loadActionsForType("person", "Anna")
+                .map(function (a) { return a.title; }).sort();
+            expect(titles).toEqual(["$:/act/clear-vac", "$:/act/global"]);
+        });
     });
 });

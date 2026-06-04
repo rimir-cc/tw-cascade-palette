@@ -192,6 +192,48 @@ describe("cascade-palette: lens authoring (H4)", function () {
         });
     });
 
+    describe("_cloneLensToUser", function () {
+
+        var SHIPPED = lens({
+            title: "$:/plugins/rimir/cascade-palette/lens/kind",
+            "ca-lens-name": "Kind",
+            "ca-lens-icon-filter": "[<currentTiddler>get[icon]]",
+            "ca-lens-actions": "via-entity-type",
+            "ca-lens-default": "icon",
+            "ca-order": "50"
+        });
+
+        it("copies ca-lens-*/ca-order to a LENS_NS copy, drops the default, leaves the source intact", function () {
+            var w = makeWidget([SHIPPED]);
+            var before = JSON.stringify(w.wiki.getTiddler(SHIPPED.title).fields);
+            var newTitle = w._cloneLensToUser(SHIPPED.title);
+            expect(newTitle.indexOf(LENS_NS)).toBe(0);
+            var f = w.wiki.getTiddler(newTitle).fields;
+            expect(f.tags).toContain(LENS_TAG);
+            expect(f["ca-lens-name"]).toBe("Kind (copy)");
+            expect(f["ca-lens-icon-filter"]).toBe("[<currentTiddler>get[icon]]");
+            expect(f["ca-lens-actions"]).toBe("via-entity-type");
+            expect(f["ca-order"]).toBe("50");
+            expect(f["ca-lens-default"]).toBeUndefined(); // a fresh copy isn't a default
+            // Source untouched.
+            expect(JSON.stringify(w.wiki.getTiddler(SHIPPED.title).fields)).toBe(before);
+        });
+
+        it("cloning twice yields two distinct titles (collision-bumped, never clobbered)", function () {
+            var w = makeWidget([SHIPPED]);
+            var t1 = w._cloneLensToUser(SHIPPED.title);
+            var t2 = w._cloneLensToUser(SHIPPED.title);
+            expect(t1).not.toBe(t2);
+            expect(w.wiki.tiddlerExists(t1)).toBe(true);
+            expect(w.wiki.tiddlerExists(t2)).toBe(true);
+        });
+
+        it("returns null for a missing source", function () {
+            var w = makeWidget([]);
+            expect(w._cloneLensToUser("$:/no/such/lens")).toBe(null);
+        });
+    });
+
     describe("_deleteLens", function () {
 
         it("deletes a user lens and clears any slot pointing at it", function () {

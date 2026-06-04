@@ -40,10 +40,10 @@ exports.DELETE_VIEW_MESSAGE = "rimir-cascade-palette-delete-view";
 // Lens lifecycle — fired from the "Manage lenses" menu (cp-lens-editor).
 // paramObject.slot selects which decoration slot the new lens projects.
 exports.NEW_LENS_MESSAGE = "rimir-cascade-palette-new-lens";
-// Edit a lens (paramObject.lens = title) — fired by ↵ on a row of the
-// "Manage lenses" list. Clones it to a scratchpad and opens its projection
-// editor (first projecting slot).
-exports.EDIT_LENS_MESSAGE = "rimir-cascade-palette-edit-lens";
+// Clone a SHIPPED (shadow-only) lens to an editable USER lens under LENS_NS
+// (paramObject.lens = source title) — fired from the shipped lens's field
+// drill so its facets become editable without mutating the shadow.
+exports.CLONE_LENS_MESSAGE = "rimir-cascade-palette-clone-lens";
 // Delete a lens (paramObject.lens = title) — fired by the DEL-confirm stage
 // pushed from a lens slot strip, or by ca-on-delete on a "Manage lenses" row.
 exports.DELETE_LENS_MESSAGE = "rimir-cascade-palette-delete-lens";

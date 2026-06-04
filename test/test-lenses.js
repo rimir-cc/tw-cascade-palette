@@ -174,6 +174,30 @@ describe("cascade-palette: lens data model (H4 slice 2)", function () {
             expect(w._readActiveLensTitle("icon")).toBe("");
             expect(w._activeLensForSlot("icon")).toBe(null);
         });
+
+        it("re-seeds the default after a default-seeded slot is set off (can't clear to nothing)", function () {
+            // Documented "(default)" behavior (see cascade-palette-silent-
+            // override memory): a slot with a default lens reverts to that
+            // default when set off, rather than going to nothing. The state
+            // tiddler does hold "" — but the read re-seeds the default.
+            var w = makeWidget([TITLE_LENS, CAPTION_LENS]); // CAPTION defaults "name"
+            w.topStage = function () { return null; };
+            expect(w._activeLensForSlot("name").title).toBe("$:/lens/caption-then-title");
+            w._setSlotLens("name", "");                       // user picks "(default)"/off
+            expect(w.wiki.getTiddlerText(STATE + "name", "x")).toBe("");
+            expect(w._readActiveLensTitle("name")).toBe("$:/lens/caption-then-title");
+            expect(w._activeLensForSlot("name").title).toBe("$:/lens/caption-then-title");
+        });
+
+        it("a slot with NO default turns off and stays off", function () {
+            var w = makeWidget([KIND_LENS], {
+                filters: { F_KIND_WHEN: function () { return ["yes"]; } }
+            });
+            w.topStage = function () { return null; };
+            w._setSlotLens("icon", "");
+            expect(w._readActiveLensTitle("icon")).toBe("");
+            expect(w._activeLensForSlot("icon")).toBe(null);
+        });
     });
 
     describe("_resolveSlot", function () {

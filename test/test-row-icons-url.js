@@ -3,11 +3,11 @@ title: $:/plugins/rimir/cascade-palette/test/test-row-icons-url.js
 type: application/javascript
 tags: [[$:/tags/test-spec]]
 
-Tests for the URL_PROTOCOL_RE regex exposed by cp-row-icons.
-
-The regex gates which field values surface a 🌐 row-icon. Allow-list:
-http, https, ftp, ftps, mailto, tel. Anything else (file:, javascript:,
-plain strings, etc.) must NOT match.
+Tests for cp-row-icons:
+  - the URL_PROTOCOL_RE regex (which field values surface a 🌐 row-icon;
+    allow-list http/https/ftp/ftps/mailto/tel, everything else denied);
+  - computeRowIconsForItem's `ca-row-icon-applies` / `-payload` filter
+    resolution for custom (non-`url`) icon keys.
 \*/
 "use strict";
 
@@ -56,5 +56,95 @@ describe("cascade-palette: row-icons URL regex", function () {
         it("does NOT match: '" + s + "'", function () {
             expect(RE.test(s)).toBe(false);
         });
+    });
+});
+
+describe("cascade-palette: row-icon applies/payload resolution", function () {
+
+    var setup = require("$:/plugins/rimir/cascade-palette/widgets/cp-row-icons");
+    var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
+    var ROW_ICON_TAG = C.ROW_ICON_TAG;
+
+    // Stub widget: real wiki (so _loadRowIcons' filterTiddlers works) with a
+    // deterministic _filterInScope registry (key = filter, value =
+    // function(currentTiddler) -> array).
+    function makeWidget(tiddlers, filters) {
+        var proto = {};
+        setup(proto);
+        var w = Object.create(proto);
+        w.wiki = new $tw.Wiki();
+        (tiddlers || []).forEach(function (f) {
+            w.wiki.addTiddler(new $tw.Tiddler(f));
+        });
+        w._filterResults = filters || {};
+        w._filterInScope = function (filter, vars) {
+            var fn = w._filterResults[filter];
+            return fn ? (fn((vars || {}).currentTiddler) || []) : [];
+        };
+        return w;
+    }
+    function iconDef(extra) {
+        var f = { tags: [ROW_ICON_TAG] };
+        for (var k in extra) f[k] = extra[k];
+        return f;
+    }
+
+    it("surfaces a custom icon when ca-row-icon-applies matches, resolving the payload", function () {
+        var w = makeWidget([
+            iconDef({
+                title: "$:/icon/star", "ca-row-icon-key": "star",
+                "ca-row-icon-glyph": "⭐",
+                "ca-row-icon-applies": "F_APPLIES",
+                "ca-row-icon-payload": "F_PAYLOAD"
+            })
+        ], {
+            F_APPLIES: function (ct) { return ct === "Anna" ? ["Anna"] : []; },
+            F_PAYLOAD: function () { return ["payload-value"]; }
+        });
+        var icons = w.computeRowIconsForItem({ title: "Anna" });
+        expect(icons.length).toBe(1);
+        expect(icons[0].glyph).toBe("⭐");
+        expect(icons[0].payload).toBe("payload-value");
+        expect(icons[0].source).toBe("$:/icon/star");
+    });
+
+    it("does NOT surface when ca-row-icon-applies yields empty for the row", function () {
+        var w = makeWidget([
+            iconDef({
+                title: "$:/icon/star", "ca-row-icon-key": "star",
+                "ca-row-icon-glyph": "⭐", "ca-row-icon-applies": "F_APPLIES"
+            })
+        ], { F_APPLIES: function (ct) { return ct === "Anna" ? ["Anna"] : []; } });
+        expect(w.computeRowIconsForItem({ title: "Bob" })).toEqual([]);
+    });
+
+    it("applies-match with no payload filter leaves payload an empty string", function () {
+        var w = makeWidget([
+            iconDef({
+                title: "$:/icon/flag", "ca-row-icon-key": "flag",
+                "ca-row-icon-glyph": "🚩", "ca-row-icon-applies": "F_A"
+            })
+        ], { F_A: function () { return ["x"]; } });
+        var icons = w.computeRowIconsForItem({ title: "Anna" });
+        expect(icons.length).toBe(1);
+        expect(icons[0].payload).toBe("");
+    });
+
+    it("a def with no built-in key and no applies filter never shows", function () {
+        var w = makeWidget([
+            iconDef({ title: "$:/icon/dead", "ca-row-icon-key": "dead", "ca-row-icon-glyph": "x" })
+        ]);
+        expect(w.computeRowIconsForItem({ title: "Anna" })).toEqual([]);
+    });
+
+    it("returns [] for synthetic rows and rows with no backing title", function () {
+        var w = makeWidget([
+            iconDef({
+                title: "$:/icon/star", "ca-row-icon-key": "star",
+                "ca-row-icon-glyph": "⭐", "ca-row-icon-applies": "F_A"
+            })
+        ], { F_A: function () { return ["x"]; } });
+        expect(w.computeRowIconsForItem({ isSynthetic: true, title: "Anna" })).toEqual([]);
+        expect(w.computeRowIconsForItem({})).toEqual([]);
     });
 });

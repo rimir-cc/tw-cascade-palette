@@ -7,9 +7,9 @@ H4 — the "Manage lenses" list rows (cp-lens-rows filteroperator).
 
 `[cp-lens-rows[]]` emits one JSON cascade-item string per row:
   - three "+ New … lens…" creator rows (NEW_LENS_MESSAGE per slot)
-  - one row per existing lens: ↵ edits (EDIT_LENS_MESSAGE); a USER lens also
-    carries ca-on-delete (DELETE_LENS_MESSAGE behind the engine confirm),
-    while a SHIPPED (shadow-only) lens omits it.
+  - one row per existing lens: a DRILL into its field editor
+    (`[cp-lens-edit-rows[<title>]]`); a USER lens also carries ca-on-delete
+    (DELETE_LENS_MESSAGE behind the engine confirm), a SHIPPED lens omits it.
 \*/
 "use strict";
 
@@ -58,7 +58,7 @@ describe("cascade-palette: Manage-lenses rows (cp-lens-rows)", function () {
         });
     });
 
-    it("emits one row per lens with an EDIT_LENS_MESSAGE action and a slot summary", function () {
+    it("emits one row per lens — a drill into its field editor — with a slot summary", function () {
         var rows = run([lensFields({
             title: "$:/my/caption", "ca-lens-name": "Caption", "ca-lens-chip": "💬 Caption",
             "ca-lens-name-filter": "[<currentTiddler>get[caption]]"
@@ -67,8 +67,8 @@ describe("cascade-palette: Manage-lenses rows (cp-lens-rows)", function () {
         expect(row).toBeDefined();
         expect(row["ca-name"]).toBe("Caption");
         expect(row["ca-icon"]).toBe("💬");
-        expect(row["ca-actions"]).toContain(C.EDIT_LENS_MESSAGE);
-        expect(row["ca-actions"]).toContain('lens="$:/my/caption"');
+        expect(row["ca-kind"]).toBe("drill");
+        expect(row["ca-items-from"]).toBe("[cp-lens-edit-rows[$:/my/caption]]");
         expect(row["ca-hint"]).toContain("name");   // projected slot
         expect(row["ca-hint"]).toContain("custom");
     });
@@ -107,7 +107,8 @@ describe("cascade-palette: Manage-lenses rows (cp-lens-rows)", function () {
         expect(row["ca-group"]).toBe("Shipped lenses");
         expect(row["ca-hint"]).toContain("shipped");
         expect(row["ca-hint"]).not.toContain("DEL delete");
-        // Edit is still offered.
-        expect(row["ca-actions"]).toContain(C.EDIT_LENS_MESSAGE);
+        // Still drills into the field editor (where a clone-to-edit leaf lives).
+        expect(row["ca-kind"]).toBe("drill");
+        expect(row["ca-items-from"]).toContain("cp-lens-edit-rows");
     });
 });

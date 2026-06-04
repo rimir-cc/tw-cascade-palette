@@ -11,11 +11,12 @@ cp-lens-rows[]
 
       - three "+ New … lens…" creator rows — one per slot, firing
         NEW_LENS_MESSAGE with the slot (the live-preview author flow).
-      - one row per existing lens (tagged LENS_TAG): ↵ edits it
-        (EDIT_LENS_MESSAGE → _editLensFromList); for a USER lens, DEL deletes
-        it (DELETE_LENS_MESSAGE behind the engine's ca-on-delete confirm).
-        Shipped (shadow-only) lenses omit ca-on-delete — they can't be
-        deleted (clone & edit instead), so the row only offers ↵ edit.
+      - one row per existing lens (tagged LENS_TAG): a DRILL into the lens's
+        per-facet field editor (`[cp-lens-edit-rows[<title>]]`) — name / when
+        / default / per-slot filter+template / actions / order / delete for a
+        USER lens, or a "clone to edit" leaf for a SHIPPED (shadow-only) one.
+        DEL on a user-lens row still deletes it directly (DELETE_LENS_MESSAGE
+        behind the engine's ca-on-delete confirm); shipped rows omit it.
 
     Building the JSON in JS (vs the addprefix/addsuffix wikitext used
     elsewhere) keeps the quoting in one place and lets the row set be unit-
@@ -70,13 +71,12 @@ exports["cp-lens-rows"] = function (source, operator, options) {
             "title": title,
             "ca-name": name,
             "ca-icon": chip ? chip.split(" ")[0] : "🔎",
-            "ca-hint": summary + "  ·  ↵ edit" + (shipped ? "" : " · DEL delete"),
-            "ca-kind": "leaf",
-            "ca-after-fire": "keep",
+            "ca-hint": summary + "  ·  → edit facets" + (shipped ? "" : " · DEL delete"),
+            "ca-kind": "drill",
+            "ca-next-title": name,
+            "ca-items-from": "[cp-lens-edit-rows[" + title + "]]",
             "ca-group": shipped ? "Shipped lenses" : "Your lenses",
-            "ca-order": f["ca-order"] || "100",
-            "ca-actions": '<$action-sendmessage $message="' + C.EDIT_LENS_MESSAGE +
-                '" lens="' + title + '"/>'
+            "ca-order": f["ca-order"] || "100"
         };
         if (!shipped) {
             row["ca-on-delete"] = '<$action-sendmessage $message="' +

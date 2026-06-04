@@ -24,10 +24,13 @@ Flows:
   • New      `+ New…` pill / "Manage lenses" → seed a scratch lens
              projecting the slot with a starter filter → edit the filter
              (live match-count) → name it → save-as-new under LENS_NS.
-  • Edit     `e` on a lens pill, or ↵ on a "Manage lenses" row
-             (_editLensFromList) → clone to scratch, edit the filter live,
+  • Edit     `e` on a lens pill → clone to scratch, edit the filter live,
              then commit: a USER lens is overwritten in place; a SHIPPED
              (shadow-only) lens is saved-as-new so the original survives.
+             (The ''Manage lenses'' list drills each lens into a per-facet
+             field editor — `widgets/cp-lens-rows.js` / `cp-lens-edit-rows.js`
+             — which bind-edits a user lens in place; `_cloneLensToUser`
+             clones a shipped lens first.)
   • Delete   DEL on a user lens pill → confirm → delete; the head
              `(off)`/`(default)` pill is how a slot is turned off. Shipped
              lenses refuse deletion (clone & edit instead).
@@ -215,26 +218,6 @@ module.exports = function (proto) {
         });
     };
 
-    // Entry point from the "Manage lenses" list (EDIT_LENS_MESSAGE) — edit a
-    // lens by title. Picks the slot whose projection editor opens + previews:
-    // the first slot the lens projects via a FILTER (the editable cheap path),
-    // else its first projecting slot. Multi-slot lenses are edited one slot at
-    // a time, consistent with the per-slot pill `e` gesture.
-    proto._editLensFromList = function (lensTitle) {
-        if (!lensTitle || !this.wiki.getTiddler(lensTitle)) return null;
-        var f = this.wiki.getTiddler(lensTitle).fields || {};
-        var slot = null, firstProjecting = null;
-        for (var i = 0; i < LENS_SLOTS.length; i++) {
-            var s = LENS_SLOTS[i];
-            var hasFilter = f["ca-lens-" + s + "-filter"];
-            var hasTemplate = f["ca-lens-" + s + "-template"];
-            if ((hasFilter || hasTemplate) && firstProjecting === null) firstProjecting = s;
-            if (hasFilter) { slot = s; break; }
-        }
-        slot = slot || firstProjecting || "name";
-        return this._beginLensEdit(lensTitle, slot);
-    };
-
     // ---- Commit -----------------------------------------------------------
 
     // Edit-clone commit: overwrite the source IN PLACE when it's a user lens
@@ -294,6 +277,27 @@ module.exports = function (proto) {
             stripPencil(ef["ca-lens-name"]) || targetTitle.split("/").pop();
         this.wiki.addTiddler(new $tw.Tiddler(ef, apply));
         return targetTitle;
+    };
+
+    // Clone a SHIPPED (shadow-only) lens to an editable USER lens under
+    // LENS_NS, so the per-lens field drill can edit its facets in place
+    // without mutating the shadow. Returns the new title. The "Manage
+    // lenses" reopen is fired declaratively after this message.
+    proto._cloneLensToUser = function (lensTitle) {
+        var src = this.wiki.getTiddler(lensTitle);
+        if (!src) return null;
+        var sf = src.fields || {};
+        var baseName = (sf["ca-lens-name"] || lensTitle.split("/").pop()) + " (copy)";
+        var newTitle = this._slugTitle(baseName, LENS_NS);
+        var fields = copyLensFields(sf);
+        fields.title = newTitle;
+        fields.tags = [LENS_TAG];
+        fields.type = "text/vnd.tiddlywiki";
+        fields["ca-lens-name"] = baseName;
+        delete fields["ca-lens-default"]; // a fresh user copy isn't a default
+        this.wiki.addTiddler(new $tw.Tiddler(fields));
+        if (this._invalidateLenses) this._invalidateLenses();
+        return newTitle;
     };
 
     // ---- Discard / Delete -------------------------------------------------

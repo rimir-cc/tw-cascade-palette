@@ -48,15 +48,18 @@ var SECTION_HANDLERS = {
     "viewconfig": "_handleKeydownViewConfig",
     "leader":     "_handleKeydownLeader",
     "preset":     "_handleKeydownPreset",
-    "details":    "_handleKeydownDetails",
-    // Preview pane (handler in cp-side-preview.js): ←/→ cycle between
-    // candidate pills when ≥2 apply, applying each on landing — selecting
-    // IS navigating, no Enter/Space. Esc returns to input; ↑/↓/PageUp/Down
-    // scroll the pane natively. Form widgets inside the rendered template
-    // still receive their keys natively — the global keydown listener
-    // short-circuits via _keydownTargetIsInsidePreviewWidget before
-    // dispatch when the target is a focusable element (input/button/link).
-    "preview":    "_handleKeydownPreview"
+    "details":    "_handleKeydownDetails"
+    // NOTE: there is intentionally NO "preview" row. The side-preview pane
+    // IS a focus in the main Tab cycle (see _mainCycle), but it has no
+    // section keydown handler: ↑/↓/PageUp/Down scroll the pane natively
+    // (it's a focusable element), and switching between multiple candidate
+    // templates is done by clicking the candidate pills (each pill stops
+    // propagation in its own click handler). A printable key pressed here
+    // falls through to the Tier-4 type-ahead redirect into the input. A
+    // row pointing at a handler that doesn't exist is a runtime no-op the
+    // Tier-3 dispatch already guards against — and it drifts the
+    // dispatch-table specs (test-keyboard-dispatch.js). Don't add one
+    // without a real `_handleKeydown*` method to back it.
 };
 
 // Resolve the section handler for a focus value. Returns the handler

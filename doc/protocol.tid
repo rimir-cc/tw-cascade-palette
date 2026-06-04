@@ -264,7 +264,7 @@ For a //rich// projection (markup, not a plain string) use `ca-lens-<slot>-templ
 
 A lens can also contribute ''actions'' via `ca-lens-actions`. Set it to `via-entity-type` to declare the lens owns the standard entity-type action bridge (what `rimir/kind` does), or to a filter returning action tiddler titles to surface those actions on a matching row (e.g. a vacation lens adding a ''Clear vacation'' action to a person currently on holiday). Lens actions are ''always-on'' — gated only by `ca-lens-when`, never by which slot the lens is selected in — so the kind actions stay available even with the Kind icon slot off.
 
-Author and manage all of this in-palette via the ''Manage lenses'' entry: it lists every lens (↵ to edit, DEL to delete a user lens) plus a ''+ New … lens…'' creator per slot.
+Author and manage all of this in-palette via the ''Manage lenses'' entry: it lists every lens plus a ''+ New … lens…'' creator per slot. Drilling a lens opens a per-facet field editor — name, `ca-lens-when`, default-slot toggles, a filter + template row for each slot, an actions chooser (none / via-entity-type / custom filter), and delete — so ''templates and actions are editable in-palette'', no hand-editing required. (A shipped lens offers ''clone to edit'' first, since its shadow can't be mutated in place.)
 
 The override only applies to ''data rows'' (view-built rows and ca-next-scope items). Static cascade-palette entries / actions / settings keep their explicit `ca-name` regardless of the active pill — so the "Find entity" entry stays named "Find entity" even when you select a caption-derived label pill.
 
