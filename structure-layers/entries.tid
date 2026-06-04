@@ -1,11 +1,12 @@
 title: $:/plugins/rimir/cascade-palette/structure-layers/entries
 tags: $:/tags/rimir/cascade-palette/structure-layer
 ca-layer-name: Entries
+ca-layer-source: entries
 ca-layer-roots: [tag[$:/tags/rimir/cascade-palette/entry]]
 ca-layer-children: [tag[$:/tags/rimir/cascade-palette/entry]]
 ca-layer-include-position: yes
 type: text/vnd.tiddlywiki
 
-This is the built-in synthetic ''entries'' layer. The actual descent is implemented in JS (`widgets/cp-views.js` → `_evaluateEntriesLayer`) and respects per-entry `ca-position-<view-slug>` / `ca-position` placement. This tiddler is a discoverable descriptor — surfaced in the Structure pill row when a view includes this layer (auto-appended to tree views unless `ca-view-include-entries: no`).
+This is the built-in ''entries'' layer. It is a normal structure-layer tiddler whose `ca-layer-source: entries` discriminator selects a JS-backed producer (`widgets/cp-views.js` → `_evaluateEntriesLayer`) instead of the default raw-filter producer (`ca-layer-source: filter`). The entries producer respects per-entry `ca-position-<view-slug>` / `ca-position` placement; the `ca-layer-roots` / `ca-layer-children` filters above are illustrative (shown in the Structure pill row), not evaluated directly.
 
-Authors usually don't need to reference this layer explicitly; it's appended automatically. To opt out for a specific view, set `ca-view-include-entries: no` on the view tiddler. To always include it (e.g. on a flat view that wants entries at-root), set `ca-view-include-entries: yes`.
+Authors usually don't need to reference this layer explicitly — it is auto-appended to tree views unless `ca-view-include-entries: no`. To opt out for a specific view, set `ca-view-include-entries: no` on the view tiddler. To always include it (e.g. on a flat view that wants entries at-root), set `ca-view-include-entries: yes`. It may also be listed explicitly in a view's `ca-view-layers`, in which case the auto-append is suppressed (no double-add).

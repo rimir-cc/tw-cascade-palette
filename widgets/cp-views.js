@@ -192,8 +192,13 @@ function setup(proto) {
             view.layers.push(this._layerFromViewFields(view, f));
         }
         // Built-in entries layer: auto-append depending on include-entries
-        // policy.
-        if (this._shouldIncludeEntriesLayer(view)) {
+        // policy — unless a view already references it explicitly in
+        // ca-view-layers (avoid double-add now that entries is a normal,
+        // composable layer).
+        var alreadyHasEntries = view.layers.some(function (l) {
+            return l.source === "entries";
+        });
+        if (!alreadyHasEntries && this._shouldIncludeEntriesLayer(view)) {
             view.layers.push(this._builtInEntriesLayer());
         }
         // Convenience flag — any layer declares children ⇒ view is tree-shaped.
@@ -217,6 +222,7 @@ function setup(proto) {
         }
         return {
             title: view.title,
+            source: "filter",
             isImplicit: true,
             isBuiltIn: false,
             name: f["ca-view-layer-name"] || view.name || "",
@@ -250,10 +256,16 @@ function setup(proto) {
             return null;
         }
         var f = t.fields || {};
+        // Producer discriminator. "filter" (default) = raw-filter layer
+        // (roots/children/leaf below). Non-"filter" sources (e.g. "entries")
+        // are JS-backed producers dispatched in _evaluateLayer; they are
+        // treated as built-in (non-editable structure) for now.
+        var source = (f["ca-layer-source"] || "filter").toLowerCase();
         return {
             title: title,
+            source: source,
             isImplicit: false,
-            isBuiltIn: false,
+            isBuiltIn: source !== "filter",
             name: f["ca-layer-name"] || title.split("/").pop(),
             roots: f["ca-layer-roots"] || "",
             children: f["ca-layer-children"] || "",
@@ -281,11 +293,20 @@ function setup(proto) {
     // dispatch hint. Filter strings here are illustrative (shown in the
     // Structure pill row); they aren't evaluated directly.
     proto._builtInEntriesLayer = function () {
+        // The shipped structure-layers/entries tiddler (ca-layer-source:
+        // entries) is the single source of truth. Load it through the
+        // normal layer path so descriptor and discoverable tiddler can't
+        // drift; the JS-backed descent (_evaluateEntriesLayer) is selected
+        // by source === "entries" in _evaluateLayer.
+        var loaded = this._loadLayer(BUILTIN_ENTRIES_LAYER_TITLE);
+        if (loaded) return loaded;
+        // Fallback if the tiddler is missing (defensive — keeps entries
+        // working even if a build strips the descriptor).
         return {
             title: BUILTIN_ENTRIES_LAYER_TITLE,
+            source: "entries",
             isImplicit: false,
             isBuiltIn: true,
-            builtInKind: "entries",
             name: "Entries",
             roots: "[tag[" + ENTRY_TAG + "]] :filter[get[ca-position]match[at-root]]",
             children: "[tag[" + ENTRY_TAG + "]] :filter[get[ca-position]match<currentTiddler>]",
@@ -447,7 +468,7 @@ function setup(proto) {
     // Evaluate a single layer at a given node, returning its rows.
     // Dispatches built-in layers (entries) to their dedicated path.
     proto._evaluateLayer = function (view, layer, layerIdx, parentTitle, parentPath) {
-        if (layer.isBuiltIn && layer.builtInKind === "entries") {
+        if (layer.source === "entries") {
             return this._evaluateEntriesLayer(view, layerIdx, parentTitle);
         }
         var self = this;
@@ -554,11 +575,13 @@ function setup(proto) {
             }
             var item = self._buildCascadeItem(fieldsObj, title);
             item._layerIdx = layerIdx;
-            // Mark as a data row so the row-label override pill
-            // (cp-row-label-pills.js#_resolveRowLabel) applies. View-built
-            // rows always represent user tiddlers, never palette config —
-            // safe to enable the override regardless of the layer.
-            item.dataRow = true;
+            // Mark as a data row so the row-decoration lenses (name / icon /
+            // annotation — cp-lenses.js#_resolveSlot) apply. EXCEPT rows from
+            // the entries layer: those are palette COMMANDS (entry tiddlers
+            // with an authored ca-name like "Find entity"), not user content,
+            // so a name lens must not relabel them to their tiddler title and
+            // an icon lens must not stamp a kind glyph on them.
+            item.dataRow = (layer.source !== "entries");
             // Ancestor-only marker — set when filter pills are active
             // and this row is in the revealed set but didn't itself
             // match the filter (i.e. it's shown only because a
@@ -961,7 +984,12 @@ function setup(proto) {
             return;
         }
         var focused = this.focus === "viewconfig";
-        var expanded = focused && this.viewConfigExpanded;
+        // Normally the strip only renders expanded while it holds focus.
+        // In scratchpad mode it stays pinned-open regardless of focus
+        // (see _structurePinned) so editing survives jumping to the
+        // result list / preview and back.
+        var pinned = this._structurePinned && this._structurePinned();
+        var expanded = this.viewConfigExpanded && (focused || pinned);
         this.viewConfigStripEl.classList.toggle(
             "rcp-view-config-strip-focused", focused
         );
@@ -1012,6 +1040,8 @@ function setup(proto) {
         this._viewScopedPills(view).forEach(function (p) {
             pills.push(p);
         });
+        // (Lenses moved to their own per-slot selector strips in H4 — they
+        // are global row decorators, not part of any one view's structure.)
         var self = this;
         pills.forEach(function (p) {
             rowEl.appendChild(self._buildConfigPill(p));
@@ -1056,6 +1086,10 @@ function setup(proto) {
             });
             self.viewConfigStripEl.appendChild(rowEl);
         });
+        // (H4: global row decorators — formerly the structure-toggle
+        // "lenses" row here — now live in their own per-slot selector strips
+        // above the Structure strip, so the viewconfig strip is purely the
+        // active view's own structure again.)
         // Clamp focus index into the rebuilt list and highlight.
         if (this.viewConfigFocusIdx >= pillList.length) {
             this.viewConfigFocusIdx = Math.max(0, pillList.length - 1);
@@ -1234,8 +1268,33 @@ function setup(proto) {
             "axis-add": "Add a new axis to this layer's chain. Enter opens " +
                 "an axis picker; the picked axis is appended at the end of " +
                 "the chain. Parametric axes (e.g. By field) prompt for " +
-                "their parameter."
+                "their parameter.",
+            "scratch-commit": "Commit this scratchpad. 'save as new' writes " +
+                "a brand-new view (nothing else affected); 'overwrite' writes " +
+                "back over the source (all consumers reflect it); 'discard' " +
+                "throws the scratchpad away. Enter activates.",
+            "layer-add": "Add a shared structure layer to this view. Enter " +
+                "opens a picker of available layers; the picked layer is " +
+                "appended to ca-view-layers (the view is cloned to a " +
+                "scratchpad first — commit via the view's save/overwrite pills).",
+            "layer-ref": "This shared layer, composed into the view by " +
+                "reference. Shift-↑/↓ reorders it among the view's layers; " +
+                "DEL removes it from the view (the layer itself is not " +
+                "deleted). Edit its filters via the pills to the right."
         };
+        // Editable facet pills: append the gesture hint so the user knows
+        // Enter edits and DEL clears. Filter/text facets edit raw; enum/
+        // toggle facets cycle/flip on Enter or Space.
+        if (pill && pill._edit) {
+            var ek = pill._edit.editKind;
+            var gesture = (ek === "enum" || ek === "toggle")
+                ? "↵/Space cycles · DEL clears"
+                : "↵ edits the raw filter (live match-count) · DEL clears";
+            var baseHelp = H[k] || "";
+            return (baseHelp ? baseHelp + "\n\n" : "") +
+                "Editing on a saved view clones it into a scratchpad first. " +
+                gesture + ".";
+        }
         if (k === "axis" && pill.axisTitle) {
             var t = this.wiki.getTiddler(pill.axisTitle);
             var axisHint = t && t.fields && t.fields["ca-axis-hint"];
@@ -1264,12 +1323,25 @@ function setup(proto) {
         valueEl.textContent = pill.value;
         el.appendChild(valueEl);
         el.title = pill.label + ": " + pill.value;
+        // Editable facets and scratchpad commit actions get marker classes
+        // so the theme can hint that Enter does something here.
+        if (pill._edit) el.classList.add("rcp-view-config-pill-editable");
+        if (pill.kind === "scratch-commit") {
+            el.classList.add("rcp-view-config-pill-commit");
+            el.classList.add("rcp-view-config-pill-commit-" + pill.commitMode);
+        }
         return el;
     };
 
     // View-scoped header pills: things that apply across all layers.
     proto._viewScopedPills = function (view) {
         var pills = [];
+        // Scratchpad commit pills (save-as-new / overwrite / discard) lead
+        // the header row while a scratchpad is active, so the user can
+        // commit or bail without leaving the strip.
+        if (this._scratchCommitPills) {
+            this._scratchCommitPills().forEach(function (p) { pills.push(p); });
+        }
         // Sort policy when non-default.
         if (view.sort && view.sort !== "alphabetical") {
             var sortVal = view.sort;
@@ -1291,7 +1363,7 @@ function setup(proto) {
         // Entries-layer inclusion mode — explicit so user can see why an
         // entries layer does or doesn't appear below.
         var hasEntries = view.layers.some(function (l) {
-            return l.isBuiltIn && l.builtInKind === "entries";
+            return l.source === "entries";
         });
         var indicator = view.includeEntries;
         if (indicator === "auto") indicator += hasEntries ? ": yes" : ": no";
@@ -1309,18 +1381,47 @@ function setup(proto) {
                 value: "off"
             });
         }
-        // Structure toggles — global on/off switches contributed by
-        // plugins (e.g. kind's "Kind icons"). They aren't view-scoped, but
-        // the view-header row is the natural home for cross-layer config.
-        // Flipped in expanded mode via Space/Enter (cp-keyboard.js).
-        if (this._structureTogglePills) {
-            this._structureTogglePills().forEach(function (p) { pills.push(p); });
+        // (Global row decorators are NOT pushed here — they aren't view-
+        // scoped. They live in their own per-slot lens selector strips
+        // (cp-lenses.js), above the Structure strip.)
+        // Compose-by-reference: "+ layer" appends a shared layer to this
+        // view's ca-view-layers (cp-view-editor _openLayerPicker). Shown for
+        // any view with a real producer layer (implicit or explicit) — adding
+        // a layer to an implicit view first triggers implicit→explicit
+        // migration (_migrateImplicitToExplicit), so the original structure
+        // becomes a referenceable layer instead of being shadowed.
+        var hasProducer = view.layers.some(function (l) {
+            return !l.isBuiltIn;
+        });
+        if (hasProducer) {
+            pills.push({ kind: "layer-add", label: "+", value: "layer" });
+        }
+        // Attach edit descriptors so the keyboard layer can edit these
+        // facets in place (cp-view-editor). View-scoped pills bind to the
+        // view tiddler (layer arg = null).
+        var self = this;
+        if (this._pillEditDescriptor) {
+            pills.forEach(function (p) {
+                if (!p._edit) p._edit = self._pillEditDescriptor(p, null);
+            });
         }
         return pills;
     };
 
     proto._layerPills = function (layer) {
         var pills = [];
+        // Explicit (shared) layers get a leading reference handle so the user
+        // can reorder (Shift-↑/↓) or remove (DEL) the layer from the view —
+        // the layer is composed by reference, not owned. Implicit / built-in
+        // layers aren't composable; a layer being edited (a scratchpad clone)
+        // is represented by its own commit pills instead, so no handle.
+        var isClone = this._isScratchpadTitle && this._isScratchpadTitle(layer.title);
+        if (!layer.isImplicit && !layer.isBuiltIn && layer.title && !isClone) {
+            pills.push({
+                kind: "layer-ref", label: "layer", value: layer.name || layer.title.split("/").pop(),
+                layerTitle: layer.title
+            });
+        }
         if (layer.roots)         pills.push({ kind: "roots",        label: "roots",    value: layer.roots });
         if (layer.children)      pills.push({ kind: "children",     label: "children", value: layer.children });
         if (layer.leaf)          pills.push({ kind: "leaf",         label: "leaf",     value: layer.leaf });
@@ -1362,6 +1463,24 @@ function setup(proto) {
                 value: "axis",
                 layerTitle: layer.title || "",
                 layerName: layer.name || ""
+            });
+        }
+        // Attach edit descriptors so structural pills become editable in
+        // place (cp-view-editor). Axis / axis-add pills get null (they have
+        // their own keyboard handling); view-scoped pills bind to the view,
+        // explicit-layer pills to the layer (via a layer-edit scratchpad).
+        var self = this;
+        if (this._pillEditDescriptor) {
+            pills.forEach(function (p) {
+                if (!p._edit) p._edit = self._pillEditDescriptor(p, layer);
+            });
+        }
+        // When this layer is itself a scratchpad clone (being edited), its
+        // own commit affordances live at the END of its row — save-as-new /
+        // overwrite (with consumer count) / discard, scoped to this layer.
+        if (this._layerCommitPillsFor) {
+            this._layerCommitPillsFor(layer.title).forEach(function (p) {
+                pills.push(p);
             });
         }
         return pills;

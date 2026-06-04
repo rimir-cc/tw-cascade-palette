@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/lens/caption
+tags: $:/tags/rimir/cascade-palette/lens
+ca-lens-name: Caption
+ca-lens-chip: 💬 Caption
+ca-lens-hint: Show only the caption field; rows without a caption keep their default name.
+ca-lens-help: Projects the NAME slot — replaces each data row's display name with the value of the row tiddler's ''`caption`'' field. Rows whose tiddler has no caption fall back to the default name (no override applies on an empty filter result). Pick "Caption → Title" instead when you want a guaranteed non-blank label.
+ca-lens-name-filter: [<currentTiddler>get[caption]]
+ca-order: 200

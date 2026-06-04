@@ -1,0 +1,9 @@
+title: $:/plugins/rimir/cascade-palette/entries/view-actions/new
+tags: $:/tags/rimir/cascade-palette/view-action
+ca-name: New view…
+ca-hint: Create a fresh view from scratch (opens in a scratchpad to edit)
+ca-icon: ✚
+ca-kind: leaf
+ca-order: 10
+ca-after-fire: keep
+ca-actions: <$action-sendmessage $message="rimir-cascade-palette-new-view"/>

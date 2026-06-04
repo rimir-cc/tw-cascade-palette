@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/lens/title
+tags: $:/tags/rimir/cascade-palette/lens
+ca-lens-name: Title
+ca-lens-chip: 🆔 Title
+ca-lens-hint: Show each row's raw tiddler title.
+ca-lens-help: Projects the NAME slot — replaces every data row's display name with the bare tiddler title, regardless of caption / name / kind-specific overrides. Useful when you need to disambiguate similarly-captioned tiddlers or to copy the canonical title from a row.
+ca-lens-name-filter: [<currentTiddler>]
+ca-order: 100

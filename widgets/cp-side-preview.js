@@ -70,6 +70,25 @@ reuses the cached widget tree and dispatches `refresh(changes)` into it.
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
 
+// Palette variables injected into the filter lab (and into every filter /
+// action eval via buildStageVariables in cp-actions.js). This list is the
+// single source of truth for the lab's "vars in scope" index.
+//
+// MAINTENANCE CONTRACT: whenever a new variable is added to
+// buildStageVariables, add a row here so the lab documents it. See memory
+// [[cascade-palette-filter-lab]].
+var FILTER_LAB_VARS = [
+    ["query", "current palette query text"],
+    ["picked", "selected entity (this stage)"],
+    ["parent-picked", "entity the current menu drilled from"],
+    ["currentTiddler", "preview context (deepest pinned)"],
+    ["context-tiddler", "active context tiddler"],
+    ["sticky-context-list", "pinned context titles (TW list)"],
+    ["sticky-context-count", "number of pinned titles"],
+    ["stage-preview-context", "deepest stage preview context"],
+    ["stage-N-picked", "pick at stack depth N (0-based)"]
+];
+
 module.exports = function (proto) {
 
     // Resolve the active context for the preview pane. Walks the stack
@@ -337,6 +356,12 @@ module.exports = function (proto) {
             clearTimeout(this._previewDebounceTimer);
             this._previewDebounceTimer = null;
         }
+        // While editing a filter facet the pane hosts the independent
+        // "filter lab" sandbox instead of the normal candidate preview.
+        if (this._filterLabActive()) {
+            this._renderFilterLab();
+            return;
+        }
         var resolved = this._resolvePreviewCandidates();
         var candidates = resolved.candidates;
         if (!candidates.length) {
@@ -435,6 +460,155 @@ module.exports = function (proto) {
             template: active.template,
             dom: container,
             widgetNode: widgetNode
+        };
+        this.popupEl.classList.add("rcp-showing-preview");
+    };
+
+    // ===================================================================
+    // Filter lab — independent AdvancedSearch-style sandbox
+    // ===================================================================
+    //
+    // Shown in the side-preview while editing a filter facet. It is fully
+    // decoupled from the palette input: its own <$edit-text> writes a
+    // scratch state tiddler, and a <$list>/<$count> over `subfilter{state}`
+    // re-evaluates live (the wiki change hook dispatches refresh into this
+    // widget tree — see _refreshSidePreviewOnChange). Palette stage
+    // variables (<<sticky-context-list>>, <<context-tiddler>>, …) are
+    // injected so trial filters behave exactly as they will in the field.
+    // The user copies a working filter back into the palette input by hand.
+
+    proto._filterLabActive = function () {
+        return !!(this.editMode && this.editMode.editKind === "filter");
+    };
+
+    // Build the collapsible "vars in scope" index (top-right) from
+    // FILTER_LAB_VARS. Variable names are HTML-escaped so `<<name>>` shows
+    // literally instead of being expanded by the wikitext parser.
+    proto._filterLabVarsIndex = function () {
+        var rows = FILTER_LAB_VARS.map(function (v) {
+            return "<div class=\"rcp-filter-lab-var\">" +
+                "<code>&lt;&lt;" + v[0] + "&gt;&gt;</code> " +
+                "<span>" + v[1] + "</span></div>";
+        }).join("\n");
+        return "<details class=\"rcp-filter-lab-vars\">" +
+            "<summary>vars in scope</summary>" +
+            "<div class=\"rcp-filter-lab-vars-body\">\n" + rows +
+            "\n</div></details>";
+    };
+
+    proto._filterLabWikitext = function () {
+        var s = C.FILTER_LAB_STATE;
+        return [
+            "\\whitespace trim",
+            "<div class=\"rcp-filter-lab\">",
+            this._filterLabVarsIndex(),
+            "<div class=\"rcp-filter-lab-hint\">Independent filter sandbox — " +
+                "palette variables (see top right) are in scope. Copy a " +
+                "working filter into the palette input.</div>",
+            "<div class=\"rcp-filter-lab-input-row\">" +
+                "<$edit-text tiddler=\"" + s + "\" tag=\"input\" type=\"search\" " +
+                "class=\"rcp-filter-lab-input\" " +
+                "placeholder=\"Try a filter, e.g. [tag[done]]\"/></div>",
+            "<div class=\"rcp-filter-lab-count\">" +
+                "<$count filter=\"[subfilter{" + s + "}]\"/> match(es)" +
+                "<$list filter=\"[subfilter{" + s + "}count[]" +
+                "compare:integer:gt[250]]\" variable=\"_\"> · first 250 shown" +
+                "</$list></div>",
+            "<ul class=\"rcp-filter-lab-list\">",
+            "<$list filter=\"[subfilter{" + s + "}limit[250]]\" " +
+                "variable=\"labitem\">",
+            "<li class=\"rcp-filter-lab-row\"><$text text=<<labitem>>/></li>",
+            "</$list>",
+            "</ul>",
+            "</div>"
+        ].join("\n");
+    };
+
+    // Prepend a native "copy to palette input" button into the lab's input
+    // row. Built in JS (not wikitext) because it pokes the palette input
+    // (this.inputEl) directly — copying the lab's current value over and
+    // re-triggering the live match-count, so the user can commit it.
+    proto._injectFilterLabCopyButton = function (container) {
+        if (!container || !container.querySelector) return;
+        var row = container.querySelector(".rcp-filter-lab-input-row");
+        if (!row) return;
+        var self = this;
+        var btn = this.document.createElement("button");
+        btn.type = "button";
+        btn.className = "rcp-filter-lab-copy";
+        btn.textContent = "←"; // ← : send leftward to the palette input
+        btn.title = "Copy this filter into the palette input";
+        btn.setAttribute("aria-label", "Copy filter into palette input");
+        btn.addEventListener("click", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var txt = self.wiki.getTiddlerText(C.FILTER_LAB_STATE, "");
+            self.inputEl.value = txt;
+            self.inputEl.focus();
+            // Re-run the live match-count / validation bound to the input.
+            try {
+                self.inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+            } catch (err) {
+                if (self.editMode && self.editMode.matchListener) {
+                    self.editMode.matchListener();
+                }
+            }
+        });
+        row.insertBefore(btn, row.firstChild);
+    };
+
+    proto._renderFilterLab = function () {
+        if (!this.popupEl || !this.sidePreviewBodyEl) return;
+        // Idempotent: if the lab tree is already mounted, leave it in place.
+        // The change hook refreshes it live; rebuilding would reset the
+        // input and steal the caret mid-type.
+        var cache = this._sidePreviewCache;
+        if (cache && cache.kind === "filter-lab" && cache.dom &&
+            cache.dom.parentNode === this.sidePreviewBodyEl) {
+            this.popupEl.classList.add("rcp-showing-preview");
+            return;
+        }
+        if (this.sidePreviewTitleEl) {
+            this.sidePreviewTitleEl.textContent = "Filter lab";
+        }
+        if (this.sidePreviewPillsEl) {
+            while (this.sidePreviewPillsEl.firstChild) {
+                this.sidePreviewPillsEl.removeChild(this.sidePreviewPillsEl.firstChild);
+            }
+        }
+        while (this.sidePreviewBodyEl.firstChild) {
+            this.sidePreviewBodyEl.removeChild(this.sidePreviewBodyEl.firstChild);
+        }
+        var container = this.document.createElement("div");
+        container.className = "rcp-preview-pane-template";
+        var widgetNode = null;
+        try {
+            var parser = this.wiki.parseText(
+                "text/vnd.tiddlywiki", this._filterLabWikitext());
+            var vars = this.buildStageVariables(this.topStage());
+            vars.currentTiddler =
+                vars["stage-preview-context"] || vars["parent-picked"] || "";
+            widgetNode = this.wiki.makeWidget(parser, {
+                parentWidget: this.findActionParent() || $tw.rootWidget,
+                document: this.document,
+                variables: vars
+            });
+            widgetNode.render(container, null);
+            this._injectFilterLabCopyButton(container);
+        } catch (err) {
+            if (console && console.warn) {
+                console.warn("[cascade-palette] filter lab render error —",
+                    err && err.message);
+            }
+            container.textContent =
+                "(filter lab render error: " + (err && err.message) + ")";
+        }
+        this.sidePreviewBodyEl.appendChild(container);
+        // Sentinel context/template so a later normal render never mistakes
+        // this for a cache hit (it rebuilds the candidate preview instead).
+        this._sidePreviewCache = {
+            kind: "filter-lab", dom: container, widgetNode: widgetNode,
+            depth: -1, context: " filter-lab", template: " filter-lab"
         };
         this.popupEl.classList.add("rcp-showing-preview");
     };

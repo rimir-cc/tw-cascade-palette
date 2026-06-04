@@ -18,7 +18,7 @@ type: text/vnd.tiddlywiki
 |`↑` `↓` |Move row selection |
 |`→` |Drill — descend tree containers, push action menu on typed catalogue rows |
 |`←` |Pop one stage |
-|`← →` (in pills) |Move between pills. On the single-select strips (view / preset / row-label) landing on a pill ''applies it'' — no Space/Enter needed (preset's ''+'' save pill excepted) |
+|`← →` (in pills) |Move between pills. On the single-select strips (view / preset / lens slots) landing on a pill ''applies it'' — no Space/Enter needed (preset's ''+'' and a lens strip's ''➕ New…'' pill excepted) |
 |`↵` |Fire selected row |
 |`Ctrl-↵` |Fire + keep palette open |
 |`Alt-↵` |Fire row's primary icon (e.g. 🌐 opens URL in new tab) |

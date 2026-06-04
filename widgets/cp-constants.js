@@ -32,8 +32,17 @@ exports.SET_VIEW_MESSAGE = "rimir-cascade-palette-set-view";
 exports.APPLY_PRESET_MESSAGE = "rimir-cascade-palette-apply-preset";
 exports.SAVE_PRESET_MESSAGE = "rimir-cascade-palette-save-preset";
 exports.RECALL_PRESET_MESSAGE = "rimir-cascade-palette-recall-preset";
-exports.SET_ROW_LABEL_MESSAGE = "rimir-cascade-palette-set-row-label";
-exports.RESET_ROW_LABEL_MESSAGE = "rimir-cascade-palette-reset-row-label";
+// View lifecycle — fired from the "Manage views" menu (cp-view-editor).
+exports.NEW_VIEW_MESSAGE = "rimir-cascade-palette-new-view";
+exports.EDIT_VIEW_MESSAGE = "rimir-cascade-palette-edit-view";
+exports.FORK_VIEW_MESSAGE = "rimir-cascade-palette-fork-view";
+exports.DELETE_VIEW_MESSAGE = "rimir-cascade-palette-delete-view";
+// Lens lifecycle — fired from the "Manage lenses" menu (cp-lens-editor).
+// paramObject.slot selects which decoration slot the new lens projects.
+exports.NEW_LENS_MESSAGE = "rimir-cascade-palette-new-lens";
+// Delete a lens (paramObject.lens = title) — fired by the DEL-confirm stage
+// pushed from a lens slot strip.
+exports.DELETE_LENS_MESSAGE = "rimir-cascade-palette-delete-lens";
 
 // ---- Tags consumed by the engine ----
 exports.ENTRY_TAG = "$:/tags/rimir/cascade-palette/entry";
@@ -79,28 +88,35 @@ exports.SIDE_PREVIEW_TAG = "$:/tags/rimir/cascade-palette/side-preview";
 // the configured URL fields). Alt-Enter on the row fires the primary
 // icon's action / message. See `widgets/cp-row-icons.js`.
 exports.ROW_ICON_TAG = "$:/tags/rimir/cascade-palette/row-icon";
-// Row-label registration. Tiddlers tagged with this declare an
-// alternative way of rendering each row's display name. A row-label
-// pill carries a `ca-row-label-filter` evaluated per data row with
-// `<currentTiddler>` bound to the row's backing tiddler title; the
-// first filter result replaces `item.name` at render time. Only one
-// row-label can be active at a time (single-select pill strip). When
-// no pill is active, rows show whatever name the view / next-scope
-// path already assigned. See `widgets/cp-row-label-pills.js`.
-exports.ROW_LABEL_TAG = "$:/tags/rimir/cascade-palette/row-label";
-
-// Structure-toggle pills — boolean on/off switches surfaced in the
-// Structure (viewconfig) strip's view header row. A tagged tiddler
-// declares `ca-struct-name` (label), optional `ca-struct-hint` /
-// `ca-struct-help`, `ca-struct-default` (yes/no — initial state),
-// `ca-struct-when` (applicability filter; empty = always shown), and
-// optionally `ca-struct-row-icon-filter` — a per-data-row filter
-// (`<currentTiddler>` = row title) whose first non-empty result becomes
-// the row's leading icon glyph WHILE the toggle is on. State persists in
-// STRUCTURE_TOGGLE_STATE_PREFIX + <slug>. Generic mechanism; the
-// `rimir/kind` plugin ships a "Kind icons" toggle that resolves each
-// instance's type icon. See `widgets/cp-structure-toggles.js`.
-exports.STRUCTURE_TOGGLE_TAG = "$:/tags/rimir/cascade-palette/structure-toggle";
+// Lens registration (H4). Supersedes the former row-label (name slot) +
+// structure-toggle (icon slot) subsystems, both removed in the H4 cleanup. A lens is a tiddler tagged LENS_TAG that
+// projects zero or more row-decoration SLOTS (and may contribute actions).
+// It unifies the former row-label (name slot) + structure-toggle (icon
+// slot) subsystems into one type-driven decorator. Fields:
+//   ca-lens-name / -chip / -hint / -help   — display + help text
+//   ca-lens-when      — applicability (global existence test; empty result
+//                       hides the lens; missing/empty = always applicable)
+//   ca-lens-default   — space-separated slot names for which this lens is
+//                       the seeded default (e.g. "name") when no state stored
+//   ca-lens-<slot>-filter    — cheap per-row projection: filter evaluated
+//                       with <currentTiddler> = row title; first non-empty
+//                       result fills the slot
+//   ca-lens-<slot>-template  — rich per-row projection (wikitext; H4 slice 4)
+//   ca-lens-actions   — "via-entity-type" (or a filter) to opt into the
+//                       action bridge (H4 slice 3)
+//   ca-order          — sort order among lenses (default 100)
+// Slots: see LENS_SLOTS. Each slot is a single-select chooser strip; the
+// active lens per slot persists under LENS_STATE_PREFIX + <slot>.
+exports.LENS_TAG = "$:/tags/rimir/cascade-palette/lens";
+// Row-decoration slots a lens can project, in render order:
+//   name       — REPLACE the row's display name
+//   icon       — AUGMENT-LEAD a glyph before the name
+//   annotation — AUGMENT-TRAIL a chip/badge after the name (H4 slice 4)
+exports.LENS_SLOTS = ["name", "icon", "annotation"];
+// Active lens per slot — body = lens tiddler title (empty = none/off).
+// Slug is the slot name. Lives under $:/state/ so the choice survives
+// reload but isn't filesystem-synced.
+exports.LENS_STATE_PREFIX = "$:/state/rimir/cascade-palette/lens/";
 
 // ---- Config tiddler titles ----
 exports.SOFT_DEPTH_CONFIG = "$:/config/rimir/cascade-palette/soft-depth-warning";
@@ -142,17 +158,39 @@ exports.LAYER_AXES_STATE_PREFIX = "$:/state/rimir/cascade-palette/layer-axes/";
 // variables; rendered as a dedicated pill strip above the visibility
 // strip.
 exports.STICKY_CONTEXT_TITLE = "$:/temp/rimir/cascade-palette/sticky-context";
-// Active row-label pill — tiddler title of the currently selected
-// row-label pill, or empty when none is active. Lives under
-// $:/state/ so the user's display preference survives reload but
-// isn't filesystem-synced. Updated by `_setRowLabel` / `_clearRowLabel`.
-exports.ROW_LABEL_STATE_TITLE = "$:/state/rimir/cascade-palette/row-label";
-
-// Per-structure-toggle on/off state. Slug = last segment of the toggle
-// tiddler title. Body text "yes" = on, "no"/empty = off; absent state
-// tiddler falls back to the toggle's `ca-struct-default`. Lives under
-// $:/state/ so the user's choice survives reload but isn't fs-synced.
-exports.STRUCTURE_TOGGLE_STATE_PREFIX = "$:/state/rimir/cascade-palette/structure-toggle/";
+// Scratchpad namespace — session-only working copies of definition
+// tiddlers (views/layers/axes/...). A scratchpad is created by cloning a
+// persisted definition; ALL editing happens here, strictly isolated from
+// the originals until the user commits (save-as-new / overwrite / discard).
+// Lives under $:/state/ so it survives accidental reload but is NOT
+// filesystem-synced (same rationale as layer-axes state). Each scratchpad
+// gets a `<scratch-id>/` sub-namespace; the definition tiddler carries
+// bookkeeping fields `cp-scratch-kind` (view|layer|axis|entry|action) and
+// `cp-scratch-source` (the persisted title it was cloned from, empty for
+// create-from-scratch).
+exports.SCRATCHPAD_PREFIX = "$:/state/rimir/cascade-palette/scratchpad/";
+// Scratch state tiddler for the side-preview "filter lab" — an
+// AdvancedSearch-style independent filter input + live result list shown
+// while editing a filter facet. Decoupled from the palette input: the user
+// experiments here and copies a working filter back. $:/state ⇒ not synced.
+exports.FILTER_LAB_STATE = "$:/state/rimir/cascade-palette/filter-lab";
+exports.SCRATCH_KIND_FIELD = "cp-scratch-kind";
+exports.SCRATCH_SOURCE_FIELD = "cp-scratch-source";
+// Marks a view scratchpad created PURELY as a live-preview carrier for
+// shared-layer edits (the user never asked to edit the view itself). Such a
+// scratchpad shows no view-level commit pills and is torn down automatically
+// once its last edited layer is committed/discarded. Cleared if the user goes
+// on to edit a view-scoped facet, promoting it to a genuine view edit.
+exports.SCRATCH_PREVIEW_ONLY_FIELD = "cp-scratch-preview-only";
+// Persisted namespaces for new / saved definitions (collision-safe slug
+// appended). User definitions share the shadow namespace — a real tiddler
+// at a fresh slug simply doesn't collide; the slug loop guards the rest.
+exports.VIEWS_NS = "$:/plugins/rimir/cascade-palette/views/";
+exports.LAYERS_NS = "$:/plugins/rimir/cascade-palette/structure-layers/";
+exports.AXES_NS = "$:/plugins/rimir/cascade-palette/axes/";
+// User-created lenses (collision-safe slug appended). Shipped lenses live
+// in the same namespace as plugin shadows; a fresh slug doesn't collide.
+exports.LENS_NS = "$:/plugins/rimir/cascade-palette/lens/";
 
 // ---- Defaults for nullable / fallback fields ----
 exports.DEFAULT_ORDER = 100;
@@ -209,7 +247,7 @@ exports.HINT_REACH      = "Tab section · ←→ select · DEL remove · Esc inp
 exports.HINT_META       = "Tab section · ←→ select · DEL remove · Esc input";
 exports.HINT_FIELD      = "Tab section · ←→ select · DEL remove · Esc input";
 exports.HINT_VIEW       = "Tab section · ←→ select · ↵ activate · Esc input";
-exports.HINT_ROW_LABEL  = "Tab section · ←→ select · ↵ activate · DEL clear · Esc input";
+exports.HINT_LENS       = "Tab section · ←→ select (← (off) to disable) · ↵ activate / + New · e edit · DEL delete · ↑↓ slot · Esc input";
 exports.HINT_LEADER     = "Tab section · ←→ select · ↵/Space fire · Esc input";
 exports.HINT_VIEWCONFIG_COMPACT  = "Tab section · ↵/Space/→ expand · Esc input";
 exports.HINT_VIEWCONFIG_EXPANDED = "Tab section · ↑↓←→ navigate pills · hold Ctrl preview · Esc collapse";

@@ -142,6 +142,139 @@ type: text/css
     box-shadow: inset 2px 0 0 0 #d97706;
 }
 
+/* Filter lab — independent AdvancedSearch-style sandbox rendered into the
+   side-preview body while editing a filter facet (cp-side-preview
+   _renderFilterLab). Decoupled from the palette input. */
+.rcp-filter-lab {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* "vars in scope" index — collapsible, parked top-right, small font. */
+.rcp-filter-lab-vars {
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-size: 10px;
+    color: #6b7280;
+    max-width: 60%;
+    z-index: 2;
+}
+
+.rcp-filter-lab-vars > summary {
+    cursor: pointer;
+    list-style: none;
+    text-align: right;
+    color: #9ca3af;
+    user-select: none;
+}
+
+.rcp-filter-lab-vars > summary:hover {
+    color: #d97706;
+}
+
+.rcp-filter-lab-vars-body {
+    margin-top: 4px;
+    padding: 6px 8px;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.rcp-filter-lab-var code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #b45309;
+}
+
+.rcp-filter-lab-var span {
+    color: #6b7280;
+}
+
+.rcp-filter-lab-hint {
+    font-size: 11px;
+    line-height: 1.4;
+    color: #6b7280;
+    padding-right: 80px; /* clear the vars-index summary in the corner */
+}
+
+.rcp-filter-lab-input-row {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+}
+
+.rcp-filter-lab-copy {
+    flex: 0 0 auto;
+    width: 28px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.rcp-filter-lab-copy:hover {
+    background: #fde9c8;
+    border-color: #d97706;
+    color: #b45309;
+}
+
+.rcp-filter-lab-input {
+    flex: 1 1 auto;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    padding: 6px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    background: #fff;
+    color: #1a1a1a;
+}
+
+.rcp-filter-lab-input:focus {
+    outline: none;
+    border-color: #d97706;
+    box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.25);
+}
+
+.rcp-filter-lab-count {
+    font-size: 11px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.rcp-filter-lab-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.rcp-filter-lab-row {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #1f2937;
+}
+
+.rcp-filter-lab-row:nth-child(odd) {
+    background: rgba(148, 163, 184, 0.12);
+}
+
 /* In-palette Help system — side-preview body styling.
    .cp-help-pane is the root element emitted by help/preview-template.tid.
    Kept namespaced under .cp-help-* so it can't collide with other plugin
@@ -363,31 +496,48 @@ type: text/css
     vertical-align: middle;
 }
 
-/* Row-label strip — single-select pills that override how each data
-   row's display name is rendered (cp-row-label-pills.js). Sits directly
-   below the view strip; same chrome but cyan/teal accent to read as a
-   sibling display-preference choice. Hidden via `rcp-has-row-label` when
-   no row-label pills are registered. */
-.rcp-row-label-strip {
+/* Lens slot strips (H4) — one single-select chooser per row-decoration
+   slot (name / icon / annotation). Each sits below the view strip with a
+   cyan/teal accent and is hidden via `rcp-has-lens-<slot>` until a lens
+   projects that slot. A small non-interactive label at the head names the
+   slot the chooser controls. */
+.rcp-lens-strip {
     display: none;
     flex-wrap: wrap;
+    align-items: center;
     gap: 4px;
-    padding: 6px 14px;
+    padding: 5px 14px;
     background: #f0fdfa;
     border-bottom: 1px solid #e5e7eb;
     outline: none;
 }
 
-.rcp-popup.rcp-has-row-label .rcp-row-label-strip {
+.rcp-popup.rcp-has-lens-name .rcp-lens-strip-name,
+.rcp-popup.rcp-has-lens-icon .rcp-lens-strip-icon,
+.rcp-popup.rcp-has-lens-annotation .rcp-lens-strip-annotation {
     display: flex;
 }
 
-.rcp-popup[data-focus="rowlabel"] .rcp-row-label-strip {
+.rcp-popup[data-focus="lens-name"] .rcp-lens-strip-name,
+.rcp-popup[data-focus="lens-icon"] .rcp-lens-strip-icon,
+.rcp-popup[data-focus="lens-annotation"] .rcp-lens-strip-annotation {
     background: #ccfbf1;
     box-shadow: inset 2px 0 0 0 #0d9488;
 }
 
-.rcp-row-label-pill {
+.rcp-lens-strip-label {
+    flex-shrink: 0;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b7280;
+    padding-right: 4px;
+    user-select: none;
+    pointer-events: none;
+}
+
+.rcp-lens-pill {
     display: inline-flex;
     align-items: center;
     padding: 2px 10px;
@@ -402,22 +552,36 @@ type: text/css
     border: 1px solid #e5e7eb;
 }
 
-.rcp-row-label-pill:hover {
+.rcp-lens-pill:hover {
     background: #e5e7eb;
 }
 
-.rcp-row-label-pill-active {
+.rcp-lens-pill-active {
     background: #99f6e4;
     color: #134e4a;
     border-color: #0d9488;
     font-weight: 600;
 }
 
-.rcp-row-label-pill-focused {
+.rcp-lens-pill-focused {
     background: #5eead4;
     border-color: #0f766e;
     color: #042f2e;
     box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.35);
+}
+
+/* Trailing "+ New…" authoring pill — dashed, muted, set apart from the
+   selectable lens pills it follows. */
+.rcp-lens-pill-new {
+    background: transparent;
+    border-style: dashed;
+    border-color: #5eead4;
+    color: #0f766e;
+    font-weight: 600;
+}
+
+.rcp-lens-pill-new:hover {
+    background: #f0fdfa;
 }
 
 /* View-config strip — read-only stacked layout depicting the active
@@ -598,6 +762,27 @@ type: text/css
     font-style: italic;
 }
 
+/* Editable facet pills — a subtle dotted underline on the value hints that
+   Enter edits it in place (raw filter / cycle / flip). The focused-pill
+   highlight (above) still carries the primary affordance. */
+.rcp-view-config-pill-editable .rcp-view-config-pill-value {
+    border-bottom: 1px dotted #9ca3af;
+}
+
+/* Scratchpad commit pills — lead the Structure header row while editing a
+   working copy. Green = save-as-new, amber = overwrite (touches consumers),
+   red = discard. */
+.rcp-view-config-pill-commit {
+    font-weight: 600;
+    cursor: pointer;
+}
+.rcp-view-config-pill-commit-save-new  { background: #ecfdf5; border-color: #6ee7b7; }
+.rcp-view-config-pill-commit-save-new .rcp-view-config-pill-label  { color: #047857; }
+.rcp-view-config-pill-commit-overwrite { background: #fffbeb; border-color: #fcd34d; }
+.rcp-view-config-pill-commit-overwrite .rcp-view-config-pill-label { color: #b45309; }
+.rcp-view-config-pill-commit-discard   { background: #fef2f2; border-color: #fca5a5; }
+.rcp-view-config-pill-commit-discard .rcp-view-config-pill-label   { color: #b91c1c; }
+
 @media (prefers-color-scheme: dark) {
     .rcp-view-config-strip {
         background: #181d24;
@@ -746,31 +931,38 @@ type: text/css
         color: #fef3c7;
         box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.45);
     }
-    .rcp-row-label-strip {
+    .rcp-lens-strip {
         background: #1c2624;
         border-bottom-color: #374151;
     }
-    .rcp-popup[data-focus="rowlabel"] .rcp-row-label-strip {
+    .rcp-popup[data-focus="lens-name"] .rcp-lens-strip-name,
+    .rcp-popup[data-focus="lens-icon"] .rcp-lens-strip-icon,
+    .rcp-popup[data-focus="lens-annotation"] .rcp-lens-strip-annotation {
         background: #134e4a;
     }
-    .rcp-row-label-pill {
+    .rcp-lens-pill {
         background: #2a2f32;
         color: #f3f4f6;
         border-color: #134e4a;
     }
-    .rcp-row-label-pill:hover {
+    .rcp-lens-pill:hover {
         background: #374151;
     }
-    .rcp-row-label-pill-active {
+    .rcp-lens-pill-active {
         background: #115e59;
         color: #ccfbf1;
         border-color: #5eead4;
     }
-    .rcp-row-label-pill-focused {
+    .rcp-lens-pill-focused {
         background: #0f766e;
         border-color: #99f6e4;
         color: #ccfbf1;
         box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.45);
+    }
+    .rcp-lens-pill-new {
+        background: transparent;
+        border-color: #0f766e;
+        color: #5eead4;
     }
 }
 
@@ -971,7 +1163,6 @@ type: text/css
 .rcp-visibility-strip::before,
 .rcp-filter-strip::before,
 .rcp-view-strip::before,
-.rcp-row-label-strip::before,
 .rcp-reach-strip::before,
 .rcp-meta-strip::before,
 .rcp-field-strip::before,
@@ -1005,7 +1196,6 @@ type: text/css
 .rcp-visibility-strip::before { content: "Visibility"; }
 .rcp-filter-strip::before     { content: "Filters"; }
 .rcp-view-strip::before       { content: "Views"; }
-.rcp-row-label-strip::before  { content: "Labels"; }
 .rcp-reach-strip::before      { content: "Reach"; }
 .rcp-meta-strip::before       { content: "⌕ Meta"; }
 .rcp-field-strip::before      { content: "⌕ Field"; }
@@ -1028,7 +1218,6 @@ type: text/css
     .rcp-visibility-strip::before,
     .rcp-filter-strip::before,
     .rcp-view-strip::before,
-    .rcp-row-label-strip::before,
     .rcp-reach-strip::before,
     .rcp-meta-strip::before,
     .rcp-field-strip::before,

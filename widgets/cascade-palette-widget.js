@@ -255,8 +255,10 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     require("$:/plugins/rimir/cascade-palette/widgets/cp-reach-pills")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-search-meta-pills")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-search-field-pills")(CascadePaletteWidget.prototype);
-    require("$:/plugins/rimir/cascade-palette/widgets/cp-row-label-pills")(CascadePaletteWidget.prototype);
-    require("$:/plugins/rimir/cascade-palette/widgets/cp-structure-toggles")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-lenses")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-lens-editor")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-row-decorations")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-view-editor")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-deep-search")(CascadePaletteWidget.prototype);
 
     /* ---------- lifecycle ---------- */
@@ -310,16 +312,21 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.viewStripEl.className = "rcp-view-strip";
         this.viewStripEl.setAttribute("tabindex", "-1");
 
-        // Row-label strip — single-select pills that override how each
-        // data row's display name is rendered. Sits just below the view
-        // strip in the visual stack: changing the active view and changing
-        // the row-label are sibling display-preference choices.
-        // Hidden via `rcp-has-row-label` on the popup when no row-label
-        // pills are registered.
-        this.rowLabelStripEl = this.document.createElement("div");
-        this.rowLabelStripEl.className = "rcp-row-label-strip";
-        this.rowLabelStripEl.setAttribute("tabindex", "-1");
-        this.rowLabelFocusIdx = 0;
+        // Lens slot strips (H4) — one single-select chooser per row-
+        // decoration slot (name / icon / annotation). Each sits in the
+        // visual stack just below the view strip; hidden via
+        // `rcp-has-lens-<slot>` on the popup when no lens projects that
+        // slot. Created in LENS_SLOTS order so the DOM matches the cycle.
+        this._lensStripEls = {};
+        this._lensFocusIdx = {};
+        var self0 = this;
+        C.LENS_SLOTS.forEach(function (slot) {
+            var el = self0.document.createElement("div");
+            el.className = "rcp-lens-strip rcp-lens-strip-" + slot;
+            el.setAttribute("tabindex", "-1");
+            self0._lensStripEls[slot] = el;
+            self0._lensFocusIdx[slot] = 0;
+        });
 
         // View-config strip — pills depicting the active view's
         // primitives (roots / children / leaf / label filters). Hidden
@@ -434,7 +441,10 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.cascadeColEl.appendChild(this.fieldStripEl);
         this.cascadeColEl.appendChild(this.filterStripEl);
         this.cascadeColEl.appendChild(this.viewStripEl);
-        this.cascadeColEl.appendChild(this.rowLabelStripEl);
+        var self1 = this;
+        C.LENS_SLOTS.forEach(function (slot) {
+            self1.cascadeColEl.appendChild(self1._lensStripEls[slot]);
+        });
         this.cascadeColEl.appendChild(this.viewConfigStripEl);
         this.cascadeColEl.appendChild(this.leaderStripEl);
         this.cascadeColEl.appendChild(this.inputEl);
@@ -486,6 +496,20 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             if (e.key === "Control" && !e.repeat && !self.editMode) {
                 self.ctrlHeld = true;
                 self._updateDetailsVisibility();
+            }
+            // Esc inside the filter lab returns focus to the palette
+            // input WITHOUT cancelling the facet edit — the lab is a
+            // decoupled sandbox, so leaving it shouldn't discard the edit
+            // in progress. (A second Esc, now in the palette input, cancels
+            // the edit normally.) Must come before both the preview-widget
+            // passthrough — which excludes Escape so it'd otherwise fall to
+            // handleKeydown's edit-mode Esc=cancel — and handleKeydown.
+            if (e.key === "Escape" && self._filterLabActive &&
+                self._filterLabActive() && self.sidePreviewEl &&
+                self.sidePreviewEl.contains(e.target)) {
+                e.preventDefault();
+                self.inputEl.focus();
+                return;
             }
             // Side preview is fully interactive — a keystroke inside a
             // form input / button / link there must reach the widget
@@ -606,7 +630,9 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         wireStripFocus(this.metaStripEl, "meta");
         wireStripFocus(this.fieldStripEl, "field");
         wireStripFocus(this.viewStripEl, "view");
-        wireStripFocus(this.rowLabelStripEl, "rowlabel");
+        C.LENS_SLOTS.forEach(function (slot) {
+            wireStripFocus(self._lensStripEls[slot], "lens-" + slot);
+        });
         wireStripFocus(this.presetStripEl, "preset");
         wireStripFocus(this.viewConfigStripEl, "viewconfig");
         wireStripFocus(this.leaderStripEl, "leader");
@@ -741,34 +767,44 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                     self._invalidateLeadersCache();
                     if (self.open) self._renderLeaderStrip();
                 }
-                // Row-label pills — invalidate the cache when a tagged
-                // tiddler changes, when the active-pill state moves, or
-                // when one of the cached pill tiddlers is edited.
-                var rowLabelTitles = (self._rowLabelPillsCache || [])
-                    .map(function (p) { return p.title; });
-                if (changes[C.ROW_LABEL_STATE_TITLE] ||
-                    isTaggedChange({
-                        tag: C.ROW_LABEL_TAG,
-                        cachedTitles: rowLabelTitles
-                    })) {
-                    self._invalidateRowLabelPills();
-                    if (self.open) self._renderRowLabelStrip();
-                }
-                // Structure toggles — invalidate when a tagged toggle
-                // tiddler changes or any per-toggle state tiddler moves
-                // (state titles share STRUCTURE_TOGGLE_STATE_PREFIX).
-                var structToggleTitles = (self._structureTogglesCache || [])
-                    .map(function (t) { return t.title; });
-                var structStateChanged = Object.keys(changes).some(function (k) {
-                    return k.indexOf(C.STRUCTURE_TOGGLE_STATE_PREFIX) === 0;
+                // Lenses (H4) — invalidate when a tagged lens tiddler
+                // changes, or when any per-slot active-lens state moves
+                // (state titles share LENS_STATE_PREFIX). Re-render every
+                // slot strip so chooser highlight + decorations track live.
+                var lensTitles = (self._lensesCache || [])
+                    .map(function (l) { return l.title; });
+                var lensStateChanged = Object.keys(changes).some(function (k) {
+                    return k.indexOf(C.LENS_STATE_PREFIX) === 0;
                 });
-                if (structStateChanged ||
-                    isTaggedChange({
-                        tag: C.STRUCTURE_TOGGLE_TAG,
-                        cachedTitles: structToggleTitles
+                if (lensStateChanged ||
+                    isTaggedChange({ tag: C.LENS_TAG, cachedTitles: lensTitles })) {
+                    self._invalidateLenses();
+                    if (self.open) self._renderAllLensStrips();
+                }
+                // View / structure-layer / axis definition tiddlers (and
+                // scratchpad / layer-axes state) — invalidate the view
+                // descriptor cache so structural edits (ours via the editor
+                // OR external) rebuild the descriptors and the live preview.
+                // _loadViews resets the active view, so reload via the
+                // active-preserving helper. Without this, the deferred
+                // change event after a facet commit would re-render with the
+                // STALE cached view and silently undo the edit.
+                if (isTaggedChange({ tag: C.VIEW_TAG }) ||
+                    isTaggedChange({ tag: C.STRUCTURE_LAYER_TAG }) ||
+                    isTaggedChange({ tag: C.AXIS_TAG }) ||
+                    Object.keys(changes).some(function (k) {
+                        return k.indexOf(C.SCRATCHPAD_PREFIX) === 0 ||
+                            k.indexOf(C.LAYER_AXES_STATE_PREFIX) === 0;
                     })) {
-                    self._invalidateStructureToggles();
-                    if (self.open) self._renderViewConfigStrip();
+                    if (self._reloadViewsPreservingActive) {
+                        self._reloadViewsPreservingActive();
+                    } else {
+                        self._viewsLoaded = false;
+                    }
+                    if (self.open && self._renderViewStrip) self._renderViewStrip();
+                    if (self.open && self._renderViewConfigStrip) {
+                        self._renderViewConfigStrip();
+                    }
                 }
                 // Sticky context — refresh the strip when the state
                 // tiddler changes (own writes via pin/unpin, external
@@ -934,14 +970,44 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 if (viewTitle) self._setActiveView(viewTitle, { recordBack: true });
                 return false;
             });
-            registerRootMessage(C.SET_ROW_LABEL_MESSAGE, function (event) {
-                var p = (event && event.paramObject) || {};
-                var rlTitle = p["row-label"] || (event && event.param) || "";
-                self._addRowLabelByTitle(rlTitle);
+            // View lifecycle (Manage views menu). Each handler self-navigates
+            // (resets the stack to root, re-renders, focuses) so the fired
+            // leaf can carry `ca-after-fire: keep` and the palette lands the
+            // user on the right surface. `view`/`param` = target title; the
+            // editor methods default to the active view when omitted.
+            registerRootMessage(C.NEW_VIEW_MESSAGE, function () {
+                if (self._newViewScratchpad) self._newViewScratchpad();
                 return false;
             });
-            registerRootMessage(C.RESET_ROW_LABEL_MESSAGE, function () {
-                self._clearRowLabel();
+            registerRootMessage(C.EDIT_VIEW_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var t = p.view || (event && event.param) || "";
+                if (t && t !== self.activeView) self._setActiveView(t);
+                if (self._editActiveView) self._editActiveView();
+                return false;
+            });
+            registerRootMessage(C.FORK_VIEW_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var t = p.view || (event && event.param) || self.activeView;
+                if (self._forkView) self._forkView(t);
+                return false;
+            });
+            registerRootMessage(C.DELETE_VIEW_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var t = p.view || (event && event.param) || self.activeView;
+                if (self._deleteView) self._deleteView(t);
+                return false;
+            });
+            registerRootMessage(C.NEW_LENS_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var slot = p.slot || (event && event.param) || "name";
+                if (self._newLensScratchpad) self._newLensScratchpad(slot);
+                return false;
+            });
+            registerRootMessage(C.DELETE_LENS_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var t = p.lens || (event && event.param) || "";
+                if (t && self._deleteLens) self._deleteLens(t);
                 return false;
             });
             registerRootMessage(C.APPLY_PRESET_MESSAGE, function (event) {
@@ -1022,7 +1088,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this._refreshContextPills();
         this._renderContextStrip();
         this._renderViewStrip();
-        this._renderRowLabelStrip();
+        this._renderAllLensStrips();
         this._renderVisibilityStrip();
         this._renderReachStrip();
         this._renderFieldStrip();
@@ -1212,11 +1278,12 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     };
 
     CascadePaletteWidget.prototype.setFocus = function (section) {
+        var isLensSection = typeof section === "string" && section.indexOf("lens-") === 0;
         if (section !== "input" && section !== "menu" &&
             section !== "details" && section !== "preview" &&
             section !== "filter" && section !== "context" &&
             section !== "visibility" && section !== "view" &&
-            section !== "rowlabel" &&
+            !isLensSection &&
             section !== "preset" && section !== "viewconfig" &&
             section !== "leader" &&
             section !== "reach" && section !== "meta" &&
@@ -1249,11 +1316,11 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (section === "view" && this._visibleViews().length < 2) {
             section = "input";
         }
-        // Row-label strip joins the cycle whenever at least one pill is
-        // registered. Count is +1 for the synthetic "(none)" entry so a
-        // true 0 means no pills shipped or installed yet.
-        if (section === "rowlabel" && this._rowLabelPillCount() === 0) {
-            section = "input";
+        // Lens slot strip joins the cycle only when a lens projects its
+        // slot. Don't focus an empty chooser (dead-end UX).
+        if (isLensSection) {
+            var guardSlot = section.slice("lens-".length);
+            if (this._lensPillCount(guardSlot) === 0) section = "input";
         }
         // Same for the preset strip when no presets exist.
         if (section === "preset" && this._presetPillCount() === 0) {
@@ -1358,11 +1425,13 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             this._renderFieldStrip();
             this._maybeRenderFieldHelp();
         } else if (section === "viewconfig") {
-            // Always enter compact mode on (re-)focus, per the documented
-            // behaviour. Expansion is explicit via Enter / Space / Right
-            // and survives only until Esc collapses it (or until focus
-            // leaves the strip).
-            this.viewConfigExpanded = false;
+            // Normally enter compact mode on (re-)focus: expansion is
+            // explicit via Enter / Space / Right and survives only until
+            // Esc collapses it (or until focus leaves the strip). In
+            // scratchpad mode the strip is pinned-open, so don't reset it.
+            if (!(this._structurePinned && this._structurePinned())) {
+                this.viewConfigExpanded = false;
+            }
             this.viewConfigFocusIdx = 0;
             this.viewConfigStripEl.focus();
             this._renderViewConfigStrip();
@@ -1389,28 +1458,24 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             this.viewStripEl.focus();
             this._renderViewStrip();
             this._maybeRenderViewHelp();
-        } else if (section === "rowlabel") {
-            // Anchor focus on the active pill so ←/→ starts adjacent to
-            // the user's current selection, and Enter re-applies it as a
-            // no-op rather than silently switching. Mirrors the view strip's
-            // setFocus branch. Indices: 0 is the synthetic "(none)" head,
-            // 1..N map to pills[0..N-1].
-            var rlCount = this._rowLabelPillCount();
-            var rlPills = this._loadRowLabelPills();
-            var rlActive = this._readActiveRowLabelTitle();
-            var rlIdx = 0;
-            if (rlActive) {
-                for (var rli = 0; rli < rlPills.length; rli++) {
-                    if (rlPills[rli].title === rlActive) {
-                        rlIdx = rli + 1;
-                        break;
-                    }
+        } else if (typeof section === "string" && section.indexOf("lens-") === 0) {
+            // Anchor focus on the active lens (or the synthetic "off" head
+            // at index 0) so ←/→ starts adjacent to the current pick and
+            // Enter re-applies it as a no-op. Mirrors the row-label branch.
+            var lensSlot = section.slice("lens-".length);
+            var lensEntries = this._lensStripEntries(lensSlot);
+            var lensActive = this._readActiveLensTitle(lensSlot);
+            var lensIdx = 0;
+            if (lensActive) {
+                for (var lei = 0; lei < lensEntries.length; lei++) {
+                    if (lensEntries[lei].title === lensActive) { lensIdx = lei; break; }
                 }
             }
-            this.rowLabelFocusIdx = Math.min(rlIdx, Math.max(0, rlCount - 1));
-            this.rowLabelStripEl.focus();
-            this._renderRowLabelStrip();
-            this._maybeRenderRowLabelHelp();
+            this._lensFocusIdxSet(lensSlot,
+                Math.min(lensIdx, Math.max(0, lensEntries.length - 1)));
+            this._lensStripEls[lensSlot].focus();
+            this._renderLensStrip(lensSlot);
+            this._maybeRenderLensHelp(lensSlot);
         }
         // Re-render the strip when focus changes so pill-focused styling
         // updates (focused class only on pills of the focused strip).
@@ -1435,8 +1500,13 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (prevFocus === "view" || section === "view") {
             this._renderViewStrip();
         }
-        if (prevFocus === "rowlabel" || section === "rowlabel") {
-            this._renderRowLabelStrip();
+        // Re-render whichever lens strip lost or gained focus so the
+        // focused-pill highlight only sits on the active chooser.
+        if (typeof prevFocus === "string" && prevFocus.indexOf("lens-") === 0) {
+            this._renderLensStrip(prevFocus.slice("lens-".length));
+        }
+        if (typeof section === "string" && section.indexOf("lens-") === 0) {
+            this._renderLensStrip(section.slice("lens-".length));
         }
         if (prevFocus === "preset" || section === "preset") {
             this._renderPresetStrip();
@@ -1450,7 +1520,11 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // Leaving a strip-focus while details is open: the pane was showing
         // strip help — refresh it to show the current menu selection so
         // the user gets per-row preview again.
-        var stripFoci = { filter: 1, context: 1, visibility: 1, view: 1, rowlabel: 1, preset: 1, viewconfig: 1, leader: 1 };
+        var stripFoci = {
+            filter: 1, context: 1, visibility: 1, view: 1,
+            "lens-name": 1, "lens-icon": 1, "lens-annotation": 1,
+            preset: 1, viewconfig: 1, leader: 1
+        };
         if (stripFoci[prevFocus] && !stripFoci[section] && this.detailsOpen) {
             this.renderDetails();
         }
@@ -1476,7 +1550,10 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         else if (section === "meta") this.metaStripEl.focus();
         else if (section === "field") this.fieldStripEl.focus();
         else if (section === "view") this.viewStripEl.focus();
-        else if (section === "rowlabel") this.rowLabelStripEl.focus();
+        else if (section.indexOf && section.indexOf("lens-") === 0 &&
+                 this._lensStripEls[section.slice("lens-".length)]) {
+            this._lensStripEls[section.slice("lens-".length)].focus();
+        }
         else if (section === "viewconfig") this.viewConfigStripEl.focus();
         else if (section === "leader") this.leaderStripEl.focus();
         else this.inputEl.focus();
@@ -1613,7 +1690,9 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         else if (this.focus === "meta")       this.hintEl.textContent = C.HINT_META;
         else if (this.focus === "field")      this.hintEl.textContent = C.HINT_FIELD;
         else if (this.focus === "view")       this.hintEl.textContent = C.HINT_VIEW;
-        else if (this.focus === "rowlabel")   this.hintEl.textContent = C.HINT_ROW_LABEL;
+        else if (typeof this.focus === "string" && this.focus.indexOf("lens-") === 0) {
+            this.hintEl.textContent = C.HINT_LENS;
+        }
         else if (this.focus === "viewconfig") {
             this.hintEl.textContent = this.viewConfigExpanded
                 ? C.HINT_VIEWCONFIG_EXPANDED

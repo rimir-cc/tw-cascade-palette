@@ -1,0 +1,9 @@
+title: $:/plugins/rimir/cascade-palette/entries/manage-views
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Manage views
+ca-hint: Create, edit, fork or delete custom views
+ca-icon: 🗂
+ca-kind: drill
+ca-order: 60
+ca-next-scope: [all[shadows+tiddlers]tag[$:/tags/rimir/cascade-palette/view-action]]
+ca-next-title: Manage views

@@ -20,7 +20,7 @@ Each tiddler has a tag and a small set of `ca-*` fields. The engine reads them a
 
 * ''`$:/tags/rimir/cascade-palette/entry`'' — root-stage menu item
 * ''`$:/tags/rimir/cascade-palette/action`'' — appears in the action menu for one entity type
-* ''`$:/tags/rimir/cascade-palette/row-label`'' — single-select display-name override pill (one rule active at a time, applies to every data row across views)
+* ''`$:/tags/rimir/cascade-palette/lens`'' — row-decoration lens projecting a name / icon / annotation slot onto every data row across views (per-slot single-select; authored in-palette)
 
 ! Fields
 
@@ -241,20 +241,22 @@ ca-order: 200
 ca-actions: <$action-sendmessage $message="tm-edit-tiddler" $param=<<picked>>/>
 ```
 
-! Worked example 10 — A custom row-label pill
+! Worked example 10 — A custom name lens
 
-A row-label pill changes how every data row's name renders — applies uniformly across views (Find entity, All tiddlers, By namespace, etc.) so the same tiddler reads consistently regardless of how it was reached. Only one pill is active at a time (single-select); the user picks via the strip (←/→ + Enter) or you can ship a default via `ca-row-label-default: yes`.
+A ''name'' lens changes how every data row's name renders — applied uniformly across views (Find entity, All tiddlers, By namespace, etc.) so the same tiddler reads consistently regardless of how it was reached. Per slot, one lens is active at a time (single-select); the user picks it via the ''Name'' strip (←/→ to apply) or you ship a default via `ca-lens-default: name`. You can also author this in-palette — ''Manage lenses → New name lens…'' or the ''➕ New…'' pill — but the tiddler form is:
 
 ```
-title: $:/plugins/example/row-label/caption-with-kind
-tags: $:/tags/rimir/cascade-palette/row-label
-ca-row-label-name: Caption · Kind
-ca-row-label-chip: 💬 Caption · Kind
-ca-row-label-hint: Caption with the kind type appended in parentheses.
-ca-row-label-help: For each row tiddler, renders ''caption (kind.type)'' — e.g. ''Acme Corp (company)''. Rows without a kind show just the caption; rows without a caption fall back to the title with the kind appended where present.
-ca-row-label-filter: [<currentTiddler>get[caption]else<currentTiddler>addsuffix[ (]addsuffix{!!kind.type}addsuffix[)]] :else[<currentTiddler>get[caption]else<currentTiddler>]
+title: $:/plugins/example/lens/caption-with-kind
+tags: $:/tags/rimir/cascade-palette/lens
+ca-lens-name: Caption · Kind
+ca-lens-chip: 💬 Caption · Kind
+ca-lens-hint: Caption with the kind type appended in parentheses.
+ca-lens-help: For each row tiddler, renders ''caption (kind.type)'' — e.g. ''Acme Corp (company)''. Rows without a kind show just the caption; rows without a caption fall back to the title with the kind appended where present.
+ca-lens-name-filter: [<currentTiddler>get[caption]else<currentTiddler>addsuffix[ (]addsuffix{!!kind.type}addsuffix[)]] :else[<currentTiddler>get[caption]else<currentTiddler>]
 ca-order: 300
 ```
+
+The same shape projects other slots: swap `ca-lens-name-filter` for `ca-lens-icon-filter` (a leading glyph) or `ca-lens-annotation-filter` (a trailing badge), and add `ca-lens-when` to gate the lens on a global condition. A single lens may declare several `ca-lens-<slot>-filter`s and will appear in each slot's chooser.
 
 The filter is evaluated per row with `<currentTiddler>` bound to the row's tiddler title; the first non-empty result wins. Use `:else` chains or `function`s for complex resolution — anything `wiki.filterTiddlers` understands works.
 

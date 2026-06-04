@@ -18,7 +18,7 @@ The engine ships well beyond the core cascade:
 - **Filters, visibility & presets** — pill strips that narrow results, hide entries, and save/replay view + filter combinations.
 - **Leaders** — single-key shortcuts (clear constraints, tree-picker, save preset, help, …).
 - **Side-preview pane** — per-menu or tag-auto-attached wikitext preview of the focused row.
-- **Row icons, row-label pills, sticky context, deep-tree search**, and a typed-field edit protocol (toggle / number / text / date settings, confirm gestures, reorder).
+- **Row icons, lenses (name / icon / annotation row decorations, authored in-palette), sticky context, deep-tree search**, and a typed-field edit protocol (toggle / number / text / date settings, confirm gestures, reorder).
 
 See the in-plugin documentation tab for the full protocol and authoring guide.
 

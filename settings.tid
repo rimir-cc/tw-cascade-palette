@@ -44,10 +44,12 @@ Both are listed below — UI-surfaced settings are marked ''Settings row availab
 ;<code>$:/config/rimir/cascade-palette/url-fields</code>
 :Space-separated field list scanned by the built-in 🌐 row-icon. First field whose value matches an `http://` / `https://` / `ftp://` / `ftps://` / `mailto:` / `tel:` prefix wins; rows with a match get a 🌐 glyph in their footer strip that opens the URL in a new tab on Alt-↵ or click. Default ''`url`''. Raw-edit only.
 
-! Row labels
+! Lenses (row decorations)
 
-;<code>$:/state/rimir/cascade-palette/row-label</code>
-:Tiddler title of the currently active row-label pill (the single-select strip below the view strip that overrides how each data row's display name renders). Written via the row-label pill click; empty body = no override (rows fall back to their default name). First load seeds the default pill (one tagged ''`ca-row-label-default: yes`'' — shipped as ''Caption → Title''). Survives reload; not filesystem-synced. Authors can ship more pills by tagging tiddlers with ''`$:/tags/rimir/cascade-palette/row-label`'' and declaring a ''`ca-row-label-filter`''. Raw-edit only.
+A ''lens'' decorates each data row's ''name'' (replace), ''icon'' (leading glyph) or ''annotation'' (trailing badge) slot. Each slot is a single-select chooser strip below the view strip; pick a lens, ''(off)'' to disable, or ''➕ New…'' to author one in-palette (also via the ''Manage lenses'' menu entry). Lenses never touch static palette entries — only data rows.
+
+;<code>$:/state/rimir/cascade-palette/lens/<slot></code>
+:Tiddler title of the active lens for ''<slot>'' (`name` / `icon` / `annotation`), or empty = slot off. Written when you pick a lens in the slot's strip; survives reload, not filesystem-synced. First load seeds the slot's default — a lens whose ''`ca-lens-default`'' slot-list includes this slot (shipped: ''Caption → Title'' defaults the ''name'' slot). Author lenses in-palette, or by tagging tiddlers ''`$:/tags/rimir/cascade-palette/lens`'' with a ''`ca-lens-<slot>-filter`'' (and optional ''`ca-lens-when`'' / ''`-name`'' / ''`-chip`'' / ''`-hint`'' / ''`-help`'' / ''`ca-order`'').
 
 ! Action discovery
 

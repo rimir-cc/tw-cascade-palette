@@ -19,6 +19,8 @@ context" semantics:
 \*/
 "use strict";
 
+var LENS_SLOTS = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants").LENS_SLOTS;
+
 // Section-level dispatch table — `(focus) → handler-method-name`. Maps
 // every value `this.focus` can hold (set by setFocus across modules)
 // to the per-section keydown handler. Hoisted out of the switch
@@ -38,7 +40,11 @@ var SECTION_HANDLERS = {
     "meta":       "_handleKeydownMeta",
     "field":      "_handleKeydownField",
     "view":       "_handleKeydownView",
-    "rowlabel":   "_handleKeydownRowLabel",
+    // Per-slot lens selector strips (H4). Each is a single-select pill
+    // strip; one shared handler derives the slot from `this.focus`.
+    "lens-name":       "_handleKeydownLensSlot",
+    "lens-icon":       "_handleKeydownLensSlot",
+    "lens-annotation": "_handleKeydownLensSlot",
     "viewconfig": "_handleKeydownViewConfig",
     "leader":     "_handleKeydownLeader",
     "preset":     "_handleKeydownPreset",
@@ -75,6 +81,29 @@ function dispatchTableSnapshot() {
         }
     }
     return out;
+}
+
+// Pill-strip focuses where bare Enter is DELEGATED to the section handler
+// (Enter activates the focused pill) rather than firing the current menu
+// selection. The fire path (Tier 2c in handleKeydown) checks
+// enterFiresSelection() so this list is the single source of truth and is
+// unit-testable. `viewconfig` belongs here — Enter on a Structure-strip
+// pill edits/cycles the facet (cp-view-editor) or operates the axis /
+// scratchpad-commit pills; without it Enter would fire the hidden menu row
+// and close the palette.
+var ENTER_DELEGATE_FOCUSES = {
+    "filter": 1, "visibility": 1, "view": 1, "preset": 1,
+    "reach": 1, "meta": 1, "field": 1, "viewconfig": 1,
+    // Lens slot choosers: Enter activates the focused lens pill (the
+    // section handler's onEnter) rather than firing the hidden menu row.
+    "lens-name": 1, "lens-icon": 1, "lens-annotation": 1
+};
+
+// True when bare Enter should fire the current selection for `focus`;
+// false when it should be delegated to the section handler. Input / menu /
+// details (and any focus not listed as a delegating strip) fire.
+function enterFiresSelection(focus) {
+    return !Object.prototype.hasOwnProperty.call(ENTER_DELEGATE_FOCUSES, focus);
 }
 
 module.exports = function (proto) {
@@ -165,11 +194,7 @@ module.exports = function (proto) {
         // constraint prefix with a non-empty argument, Enter commits the
         // pill (pushes a filter or visibility, clears the input) instead
         // of firing the menu selection.
-        if (e.key === "Enter" && this.focus !== "filter" &&
-            this.focus !== "visibility" && this.focus !== "view" &&
-            this.focus !== "preset" &&
-            this.focus !== "reach" && this.focus !== "meta" &&
-            this.focus !== "field") {
+        if (e.key === "Enter" && enterFiresSelection(this.focus)) {
             // Alt-Enter — fire the selected row's primary row-icon
             // (e.g. open external URL in a new tab). Ctrl-Alt-Enter
             // fires the same icon's ''secondary'' action (`alt`
@@ -724,36 +749,14 @@ module.exports = function (proto) {
             // _setActiveView jumps focus to input; restore to the view
             // strip so keyboard activation feels "sticky".
             this.setFocus("view");
-        }
-    };
-
-    // Row-label strip — single-select, with a synthetic "(none)" entry
-    // at index 0 so the user can clear without leaving the strip. The
-    // entry list is `[(none)] + registered pills`, so onEnter/onDelete
-    // index 0 means "clear" and indices ≥1 map to pills[i-1].
-    var ROW_LABEL_KEY_DESC = {
-        getCount:    function () { return this._rowLabelPillCount(); },
-        getFocusIdx: function () { return this.rowLabelFocusIdx || 0; },
-        setFocusIdx: function (i) { this.rowLabelFocusIdx = i; },
-        render:      function () { this._renderRowLabelStrip(); },
-        maybeHelp:   function () { this._maybeRenderRowLabelHelp(); },
-        enterAcceptsSpace: true,
-        selectOnMove: true,
-        onEnter:     function (i) {
-            var pills = this._loadRowLabelPills();
-            if (i === 0) {
-                this._clearRowLabel();
-            } else {
-                var pill = pills[i - 1];
-                if (!pill) return;
-                this._setRowLabel(pill.title);
-            }
-            // _setRowLabel re-renders the strip but doesn't change focus;
-            // staying on the strip lets the user keep cycling pills with
-            // ←/→ to compare display modes.
-            this.setFocus("rowlabel");
         },
-        onDelete:    function () { this._clearRowLabel(); }
+        onDelete:    function (i) {
+            // DEL on a view pill → delete it (with the standard confirm).
+            // Shipped views can't be deleted — _confirmDeleteView surfaces a
+            // fork hint instead of a confirm.
+            var view = this._visibleViews()[i];
+            if (view && this._confirmDeleteView) this._confirmDeleteView(view);
+        }
     };
 
     var PRESET_KEY_DESC = {
@@ -912,7 +915,64 @@ module.exports = function (proto) {
     proto._handleKeydownContext    = function (e) { this._handleKeydownPillStrip(e, CONTEXT_KEY_DESC); };
     proto._handleKeydownVisibility = function (e) { this._handleKeydownPillStrip(e, VISIBILITY_KEY_DESC); };
     proto._handleKeydownView       = function (e) { this._handleKeydownPillStrip(e, VIEW_KEY_DESC); };
-    proto._handleKeydownRowLabel   = function (e) { this._handleKeydownPillStrip(e, ROW_LABEL_KEY_DESC); };
+    // Lens slot strip — single-select like the view strip, with a synthetic
+    // "off" entry at index 0 (clear the slot). One descriptor is built per
+    // slot on the fly; the shared handler reads the slot from `this.focus`
+    // ("lens-<slot>"). Indices: 0 = off, i≥1 → projectingLenses[i-1].
+    proto._lensKeyDesc = function (slot) {
+        var self = this;
+        return {
+            getCount:    function () { return self._lensPillCount(slot); },
+            getFocusIdx: function () { return self._lensFocusIdxGet(slot); },
+            setFocusIdx: function (i) { self._lensFocusIdxSet(slot, i); },
+            render:      function () { self._renderLensStrip(slot); },
+            maybeHelp:   function () { self._maybeRenderLensHelp(slot); },
+            enterAcceptsSpace: true,
+            // Apply on ←/→ landing — but NOT the trailing "+ New…" sentinel,
+            // which must stay an explicit ↵/Space gesture (mirrors preset "+").
+            selectOnMove: function (i) {
+                var entry = self._lensStripEntries(slot)[i];
+                return !(entry && entry.isNew);
+            },
+            onEnter: function (i) {
+                var entry = self._lensStripEntries(slot)[i];
+                if (!entry) return;
+                if (entry.isNew) {
+                    if (self._newLensScratchpad) self._newLensScratchpad(slot);
+                    return;
+                }
+                // index 0 is the synthetic "off" entry (empty title → clear).
+                self._setSlotLens(slot, entry.title || "");
+                // Stay on the strip so ←/→ keeps comparing lenses.
+                self.setFocus("lens-" + slot);
+            }
+            // No onDelete: DEL is intercepted in _handleKeydownLensSlot to
+            // delete the focused lens (with confirm). "Turn the slot off" is
+            // the ← (off) / (default) head pill at index 0.
+        };
+    };
+    proto._handleKeydownLensSlot = function (e) {
+        var slot = (this.focus || "").indexOf("lens-") === 0
+            ? this.focus.slice("lens-".length) : "name";
+        var entries = this._lensStripEntries(slot);
+        var entry = entries[this._lensFocusIdxGet(slot)];
+        var realLens = entry && !entry.isNew && entry.title;
+        // 'e' → edit the focused real lens (clone → live filter edit).
+        if (realLens && (e.key === "e" || e.key === "E") && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            e.preventDefault();
+            if (this._beginLensEdit) this._beginLensEdit(entry.title, slot);
+            return;
+        }
+        // DEL / Backspace → delete the focused lens, via the standard
+        // confirmation stage (only on a real lens — not the off head or the
+        // + New sentinel; those fall through to the shared handler / no-op).
+        if (realLens && (e.key === "Delete" || e.key === "Backspace")) {
+            e.preventDefault();
+            if (this._confirmDeleteLens) this._confirmDeleteLens(entry.title, slot);
+            return;
+        }
+        this._handleKeydownPillStrip(e, this._lensKeyDesc(slot));
+    };
     proto._handleKeydownPreset     = function (e) { this._handleKeydownPillStrip(e, PRESET_KEY_DESC); };
     proto._handleKeydownLeader     = function (e) { this._handleKeydownPillStrip(e, LEADER_KEY_DESC); };
     proto._handleKeydownReach      = function (e) { this._handleKeydownPillStrip(e, REACH_KEY_DESC); };
@@ -959,7 +1019,8 @@ module.exports = function (proto) {
         f = f || this.focus;
         return f === "preset" || f === "visibility" ||
                f === "reach" || f === "meta" || f === "field" ||
-               f === "filter" || f === "view" || f === "rowlabel" ||
+               f === "filter" || f === "view" ||
+               (typeof f === "string" && f.indexOf("lens-") === 0) ||
                f === "viewconfig" || f === "leader";
     };
 
@@ -968,7 +1029,12 @@ module.exports = function (proto) {
     // the strip still expanded would surprise the user when they Tab
     // back later. Returns true if focus moved.
     proto._viewConfigStepOut = function (direction) {
-        this.viewConfigExpanded = false;
+        // In scratchpad mode the strip stays pinned-open on blur so the
+        // user can inspect the live result and come back; otherwise it
+        // collapses to compact as before.
+        if (!(this._structurePinned && this._structurePinned())) {
+            this.viewConfigExpanded = false;
+        }
         var cycle = this._pillsCycle();
         var pos = cycle.indexOf("viewconfig");
         if (direction === "up") {
@@ -1068,13 +1134,67 @@ module.exports = function (proto) {
                 return;
             }
         }
-        // Structure-toggle pills (e.g. kind's "Kind icons") flip on
-        // Space/Enter. _flipStructureToggle re-renders the strip + result
-        // list so the row icons appear / vanish immediately.
-        if (focusedPill && focusedPill.kind === "struct-toggle") {
+        // "+ layer" — open the shared-layer picker (compose by reference).
+        if (focusedPill && focusedPill.kind === "layer-add") {
             if (e.key === "Enter" || e.key === " " || e.code === "Space") {
                 e.preventDefault();
-                this._flipStructureToggle(focusedPill.toggleTitle);
+                this._openLayerPicker();
+                return;
+            }
+        }
+        // Layer reference handle — remove (DEL) / reorder (Shift-↑/↓) this
+        // shared layer in the view's ca-view-layers.
+        if (focusedPill && focusedPill.kind === "layer-ref") {
+            if (e.key === "Backspace" || e.key === "Delete") {
+                e.preventDefault();
+                this._removeLayerFromView(focusedPill.layerTitle);
+                return;
+            }
+            if (e.shiftKey && e.key === "ArrowUp") {
+                e.preventDefault();
+                this._moveLayerInView(focusedPill.layerTitle, -1);
+                return;
+            }
+            if (e.shiftKey && e.key === "ArrowDown") {
+                e.preventDefault();
+                this._moveLayerInView(focusedPill.layerTitle, +1);
+                return;
+            }
+        }
+        // Scratchpad commit pills (save-as-new / overwrite / discard).
+        if (focusedPill && focusedPill.kind === "scratch-commit") {
+            if (e.key === "Enter" || e.key === " " || e.code === "Space") {
+                e.preventDefault();
+                // Layer-row commit pills carry the layer clone they target;
+                // header pills (no commitLayer) commit the view scratchpad.
+                if (focusedPill.commitLayer) {
+                    this._commitLayer(focusedPill.commitMode, focusedPill.commitLayer);
+                } else {
+                    this._commitScratchpad(focusedPill.commitMode);
+                }
+                return;
+            }
+        }
+        // Editable structural facets (cp-view-editor). Enter edits (filter/
+        // text → edit mode with live match-count; enum/toggle → cycle/flip).
+        // Space also cycles/flips enum/toggle. DEL clears the field. Editing
+        // a saved view clones it to a scratchpad first.
+        if (focusedPill && focusedPill._edit) {
+            var ek = focusedPill._edit.editKind;
+            if (e.key === "Enter") {
+                e.preventDefault();
+                this._editPill(focusedPill);
+                return;
+            }
+            if ((e.key === " " || e.code === "Space") &&
+                (ek === "enum" || ek === "toggle")) {
+                e.preventDefault();
+                this._editPill(focusedPill);
+                return;
+            }
+            if (e.key === "Backspace" || e.key === "Delete") {
+                e.preventDefault();
+                this._clearPillField(focusedPill);
                 return;
             }
         }
@@ -1130,8 +1250,16 @@ module.exports = function (proto) {
         // position in the Tab cycle. Joins the cycle whenever any
         // row-label pill is registered (count is +1 for the synthetic
         // "(none)" entry, so a true 0 means no pills registered at all).
-        if (this._rowLabelPillCount && this._rowLabelPillCount() > 0) {
-            order.push("rowlabel");
+        // Lens slot strips (name / icon / annotation) sit directly below
+        // the view strip — one chooser per decoration slot. Each joins the
+        // cycle only when at least one lens projects that slot (count > 0),
+        // so the annotation strip stays absent until an annotation lens
+        // exists. Order matches LENS_SLOTS / the DOM stacking.
+        if (this._lensPillCount) {
+            var self = this;
+            LENS_SLOTS.forEach(function (slot) {
+                if (self._lensPillCount(slot) > 0) order.push("lens-" + slot);
+            });
         }
         // Structure (viewconfig) sits below view in the visual stack and
         // is conceptually "more detail about the active view" — place it
@@ -1214,3 +1342,4 @@ module.exports = function (proto) {
 module.exports.resolveSectionHandler = resolveSectionHandler;
 module.exports.dispatchTableSnapshot = dispatchTableSnapshot;
 module.exports.SECTION_HANDLERS = SECTION_HANDLERS;
+module.exports.enterFiresSelection = enterFiresSelection;

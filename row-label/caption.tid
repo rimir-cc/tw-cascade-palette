@@ -1,8 +1,0 @@
-title: $:/plugins/rimir/cascade-palette/row-label/caption
-tags: $:/tags/rimir/cascade-palette/row-label
-ca-row-label-name: Caption
-ca-row-label-chip: 💬 Caption
-ca-row-label-hint: Show only the caption field; rows without a caption keep their default name.
-ca-row-label-help: Replaces each data row's display name with the value of the row tiddler's ''`caption`'' field. Rows whose tiddler has no caption fall back to the default name (no override applies on an empty filter result). Pick "Caption → Title" instead when you want a guaranteed non-blank label.
-ca-row-label-filter: [<currentTiddler>get[caption]]
-ca-order: 200

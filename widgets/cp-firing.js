@@ -54,6 +54,12 @@ module.exports = function (proto) {
             this._applyAxisPick(stage, picked);
             return;
         }
+        // Layer picker — enter on a row adds that shared layer to the view's
+        // ca-view-layers (cloning the view to a scratchpad first).
+        if (stage._isLayerPicker) {
+            this._applyLayerPick(stage, picked);
+            return;
+        }
 
         // Pick-mode override — Enter on any row (container or leaf) in a
         // pick-mode stage commits the row's effective path as a filter arg
@@ -402,26 +408,67 @@ module.exports = function (proto) {
             this.detailsOpen = false;
             this.hideDetail();
         }
-        var raw = this.readBoundValue(item);
         var initial = "";
-        if (item.kind === "number") {
+        if (item.initialValue !== undefined) {
+            // Explicit pre-fill (e.g. the view editor's save-as-new name
+            // prompt) — overrides the bound value.
+            initial = String(item.initialValue);
+        } else if (item.kind === "number") {
             initial = String(this.readNumberValue(item));
-        } else if (raw !== undefined && raw !== null) {
-            initial = String(raw);
+        } else {
+            var raw = this.readBoundValue(item);
+            if (raw !== undefined && raw !== null) initial = String(raw);
         }
         this.editMode = {
             item: item,
             savedQuery: stage.query || "",
-            savedSelectedIndex: stage.selectedIndex
+            savedSelectedIndex: stage.selectedIndex,
+            // Where to return focus on commit/cancel. Default "menu"
+            // (rows entered from the result list); "viewconfig" routes back
+            // to the Structure strip for in-place facet editing.
+            returnFocus: item.returnFocus || "menu",
+            editKind: item.editKind || ""
         };
         this.inputEl.value = initial;
         this.inputEl.placeholder = "Editing: " + (item.name || item.title);
         this.popupEl.classList.add("rcp-editing");
         this.hintEl.textContent = HINT_EDIT;
+        var self = this;
+        // Filter editKind: live, debounced match-count / parse-error feedback
+        // in the hint line. Counting is cheap (`.length` only, no row
+        // materialisation); the wiki is not written until commit.
+        if (item.editKind === "filter") {
+            var renderCount = function () {
+                var val = self.inputEl.value;
+                var tail = " · ↵ commit · Esc cancel";
+                try {
+                    var n = self._filterInScope(val, { currentTiddler: "" }).length;
+                    self.inputEl.classList.remove("rcp-edit-error");
+                    self.hintEl.textContent =
+                        "✓ " + n + " match" + (n === 1 ? "" : "es") + tail;
+                } catch (err) {
+                    self.inputEl.classList.add("rcp-edit-error");
+                    self.hintEl.textContent =
+                        "✗ " + ((err && err.message) || "filter error") + tail;
+                }
+            };
+            this.editMode.matchListener = function () {
+                if (self._editMatchTimer) clearTimeout(self._editMatchTimer);
+                self._editMatchTimer = setTimeout(renderCount, 150);
+            };
+            this.inputEl.addEventListener("input", this.editMode.matchListener);
+            renderCount();
+            // Seed the side-preview filter lab with the field's current
+            // value and show it. The lab is an independent sandbox (its own
+            // input + live result list) — see cp-side-preview._renderFilterLab.
+            if (this._renderFilterLab) {
+                this.wiki.setText(C.FILTER_LAB_STATE, "text", null, initial);
+                this._renderFilterLab();
+            }
+        }
         // Select-all so a single keypress replaces the value, but the user
         // can also use Home/End/arrows to position the cursor for partial
         // edits.
-        var self = this;
         setTimeout(function () { self.inputEl.select(); }, 0);
     };
 
@@ -459,6 +506,23 @@ module.exports = function (proto) {
         }
         this.editMode = null;
         this.inputEl.classList.remove("rcp-edit-error");
+        // Detach the live filter match-count listener (if any).
+        if (em.matchListener) {
+            this.inputEl.removeEventListener("input", em.matchListener);
+            if (this._editMatchTimer) {
+                clearTimeout(this._editMatchTimer);
+                this._editMatchTimer = null;
+            }
+        }
+        // Leaving a filter edit — drop the filter lab and let the next
+        // render restore the normal candidate preview (editMode is now
+        // null, so _renderSidePreview no longer routes to the lab).
+        if (em.editKind === "filter") {
+            if (this._invalidateSidePreviewCache) {
+                this._invalidateSidePreviewCache();
+            }
+            if (this._renderSidePreview) this._renderSidePreview();
+        }
         // ca-on-commit: action wikitext fired AFTER the value lands (or
         // would have landed — bind-less rows fire onCommit on commit, using
         // the input as a transient capture). <<picked>> = the committed
@@ -474,6 +538,54 @@ module.exports = function (proto) {
                 committedValue
             );
             this.invokeViaNavigator(em.item.onCommit, commitVars);
+        }
+        // JS commit/cancel callbacks — used by the view editor's
+        // save-as-new name prompt. The callback owns the follow-up render
+        // (finalize + reload + re-render), so we restore the input chrome
+        // and return without the default menu / viewconfig teardown. On
+        // cancel with no onCancelFn, fall back to returning to the strip.
+        if (em.item.onCommitFn || em.item.onCancelFn) {
+            this.inputEl.value = em.savedQuery || "";
+            this.inputEl.placeholder = "Type to filter…";
+            this.popupEl.classList.remove("rcp-editing");
+            if (commit && em.item.onCommitFn) {
+                em.item.onCommitFn(committedValue);
+            } else if (!commit && em.item.onCancelFn) {
+                em.item.onCancelFn();
+            } else {
+                // Cancelled save-as-new — scratchpad stays; back to the strip.
+                if (this._renderViewConfigStrip) this._renderViewConfigStrip();
+                this._renderHint();
+                this.setFocus(em.returnFocus === "viewconfig" ? "viewconfig" : "menu");
+            }
+            return;
+        }
+        // Structure-strip facet edit: return to the Structure strip rather
+        // than the result menu. On commit the view definition changed, so
+        // _afterViewConfigEdit reloads the (stale) view cache, rebuilds the
+        // live preview, and re-renders the strip; on cancel we just restore
+        // the strip + focus.
+        if (em.returnFocus === "viewconfig") {
+            this.inputEl.value = em.savedQuery || "";
+            this.inputEl.placeholder = "Type to filter…";
+            this.popupEl.classList.remove("rcp-editing");
+            this.viewConfigExpanded = true;
+            if (commit && this._afterViewConfigEdit) {
+                this._afterViewConfigEdit();
+            } else {
+                // Cancel: stay on the pill being edited. setFocus resets the
+                // index to 0, so restore it after re-rendering the strip.
+                var keepIdx = this.viewConfigFocusIdx || 0;
+                this.setFocus("viewconfig");
+                var n = (this._viewConfigPillList &&
+                    this._viewConfigPillList.length) || 0;
+                if (n > 0) {
+                    this.viewConfigFocusIdx = Math.max(0, Math.min(keepIdx, n - 1));
+                    if (this._renderViewConfigStrip) this._renderViewConfigStrip();
+                }
+                this._renderHint();
+            }
+            return;
         }
         var stage = this.topStage();
         if (stage) {

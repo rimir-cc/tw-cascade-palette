@@ -1,9 +1,0 @@
-title: $:/plugins/rimir/cascade-palette/row-label/caption-then-title
-tags: $:/tags/rimir/cascade-palette/row-label
-ca-row-label-name: Caption → Title
-ca-row-label-chip: 💬 Caption → Title
-ca-row-label-hint: Prefer caption; fall back to title when the row has no caption.
-ca-row-label-help: Replaces each data row's display name with the row tiddler's ''`caption`'' when present, otherwise the bare title. Shipped as the default row-label so kind / data tiddlers read naturally in every menu and view without the asymmetry between caption-aware drills (e.g. ''Find entity'') and raw-title views (e.g. ''All tiddlers'').
-ca-row-label-filter: [<currentTiddler>get[caption]else<currentTiddler>]
-ca-row-label-default: yes
-ca-order: 50

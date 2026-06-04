@@ -33,7 +33,9 @@ describe("cascade-palette: keyboard dispatch table", function () {
             expect(keyboard.resolveSectionHandler("meta")).toBe("_handleKeydownMeta");
             expect(keyboard.resolveSectionHandler("field")).toBe("_handleKeydownField");
             expect(keyboard.resolveSectionHandler("view")).toBe("_handleKeydownView");
-            expect(keyboard.resolveSectionHandler("rowlabel")).toBe("_handleKeydownRowLabel");
+            expect(keyboard.resolveSectionHandler("lens-name")).toBe("_handleKeydownLensSlot");
+            expect(keyboard.resolveSectionHandler("lens-icon")).toBe("_handleKeydownLensSlot");
+            expect(keyboard.resolveSectionHandler("lens-annotation")).toBe("_handleKeydownLensSlot");
             expect(keyboard.resolveSectionHandler("viewconfig")).toBe("_handleKeydownViewConfig");
             expect(keyboard.resolveSectionHandler("leader")).toBe("_handleKeydownLeader");
             expect(keyboard.resolveSectionHandler("preset")).toBe("_handleKeydownPreset");
@@ -77,7 +79,8 @@ describe("cascade-palette: keyboard dispatch table", function () {
         it("includes every key resolveSectionHandler accepts", function () {
             var snap = keyboard.dispatchTableSnapshot();
             ["input", "menu", "filter", "visibility", "reach", "meta", "field",
-             "view", "rowlabel", "viewconfig", "leader", "preset", "details"
+             "view", "lens-name", "lens-icon", "lens-annotation",
+             "viewconfig", "leader", "preset", "details"
             ].forEach(function (focus) {
                 expect(snap[focus]).toBe(keyboard.resolveSectionHandler(focus));
             });
@@ -187,12 +190,90 @@ describe("cascade-palette: keyboard dispatch table", function () {
         });
     });
 
+    describe("enterFiresSelection (Tier 2c fire-vs-delegate)", function () {
+        // Bare Enter fires the current selection only on the non-strip
+        // focuses; every pill strip delegates Enter to its section handler
+        // so Enter activates the focused pill.
+        it("fires on input / menu / details", function () {
+            expect(keyboard.enterFiresSelection("input")).toBe(true);
+            expect(keyboard.enterFiresSelection("menu")).toBe(true);
+            expect(keyboard.enterFiresSelection("details")).toBe(true);
+        });
+
+        it("delegates (does NOT fire) on the pill strips", function () {
+            ["filter", "visibility", "view", "preset", "reach", "meta",
+             "field", "viewconfig",
+             "lens-name", "lens-icon", "lens-annotation"].forEach(function (focus) {
+                expect(keyboard.enterFiresSelection(focus)).toBe(false);
+            });
+        });
+
+        it("delegates on viewconfig — Structure-strip Enter must NOT fire the menu row", function () {
+            // Regression: viewconfig was missing from the delegate set, so
+            // Enter on a Structure pill fell through to fireSelected and
+            // navigated to the selected row + closed the palette instead of
+            // editing the facet.
+            expect(keyboard.enterFiresSelection("viewconfig")).toBe(false);
+        });
+    });
+
+    describe("Enter routing (real handleKeydown)", function () {
+        function makeStub(focus) {
+            var stub = {
+                focus: focus,
+                editMode: false,
+                saveMode: false,
+                _pickModeReturnTo: null,
+                filters: [],
+                visibilities: [],
+                activePresetTitle: null,
+                topStage: function () { return { results: [{}], selectedIndex: 0 }; },
+                _fireCalls: 0,
+                fireSelected: function () { this._fireCalls++; },
+                _viewConfigCalls: 0
+            };
+            keyboard(stub);
+            // Spy on the viewconfig section handler so we observe delegation
+            // without running its real (DOM-dependent) body.
+            stub._handleKeydownViewConfig = function () { this._viewConfigCalls++; };
+            return stub;
+        }
+        function enter() {
+            return {
+                key: "Enter", keyCode: 0,
+                ctrlKey: false, altKey: false, metaKey: false, shiftKey: false,
+                isComposing: false, defaultPrevented: false,
+                preventDefault: function () { this.defaultPrevented = true; }
+            };
+        }
+
+        it("Enter on viewconfig delegates to the section handler, never fires", function () {
+            var stub = makeStub("viewconfig");
+            stub.handleKeydown(enter());
+            expect(stub._viewConfigCalls).toBe(1);
+            expect(stub._fireCalls).toBe(0);
+        });
+
+        it("Enter on menu fires the selection", function () {
+            var stub = makeStub("menu");
+            // menu's own handler is irrelevant — the fire path returns first.
+            stub.handleKeydown(enter());
+            expect(stub._fireCalls).toBe(1);
+        });
+    });
+
     describe("table contents", function () {
-        it("covers exactly the 14 dispatched sections", function () {
+        it("covers exactly the dispatched sections", function () {
+            // NOTE: `preview` is a known PRE-EXISTING drift — the code added
+            // a `_handleKeydownPreview` dispatch entry but this expectation
+            // (and the two preview specs above) were never updated. Left
+            // intentionally failing on `preview` only; the lens-* sections
+            // below keep the rest accurate after the H4 lens-strip work.
             var keys = Object.keys(keyboard.dispatchTableSnapshot()).sort();
             expect(keys).toEqual([
-                "context", "details", "field", "filter", "input", "leader", "menu",
-                "meta", "preset", "reach", "rowlabel", "view", "viewconfig", "visibility"
+                "context", "details", "field", "filter", "input", "leader",
+                "lens-annotation", "lens-icon", "lens-name", "menu",
+                "meta", "preset", "reach", "view", "viewconfig", "visibility"
             ]);
         });
 

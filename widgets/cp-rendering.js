@@ -102,6 +102,11 @@ module.exports = function (proto) {
     proto.renderInput = function () {
         var stage = this.topStage();
         if (!stage) return;
+        // While edit mode or the save-as prompt owns the input, its value is
+        // the field being edited — not the stage query. A re-render triggered
+        // mid-edit (e.g. the deferred wiki change event fired by cloning a
+        // view into a scratchpad) must not clobber it back to the query.
+        if (this.editMode || this.saveMode) return;
         this.inputEl.value = stage.query || "";
     };
 
@@ -115,15 +120,10 @@ module.exports = function (proto) {
         this._actionPreviewCountCache = {};
         this._actionPreviewMs = 0;
         this._actionPreviewRows = 0;
-        // Row-label results cache is also per-render: re-resolves on
-        // every renderResults so tiddler edits to the captioned source
-        // surface immediately, and a switched active pill never gets
-        // shadowed by a stale (pill, title) hit from the prior render.
-        this._rowLabelResultCache = null;
-        // Row-icon override results are per-render for the same reasons:
-        // re-resolve so toggling "Kind icons" or editing a type's icon
-        // surfaces immediately, and the enabled-toggle set is recomputed.
-        this._rowIconResultCache = null;
+        // Row-decoration (lens) results persist ACROSS renders — keyed by
+        // (selection signature, wiki.getChangeCount()) in cp-row-decorations
+        // so typing never re-runs a projection — so there is nothing to reset
+        // here per render (cp-lenses#_invalidateRowDecorations handles it).
         var stage = this.topStage();
         if (!stage) return;
         if (stage.results.length === 0) {
@@ -409,11 +409,13 @@ module.exports = function (proto) {
     };
 
     proto._renderRowNameContent = function (nameEl, item) {
-        // Active row-label pill (cp-row-label-pills.js) replaces the
-        // displayed name on data rows. Skip the name-match highlight when
-        // the override fired — the match coordinates were computed against
-        // item.name, not the new text, so overlaying them would mis-align.
-        var override = this._resolveRowLabel && this._resolveRowLabel(item);
+        // Active name-slot decoration (cp-row-decorations.js → row-label
+        // pill) replaces the displayed name on data rows. Skip the name-
+        // match highlight when the override fired — the match coordinates
+        // were computed against item.name, not the new text, so overlaying
+        // them would mis-align.
+        var deco = this._resolveRowDecorations && this._resolveRowDecorations(item);
+        var override = deco ? deco.name : null;
         if (override !== null && override !== undefined) {
             nameEl.textContent = override;
             return;
@@ -477,12 +479,12 @@ module.exports = function (proto) {
             rowEl.appendChild(cbEl);
             return;
         }
-        // Explicit per-item / per-view icon wins; otherwise an active
-        // structure-toggle row-icon source (e.g. kind's "Kind icons")
-        // may supply a leading glyph for data rows.
+        // Explicit per-item / per-view icon wins; otherwise the icon-slot
+        // decoration (cp-row-decorations.js → structure-toggle row-icon,
+        // e.g. kind's "Kind icons") may supply a leading glyph for data rows.
         var glyph = item.icon;
-        if (!glyph && this._resolveRowIconOverride) {
-            glyph = this._resolveRowIconOverride(item);
+        if (!glyph && this._resolveRowDecorations) {
+            glyph = this._resolveRowDecorations(item).icon;
         }
         if (glyph) {
             var iconEl = this.document.createElement("span");

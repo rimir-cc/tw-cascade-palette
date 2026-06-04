@@ -1,0 +1,9 @@
+title: $:/plugins/rimir/cascade-palette/entries/view-actions/fork
+tags: $:/tags/rimir/cascade-palette/view-action
+ca-name: Fork current view
+ca-hint: Make an independent persisted copy of the active view and switch to it
+ca-icon: ⑂
+ca-kind: leaf
+ca-order: 30
+ca-after-fire: keep
+ca-actions: <$action-sendmessage $message="rimir-cascade-palette-fork-view"/>
