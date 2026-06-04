@@ -16,15 +16,21 @@ list decorate LIVE while the user edits its projection filter — strict
 isolation: the original lens (and everything else) stays byte-identical
 until commit.
 
-Flows (filters only in this cut; templates/actions come in slices 3-4):
+Authoring here edits a slot's `ca-lens-<slot>-filter` (the cheap projection).
+Template projections (`-template`) and actions (`ca-lens-actions`) are
+authored by hand for now; the live editor covers the common filter case.
+
+Flows:
   • New      `+ New…` pill / "Manage lenses" → seed a scratch lens
              projecting the slot with a starter filter → edit the filter
              (live match-count) → name it → save-as-new under LENS_NS.
-  • Edit     `e` on a lens pill → clone to scratch, edit the filter live,
+  • Edit     `e` on a lens pill, or ↵ on a "Manage lenses" row
+             (_editLensFromList) → clone to scratch, edit the filter live,
              then commit: a USER lens is overwritten in place; a SHIPPED
              (shadow-only) lens is saved-as-new so the original survives.
-  • Delete   Shift/Ctrl-DEL on a user lens pill → confirm → delete (DEL
-             alone keeps its "turn the slot off" meaning).
+  • Delete   DEL on a user lens pill → confirm → delete; the head
+             `(off)`/`(default)` pill is how a slot is turned off. Shipped
+             lenses refuse deletion (clone & edit instead).
 
 Reuses from cp-view-editor: `_titleTaken`, `_slugTitle`, `_isScratchpadTitle`.
 Reuses from cp-firing: `enterEditMode` (editKind "filter" gives the live
@@ -207,6 +213,26 @@ module.exports = function (proto) {
                 self._discardLensScratch(slot, scratchTitle);
             }
         });
+    };
+
+    // Entry point from the "Manage lenses" list (EDIT_LENS_MESSAGE) — edit a
+    // lens by title. Picks the slot whose projection editor opens + previews:
+    // the first slot the lens projects via a FILTER (the editable cheap path),
+    // else its first projecting slot. Multi-slot lenses are edited one slot at
+    // a time, consistent with the per-slot pill `e` gesture.
+    proto._editLensFromList = function (lensTitle) {
+        if (!lensTitle || !this.wiki.getTiddler(lensTitle)) return null;
+        var f = this.wiki.getTiddler(lensTitle).fields || {};
+        var slot = null, firstProjecting = null;
+        for (var i = 0; i < LENS_SLOTS.length; i++) {
+            var s = LENS_SLOTS[i];
+            var hasFilter = f["ca-lens-" + s + "-filter"];
+            var hasTemplate = f["ca-lens-" + s + "-template"];
+            if ((hasFilter || hasTemplate) && firstProjecting === null) firstProjecting = s;
+            if (hasFilter) { slot = s; break; }
+        }
+        slot = slot || firstProjecting || "name";
+        return this._beginLensEdit(lensTitle, slot);
     };
 
     // ---- Commit -----------------------------------------------------------

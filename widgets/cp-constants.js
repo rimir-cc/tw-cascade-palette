@@ -40,8 +40,12 @@ exports.DELETE_VIEW_MESSAGE = "rimir-cascade-palette-delete-view";
 // Lens lifecycle — fired from the "Manage lenses" menu (cp-lens-editor).
 // paramObject.slot selects which decoration slot the new lens projects.
 exports.NEW_LENS_MESSAGE = "rimir-cascade-palette-new-lens";
+// Edit a lens (paramObject.lens = title) — fired by ↵ on a row of the
+// "Manage lenses" list. Clones it to a scratchpad and opens its projection
+// editor (first projecting slot).
+exports.EDIT_LENS_MESSAGE = "rimir-cascade-palette-edit-lens";
 // Delete a lens (paramObject.lens = title) — fired by the DEL-confirm stage
-// pushed from a lens slot strip.
+// pushed from a lens slot strip, or by ca-on-delete on a "Manage lenses" row.
 exports.DELETE_LENS_MESSAGE = "rimir-cascade-palette-delete-lens";
 
 // ---- Tags consumed by the engine ----
@@ -88,11 +92,11 @@ exports.SIDE_PREVIEW_TAG = "$:/tags/rimir/cascade-palette/side-preview";
 // the configured URL fields). Alt-Enter on the row fires the primary
 // icon's action / message. See `widgets/cp-row-icons.js`.
 exports.ROW_ICON_TAG = "$:/tags/rimir/cascade-palette/row-icon";
-// Lens registration (H4). Supersedes the former row-label (name slot) +
-// structure-toggle (icon slot) subsystems, both removed in the H4 cleanup. A lens is a tiddler tagged LENS_TAG that
-// projects zero or more row-decoration SLOTS (and may contribute actions).
-// It unifies the former row-label (name slot) + structure-toggle (icon
-// slot) subsystems into one type-driven decorator. Fields:
+// Lens registration (H4). A lens is a tiddler tagged LENS_TAG that projects
+// zero or more row-decoration SLOTS and may contribute actions — unifying
+// the former row-label (name slot) + structure-toggle (icon slot)
+// subsystems (both removed in the H4 cleanup) into one type-driven
+// decorator. Fields:
 //   ca-lens-name / -chip / -hint / -help   — display + help text
 //   ca-lens-when      — applicability (global existence test; empty result
 //                       hides the lens; missing/empty = always applicable)
@@ -101,9 +105,20 @@ exports.ROW_ICON_TAG = "$:/tags/rimir/cascade-palette/row-icon";
 //   ca-lens-<slot>-filter    — cheap per-row projection: filter evaluated
 //                       with <currentTiddler> = row title; first non-empty
 //                       result fills the slot
-//   ca-lens-<slot>-template  — rich per-row projection (wikitext; H4 slice 4)
-//   ca-lens-actions   — "via-entity-type" (or a filter) to opt into the
-//                       action bridge (H4 slice 3)
+//   ca-lens-<slot>-template  — rich per-row projection (wikitext rendered
+//                       per visible row; filter wins when both are set)
+//   ca-lens-actions   — opt into contributing actions (H4 slice 3). Two
+//                       forms, BOTH always-on (gated only by ca-lens-when,
+//                       NEVER by slot selection — the Kind lens contributes
+//                       an icon AND actions, and its actions must survive
+//                       turning the Icon slot off):
+//                         "via-entity-type" — declarative marker; the lens
+//                            owns the standard entity-type bridge (already
+//                            always-on), contributes no extra titles.
+//                         <filter> — returns ACTION tiddler titles, run with
+//                            <currentTiddler> = the row, surfacing lens-
+//                            specific actions (e.g. a Vacation lens adding
+//                            "Clear vacation" to a person row on holiday).
 //   ca-order          — sort order among lenses (default 100)
 // Slots: see LENS_SLOTS. Each slot is a single-select chooser strip; the
 // active lens per slot persists under LENS_STATE_PREFIX + <slot>.
@@ -117,6 +132,12 @@ exports.LENS_SLOTS = ["name", "icon", "annotation"];
 // Slug is the slot name. Lives under $:/state/ so the choice survives
 // reload but isn't filesystem-synced.
 exports.LENS_STATE_PREFIX = "$:/state/rimir/cascade-palette/lens/";
+// `ca-lens-actions` marker value — the lens declares it owns the standard
+// always-on entity-type action bridge (catalogue + configured-field paths
+// in loadActionsForType); it contributes no extra action titles itself.
+// Any OTHER non-empty `ca-lens-actions` value is treated as a filter
+// returning action tiddler titles to surface on a row.
+exports.LENS_ACTIONS_VIA_ENTITY_TYPE = "via-entity-type";
 
 // ---- Config tiddler titles ----
 exports.SOFT_DEPTH_CONFIG = "$:/config/rimir/cascade-palette/soft-depth-warning";

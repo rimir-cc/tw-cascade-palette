@@ -1,0 +1,9 @@
+title: $:/plugins/rimir/cascade-palette/lens/tags
+tags: $:/tags/rimir/cascade-palette/lens
+ca-lens-name: Tags
+ca-lens-chip: 🏷 Tags
+ca-lens-hint: Trailing badges showing each row tiddler's first few tags.
+ca-lens-help: Projects the ANNOTATION slot with the row tiddler's tags as small inline pills (up to three). A rich TEMPLATE projection (`ca-lens-annotation-template`) rather than a filter — wikitext is rendered per visible row, so the chip can carry markup a plain string can't. Demonstrates the template path; data-model agnostic. Off by default.
+ca-lens-when: [all[shadows+tiddlers]tags[]limit[1]]
+ca-lens-annotation-template: <$list filter="[<currentTiddler>tags[]limit[3]]" variable="tg"><span class="rcp-row-anno-tag"><$text text=<<tg>>/></span></$list>
+ca-order: 110

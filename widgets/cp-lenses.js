@@ -51,6 +51,7 @@ var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
 var LENS_TAG = C.LENS_TAG;
 var LENS_SLOTS = C.LENS_SLOTS;
 var LENS_STATE_PREFIX = C.LENS_STATE_PREFIX;
+var LENS_ACTIONS_VIA_ENTITY_TYPE = C.LENS_ACTIONS_VIA_ENTITY_TYPE;
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 
 module.exports = function (proto) {
@@ -202,6 +203,73 @@ module.exports = function (proto) {
             }
         }
         return null;
+    };
+
+    // The active lens's TEMPLATE projection wikitext for a slot, or null
+    // (H4 slice 4). Rich markup case — rendered per visible row by
+    // cp-rendering (which owns the document + makeWidget); the cheap string
+    // case is `_resolveSlot`. Returns null for non-data rows, no active
+    // lens, a filter-based projection, or when the active lens ALSO has a
+    // filter for this slot (filter takes precedence — the cheap path wins,
+    // so a slot never renders both). The template string is identical for
+    // every row (only <currentTiddler> differs at render), so there is
+    // nothing to cache here.
+    proto._activeSlotTemplate = function (slot, item) {
+        if (!item || !item.dataRow || !item.title) return null;
+        var lens = this._activeLensForSlot(slot);
+        if (!lens) return null;
+        var proj = lens.slots[slot];
+        if (!proj || proj.filter || !proj.template) return null;
+        return proj.template;
+    };
+
+    /* ---------- actions via lens (H4 slice 3) ---------- */
+
+    // Action TITLES contributed by actions-active lenses for one row, to be
+    // unioned into loadActionsForType. A lens is ACTIONS-ACTIVE when
+    // `ca-lens-actions` is non-empty AND it applies (`ca-lens-when`) —
+    // INDEPENDENT of whether the lens is selected in any decoration slot.
+    // This is deliberate: the Kind lens contributes both an icon and the
+    // entity-type actions, and those actions must survive turning the Icon
+    // slot off (otherwise hiding kind icons would also hide Open / Edit /
+    // Delete — a regression vs the pre-lens always-on bridge).
+    //
+    //   ca-lens-actions: via-entity-type  → declarative marker; the lens
+    //       owns the always-on entity-type bridge (catalogue + configured-
+    //       field paths in loadActionsForType). Contributes nothing here.
+    //   ca-lens-actions: <filter>         → a filter returning ACTION tiddler
+    //       titles, run with <currentTiddler> = the row. Lets a lens surface
+    //       its own actions on matching rows.
+    //
+    // Returns a de-duplicated list of titles; the caller still validates each
+    // is an action tiddler and applies the `ca-action-when` narrowing.
+    proto._lensContributedActionTitles = function (contextTitle) {
+        var self = this;
+        var titles = [];
+        var seen = Object.create(null);
+        this._loadLenses().forEach(function (lens) {
+            if (!lens.actions) return;
+            if (lens.actions === LENS_ACTIONS_VIA_ENTITY_TYPE) return;
+            if (!self._lensApplies(lens)) return;
+            var res;
+            try {
+                res = self._filterInScope(lens.actions, {
+                    currentTiddler: contextTitle || ""
+                });
+            } catch (err) {
+                if (console && console.warn) {
+                    console.warn(
+                        "[cascade-palette] ca-lens-actions filter error on",
+                        lens.title, "—", err && err.message
+                    );
+                }
+                return;
+            }
+            (res || []).forEach(function (title) {
+                if (title && !seen[title]) { seen[title] = true; titles.push(title); }
+            });
+        });
+        return titles;
     };
 
     // Persist a new active lens for a slot and refresh. Empty / null /

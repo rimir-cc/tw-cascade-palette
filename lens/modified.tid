@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/lens/modified
+tags: $:/tags/rimir/cascade-palette/lens
+ca-lens-name: Modified
+ca-lens-chip: 🕒 Modified
+ca-lens-hint: Trailing badge showing when each row's tiddler was last changed.
+ca-lens-help: Projects the ANNOTATION slot (a trailing chip after the row name) with the row tiddler's last-modified date, formatted as "🕒 03rd Jun". A cheap FILTER projection (`ca-lens-annotation-filter`) — the common case for a computed string. Rows backed by no tiddler (transient filter results) get no chip. Data-model agnostic: works on any tiddler. Off by default.
+ca-lens-annotation-filter: [<currentTiddler>get[modified]format:date[DDth MMM]addprefix[🕒 ]]
+ca-order: 100

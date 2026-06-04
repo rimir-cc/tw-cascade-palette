@@ -1,9 +1,0 @@
-title: $:/plugins/rimir/cascade-palette/entries/lens-actions/new-annotation
-tags: $:/tags/rimir/cascade-palette/lens-action
-ca-name: New annotation lens…
-ca-hint: Create a lens that appends a trailing badge to each row (live preview)
-ca-icon: 🏷
-ca-kind: leaf
-ca-order: 30
-ca-after-fire: keep
-ca-actions: <$action-sendmessage $message="rimir-cascade-palette-new-lens" slot="annotation"/>

@@ -1004,6 +1004,12 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 if (self._newLensScratchpad) self._newLensScratchpad(slot);
                 return false;
             });
+            registerRootMessage(C.EDIT_LENS_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var t = p.lens || (event && event.param) || "";
+                if (t && self._editLensFromList) self._editLensFromList(t);
+                return false;
+            });
             registerRootMessage(C.DELETE_LENS_MESSAGE, function (event) {
                 var p = (event && event.paramObject) || {};
                 var t = p.lens || (event && event.param) || "";

@@ -51,6 +51,9 @@ module.exports = function (proto) {
 
     proto._invalidateRowDecorations = function () {
         this._rowDecorationCache = null;
+        // Rendered template-projection HTML (cp-rendering) shares this
+        // generation; drop it together so a lens change clears both.
+        this._slotTemplateHtmlCache = null;
     };
 
     // Resolve all decoration slots for a row. Returns the shared EMPTY for

@@ -386,7 +386,7 @@ module.exports = function (proto) {
         this.applyQueryToStage(stage);
     };
 
-    // Discover actions applicable to a row. Three parallel mechanisms,
+    // Discover actions applicable to a row. Four parallel mechanisms,
     // unioned and deduplicated (each action matches at most once):
     //   - Catalogue path: `ca-entity-type` matches the row's bound type
     //     (set by `ca-layer-row-entity-type` on the emitting layer);
@@ -405,6 +405,12 @@ module.exports = function (proto) {
     //     tiddler carries `<configured-field>: <X>`. Lets catalogue
     //     plugins surface their actions in tree / flat views without
     //     adding per-action `ca-applies` filters.
+    //   - Lens path (H4): an actions-active lens (`ca-lens-actions` is a
+    //     filter + `ca-lens-when` passes) contributes the action titles its
+    //     filter returns for `<currentTiddler> = contextTitle`. Always-on,
+    //     gated only by ca-lens-when — NEVER by slot selection (see
+    //     cp-lenses#_lensContributedActionTitles). The `via-entity-type`
+    //     marker contributes nothing here (served by the paths above).
     // `ca-action-when` further narrows whichever path matched.
     // Passing entityType=null skips the row-bound catalogue check;
     // configured-field + ca-applies + globals still apply.
@@ -433,6 +439,20 @@ module.exports = function (proto) {
                 matched.push(title);
             }
         });
+        // Lens path (H4 slice 3): actions-active lenses (ca-lens-actions set
+        // + ca-lens-when passes) may surface extra action tiddlers on a row
+        // via a filter, INDEPENDENT of slot selection. The via-entity-type
+        // marker contributes nothing here — those actions already flow
+        // through the always-on catalogue / configured-field paths above.
+        if (this._lensContributedActionTitles) {
+            this._lensContributedActionTitles(contextTitle).forEach(function (title) {
+                if (seen[title]) return;
+                var lt = self.wiki.getTiddler(title);
+                if (!lt || !lt.hasTag(ACTION_TAG)) return;
+                seen[title] = true;
+                matched.push(title);
+            });
+        }
         return matched
             .filter(function (title) {
                 return self.isActionApplicable(title, contextTitle);

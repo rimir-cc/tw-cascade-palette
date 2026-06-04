@@ -236,6 +236,10 @@ module.exports = function (proto) {
         this._renderRowNameContent(nameEl, item);
         rowEl.appendChild(nameEl);
 
+        // Annotation-slot decoration (augment-trail) — a trailing chip from
+        // the active annotation lens. No-op unless one is active for the row.
+        this._renderRowAnnotation(rowEl, item);
+
         // Tree container count badge — opt-in via `ca-view-show-count`.
         // Sits in the value slot before the regular renderRowValue chain
         // so it doesn't fight with hint/title text on plain rows.
@@ -420,6 +424,14 @@ module.exports = function (proto) {
             nameEl.textContent = override;
             return;
         }
+        // Template-based name projection (rich markup) — used when the active
+        // name lens projects via `ca-lens-name-template` instead of a filter.
+        if (this._activeSlotTemplate) {
+            var nameTpl = this._activeSlotTemplate("name", item);
+            if (nameTpl && this._renderSlotTemplateInto(nameEl, "name", item, nameTpl)) {
+                return;
+            }
+        }
         if (item._match && item._match.field === "name") {
             this._renderHighlighted(nameEl, item.name || "",
                 item._match.start, item._match.len);
@@ -491,7 +503,103 @@ module.exports = function (proto) {
             iconEl.className = "rcp-row-icon";
             iconEl.textContent = glyph;
             rowEl.appendChild(iconEl);
+            return;
         }
+        // Template-based icon projection (rich markup) — e.g. an inline SVG
+        // / image glyph from `ca-lens-icon-template`. Only when no string
+        // glyph applied (item.icon / filter projection both empty).
+        if (this._activeSlotTemplate) {
+            var iconTpl = this._activeSlotTemplate("icon", item);
+            if (iconTpl) {
+                var tplIconEl = this.document.createElement("span");
+                tplIconEl.className = "rcp-row-icon";
+                if (this._renderSlotTemplateInto(tplIconEl, "icon", item, iconTpl)) {
+                    rowEl.appendChild(tplIconEl);
+                }
+            }
+        }
+    };
+
+    // Annotation slot (augment-trail) — a chip/badge appended AFTER the row
+    // name. Filter projections supply a plain string (the common case;
+    // styled by the .rcp-row-annotation chip); template projections supply
+    // rich inline markup. No-op when neither is active for the row, or for
+    // non-data rows (the resolvers already gate on item.dataRow).
+    proto._renderRowAnnotation = function (rowEl, item) {
+        if (!this._resolveRowDecorations) return;
+        var deco = this._resolveRowDecorations(item);
+        var text = deco ? deco.annotation : null;
+        if (text !== null && text !== undefined && text !== "") {
+            var chipEl = this.document.createElement("span");
+            chipEl.className = "rcp-row-annotation";
+            chipEl.textContent = text;
+            rowEl.appendChild(chipEl);
+            return;
+        }
+        if (this._activeSlotTemplate) {
+            var tpl = this._activeSlotTemplate("annotation", item);
+            if (tpl) {
+                var richEl = this.document.createElement("span");
+                richEl.className = "rcp-row-annotation rcp-row-annotation-rich";
+                if (this._renderSlotTemplateInto(richEl, "annotation", item, tpl)) {
+                    rowEl.appendChild(richEl);
+                }
+            }
+        }
+    };
+
+    // Render a lens slot TEMPLATE (rich wikitext) for a row into `el`,
+    // returning true on success. The rendered HTML is cached per
+    // (decoration signature, change-count, slot, title) as a string and
+    // re-inserted via innerHTML on later render passes — so typing (which
+    // re-renders the list every keystroke) never re-runs the wikitext
+    // parser for rows whose data hasn't changed. Display-only: the cached
+    // HTML carries no live widget handlers, which is correct for a static
+    // glyph / badge and keeps the hot path cheap. Mirrors the makeWidget
+    // precedent in _renderTemplateBody (details pane), bounded here to the
+    // ≤ max-results visible rows.
+    proto._renderSlotTemplateInto = function (el, slot, item, template) {
+        var html = this._slotTemplateHtml(slot, item, template);
+        if (html === null || html === undefined) return false;
+        el.innerHTML = html;
+        return true;
+    };
+
+    proto._slotTemplateHtml = function (slot, item, template) {
+        var sig = this._decorationSignature ? this._decorationSignature() : "";
+        var cc = (this.wiki.getChangeCount && this.wiki.getChangeCount()) || 0;
+        var cache = this._slotTemplateHtmlCache;
+        if (!cache || cache.sig !== sig || cache.cc !== cc) {
+            cache = this._slotTemplateHtmlCache = { sig: sig, cc: cc, byKey: {} };
+        }
+        var key = slot + "\n" + item.title;
+        if (Object.prototype.hasOwnProperty.call(cache.byKey, key)) {
+            return cache.byKey[key];
+        }
+        var html = null;
+        var container = this.document.createElement("span");
+        try {
+            var parser = this.wiki.parseText("text/vnd.tiddlywiki", template, {
+                parseAsInline: true
+            });
+            var widgetNode = this.wiki.makeWidget(parser, {
+                parentWidget: this.findActionParent() || $tw.rootWidget,
+                document: this.document,
+                variables: { currentTiddler: item.title }
+            });
+            widgetNode.render(container, null);
+            html = container.innerHTML;
+        } catch (err) {
+            if (console && console.warn) {
+                console.warn(
+                    "[cascade-palette] lens " + slot + "-template render error for",
+                    item.title, "—", err && err.message
+                );
+            }
+            html = null;
+        }
+        cache.byKey[key] = html;
+        return html;
     };
 
     // Right-aligned slot — dispatches by kind. Kept as a sequence of small

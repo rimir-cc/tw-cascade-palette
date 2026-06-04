@@ -1,9 +1,0 @@
-title: $:/plugins/rimir/cascade-palette/entries/lens-actions/new-name
-tags: $:/tags/rimir/cascade-palette/lens-action
-ca-name: New name lens…
-ca-hint: Create a lens that replaces each row's display name (live preview)
-ca-icon: 🔤
-ca-kind: leaf
-ca-order: 10
-ca-after-fire: keep
-ca-actions: <$action-sendmessage $message="rimir-cascade-palette-new-lens" slot="name"/>

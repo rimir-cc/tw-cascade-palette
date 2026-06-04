@@ -260,6 +260,12 @@ The same shape projects other slots: swap `ca-lens-name-filter` for `ca-lens-ico
 
 The filter is evaluated per row with `<currentTiddler>` bound to the row's tiddler title; the first non-empty result wins. Use `:else` chains or `function`s for complex resolution — anything `wiki.filterTiddlers` understands works.
 
+For a //rich// projection (markup, not a plain string) use `ca-lens-<slot>-template` instead: its wikitext is rendered per visible row with `<currentTiddler>` bound to the row, the output HTML cached per data-change. When a slot has both, the cheap filter wins. The shipped ''Tags'' annotation lens is a template example; ''Modified'' is a filter example.
+
+A lens can also contribute ''actions'' via `ca-lens-actions`. Set it to `via-entity-type` to declare the lens owns the standard entity-type action bridge (what `rimir/kind` does), or to a filter returning action tiddler titles to surface those actions on a matching row (e.g. a vacation lens adding a ''Clear vacation'' action to a person currently on holiday). Lens actions are ''always-on'' — gated only by `ca-lens-when`, never by which slot the lens is selected in — so the kind actions stay available even with the Kind icon slot off.
+
+Author and manage all of this in-palette via the ''Manage lenses'' entry: it lists every lens (↵ to edit, DEL to delete a user lens) plus a ''+ New … lens…'' creator per slot.
+
 The override only applies to ''data rows'' (view-built rows and ca-next-scope items). Static cascade-palette entries / actions / settings keep their explicit `ca-name` regardless of the active pill — so the "Find entity" entry stays named "Find entity" even when you select a caption-derived label pill.
 
 ! Tips

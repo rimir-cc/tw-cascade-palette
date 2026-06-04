@@ -884,6 +884,53 @@ type: text/css
     }
 }
 
+/* Annotation slot (augment-trail) — a trailing chip after the row name,
+   supplied by the active annotation lens (H4). Filter projections fill it
+   with a plain string ("🏖 until Jun 20"); template projections (.rich)
+   fill it with inline markup. Amber tone keeps it distinct from the indigo
+   action-preview badge on the right. */
+.rcp-row-annotation {
+    flex: 0 0 auto;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 9px;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 11px;
+    white-space: nowrap;
+    user-select: none;
+}
+.rcp-row-annotation-rich {
+    padding: 0 4px;
+    background: transparent;
+}
+/* Inline pills emitted by the shipped "Tags" template annotation lens. */
+.rcp-row-anno-tag {
+    display: inline-block;
+    margin-right: 3px;
+    padding: 0 6px;
+    border-radius: 8px;
+    background: #fde68a;
+    color: #78350f;
+    font-size: 10px;
+}
+@media (prefers-color-scheme: dark) {
+    .rcp-row-anno-tag {
+        background: #4a2c08;
+        color: #fcd34d;
+    }
+}
+.rcp-popup[data-focus="menu"] .rcp-row-selected .rcp-row-annotation {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fffbeb;
+}
+@media (prefers-color-scheme: dark) {
+    .rcp-row-annotation {
+        background: #422006;
+        color: #fcd34d;
+    }
+}
+
 /* Left-edge marker on rows whose action-discovery returned a non-empty
    set. Mirrors what the right-side ".rcp-row-action-preview" badge
    communicates, but at the leading edge of the row so the user can

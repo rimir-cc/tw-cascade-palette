@@ -1,9 +1,0 @@
-title: $:/plugins/rimir/cascade-palette/entries/lens-actions/new-icon
-tags: $:/tags/rimir/cascade-palette/lens-action
-ca-name: New icon lens…
-ca-hint: Create a lens that prepends a leading glyph to each row (live preview)
-ca-icon: 🎀
-ca-kind: leaf
-ca-order: 20
-ca-after-fire: keep
-ca-actions: <$action-sendmessage $message="rimir-cascade-palette-new-lens" slot="icon"/>
