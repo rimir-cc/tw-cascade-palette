@@ -44,6 +44,19 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''e'' |lens slot (focused lens) |Edit the focused lens — reopens its projection filter live (a user lens is overwritten in place; a shipped lens is saved as a new copy). |
 |''DEL / Backspace'' |lens slot (focused lens) |Delete the focused lens via a confirm drill (shipped lenses refuse — press ''e'' to clone instead). To turn a slot ''off'' instead, ← to its ''(off)'' / ''(default)'' head pill. |
 |''DEL / Backspace'' |view |Delete the focused view via a confirm drill (shipped views refuse — fork via ''Manage views'' instead). ''Manage views → Fork current view'' makes a fully independent persisted copy: the `ca-view-*` fields PLUS a private copy of every explicit structure-layer and grouping axis the view references (titles rewritten), so editing the fork's structure never touches the original. The built-in entries layer is referenced, not copied. |
+
+!! Editing a view's long-tail fields
+
+The Structure strip edits a view's ''core structure'' (roots / children / leaf / label / axis chain) and enum facets (sort / include-entries / grouping) live, with preview. Everything else — the ''long tail'' — is edited from ''Manage views → Edit all fields…'', a drill that lists every remaining view-scoped field as an editable row, grouped:
+
+* ''identity'' — `ca-view-name`, `ca-view-hint`, `ca-icon`, `ca-order`
+* ''display'' — `ca-view-count-format` (text); `ca-view-show-count`, `ca-view-containers-first`, `ca-view-show-action-preview`, `ca-view-show-side-preview`, `ca-view-context-aware` (yes/no toggles)
+* ''sort detail'' — `ca-view-sort-field`, `ca-view-sort-key`
+* ''picking'' — `ca-view-pick-mode`, `ca-view-pick-emits-filter`, `ca-view-after-fire`
+* ''row defaults'' — `ca-view-row-hint`, `ca-view-row-icon`, `ca-view-row-order`, `ca-view-row-next-scope`, `ca-view-row-items-from` (the per-row overrides not surfaced as Structure-strip pills)
+* ''layers'' — each explicit structure-layer the view composes drills into its OWN field editor (name, `ca-layer-source`, `ca-layer-include-position`, and the `ca-layer-row-*` defaults)
+
+User views edit in place; a ''shipped'' (shadow-only) view or layer is read-only here and offers fork-to-edit (view) or a Structure-strip hint (layer) instead — editing in place would write an override. `ca-position-<view-slug>` is NOT edited here: per-entry placement lives on each ''entry'' tiddler, not the view.
 |''↑ / ↓'' |preset / visibility / filter / view / leader |Walk between pill rows. ↓ at the bottom-most row drops into input; ↑ at the top-most row no-ops. |
 |''Enter / Space'' |view |Activate the highlighted view — pops the stack to root, rebuilds the menu. (←/→ already applies on landing, so this is mostly redundant on the view strip.) |
 |''Enter / Space'' |preset |Apply the focused preset (replaces filters + visibility, switches view, keeps palette open). The applied preset becomes the ''active'' preset until cleared. (←/→ also applies on landing; only the ''+'' pill still requires Enter/Space.) On the trailing ''+'' pill: open the save-as prompt to capture current state as a new preset (same as the `s` leader). |

@@ -1,0 +1,9 @@
+title: $:/plugins/rimir/cascade-palette/entries/view-actions/fields
+tags: $:/tags/rimir/cascade-palette/view-action
+ca-name: Edit all fields…
+ca-hint: Drill the active view's exhaustive long-tail fields (display, picking, row defaults) — the surface the Structure strip doesn't cover
+ca-icon: 🎛
+ca-kind: drill
+ca-order: 25
+ca-items-from: [cp-view-edit-rows[]]
+ca-next-title: Edit view fields

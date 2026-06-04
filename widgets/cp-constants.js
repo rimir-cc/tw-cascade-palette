@@ -205,6 +205,12 @@ exports.SCRATCHPAD_PREFIX = "$:/state/rimir/cascade-palette/scratchpad/";
 // while editing a filter facet. Decoupled from the palette input: the user
 // experiments here and copies a working filter back. $:/state ⇒ not synced.
 exports.FILTER_LAB_STATE = "$:/state/rimir/cascade-palette/filter-lab";
+// Runtime mirror of the active view's title, written by _setActiveView. Lets a
+// declarative drill (the "Edit all fields…" view-action → cp-view-edit-rows)
+// target the active view without coupling to widget runtime state. The
+// operator self-heals to the default view when this is empty (the initial
+// open, before any view switch). $:/state ⇒ not synced.
+exports.ACTIVE_VIEW_STATE = "$:/state/rimir/cascade-palette/active-view";
 exports.SCRATCH_KIND_FIELD = "cp-scratch-kind";
 exports.SCRATCH_SOURCE_FIELD = "cp-scratch-source";
 // Marks a view scratchpad created PURELY as a live-preview carrier for

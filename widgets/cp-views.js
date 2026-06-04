@@ -1716,6 +1716,9 @@ function setup(proto) {
             this._viewBackStack = [];
         }
         this.activeView = viewTitle;
+        // Mirror to a state tiddler so the declarative "Edit all fields…" drill
+        // (cp-view-edit-rows) can target the active view (see ACTIVE_VIEW_STATE).
+        this.wiki.setText(C.ACTIVE_VIEW_STATE, "text", null, viewTitle || "");
         this.stack = [this.buildRootStage()];
         this.recomputeStage(this.topStage());
         this._renderViewStrip();
