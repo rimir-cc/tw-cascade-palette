@@ -23,6 +23,8 @@ var ACTION_TAG = C.ACTION_TAG;
 var ENTRY_TAG = C.ENTRY_TAG;
 var SOFT_DEPTH_CONFIG = C.SOFT_DEPTH_CONFIG;
 var DEFAULT_SOFT_DEPTH = C.DEFAULT_SOFT_DEPTH;
+var LARGE_ROOT_SET_CONFIG = C.LARGE_ROOT_SET_CONFIG;
+var DEFAULT_LARGE_ROOT_SET = C.DEFAULT_LARGE_ROOT_SET;
 var ENTITY_TYPE_FIELD_CONFIG = C.ENTITY_TYPE_FIELD_CONFIG;
 var SAVED_STACK_TIDDLER = C.SAVED_STACK_TIDDLER;
 
@@ -338,6 +340,44 @@ module.exports = function (proto) {
         this._lastPerf.stageKind = stage ? stage.kind : "";
         this._lastPerf.itemCount = stage && stage.items ? stage.items.length : 0;
         this._lastPerf.resultCount = stage && stage.results ? stage.results.length : 0;
+        this._maybeWarnLargeRootSet(stage);
+    };
+
+    // Configured large-root-set threshold (0 / invalid ⇒ disabled, except a
+    // missing config falls back to the default). Mirrors getSoftDepthWarning.
+    proto.getLargeRootSetWarning = function () {
+        var raw = this.wiki.getTiddlerText(LARGE_ROOT_SET_CONFIG, String(DEFAULT_LARGE_ROOT_SET));
+        var n = parseInt(raw, 10);
+        if (isNaN(n) || n < 0) return DEFAULT_LARGE_ROOT_SET;
+        return n; // 0 ⇒ explicitly disabled
+    };
+
+    // Warn (once per view+stage-kind, NOT per keystroke) when a root/tree
+    // stage's full item set — which is rebuilt and re-decorated on every
+    // keystroke — exceeds the threshold. Recovering below it re-arms the
+    // warning, so a later regrowth warns again.
+    proto._maybeWarnLargeRootSet = function (stage) {
+        if (!stage || (stage.kind !== "root" && stage.kind !== "tree")) return;
+        var threshold = this.getLargeRootSetWarning();
+        if (threshold <= 0) return;
+        var n = (stage.items && stage.items.length) || 0;
+        var key = (stage.viewTitle || this.activeView || "") + "/" + stage.kind;
+        this._largeRootWarned = this._largeRootWarned || {};
+        if (n > threshold) {
+            if (!this._largeRootWarned[key]) {
+                this._largeRootWarned[key] = true;
+                if (console && console.warn) {
+                    console.warn(
+                        "[cascade-palette] view root set", n, "rows exceeds threshold",
+                        threshold + " — the palette rebuilds + decorates this set on " +
+                        "every keystroke. Consider a narrower ca-view-roots, a filter " +
+                        "pill, or raising " + LARGE_ROOT_SET_CONFIG + " (0 disables)."
+                    );
+                }
+            }
+        } else {
+            delete this._largeRootWarned[key];
+        }
     };
 
     proto._recomputeStageBody = function (stage) {

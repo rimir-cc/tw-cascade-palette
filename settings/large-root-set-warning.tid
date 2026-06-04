@@ -1,0 +1,14 @@
+title: $:/plugins/rimir/cascade-palette/settings/large-root-set-warning
+tags: $:/tags/rimir/cascade-palette/setting
+ca-name: Large root-set warning
+ca-hint: Row count above which a view's root set triggers a one-time console warning (it is rebuilt + decorated every keystroke). 0 disables. +/- adjust, Shift = 100, Ctrl = 1000.
+ca-kind: number
+ca-order: 31
+ca-bind-tiddler: $:/config/rimir/cascade-palette/large-root-set-warning
+ca-bind-field: text
+ca-min: 0
+ca-max: 50000
+ca-step: 100
+ca-step-medium: 100
+ca-step-large: 1000
+ca-default-value: 2000

@@ -386,6 +386,7 @@ The plugin ships five axes for the common cases. All live under `$:/plugins/rimi
 |`$:/config/shortcuts/rimir-cascade-palette-open` |`ctrl+space` |Hotkey to open the palette |
 |`$:/config/rimir/cascade-palette/max-results` |`30` |Cap on items shown per stage |
 |`$:/config/rimir/cascade-palette/soft-depth-warning` |`10` |Stage-stack depth that triggers a console warning. Adjust live via Settings → Soft depth warning. |
+|`$:/config/rimir/cascade-palette/large-root-set-warning` |`2000` |Row count above which a view's root set triggers a one-time console warning (it is rebuilt + decorated every keystroke — narrow `ca-view-roots` or add a filter). `0` disables. Adjust live via Settings → Large root-set warning. |
 |`$:/config/rimir/cascade-palette/details-always-on` |`no` |Keep the detail drawer visible without holding Ctrl. Toggle live via Settings → Details always on. |
 |`$:/config/rimir/cascade-palette/pin-pill-rows` |`no` |Render every pill strip (Visibility, Reach, Meta, Field, Filter) even when no pills are pushed. Dev / discoverability aid — lets you see where each strip sits before populating it. Toggle live via Settings → Pin all pill rows. |
 |`$:/config/rimir/cascade-palette/popup-width` |`50` |Popup width in `vw` (clamped to [20, 95]). |
@@ -445,6 +446,7 @@ The widget only logs on error paths (no boot noise):
 * `[cascade-palette] ca-template-applies error on ...` — a template's filter threw; template is excluded
 * `[cascade-palette] template render error ...` — the template body wikitext failed to parse; the drawer shows the error message in place of the template
 * `[cascade-palette] stack depth N exceeds soft warning M — possible cascade loop?` — the user has drilled past the soft-depth-warning threshold
+* `[cascade-palette] view root set N rows exceeds threshold M — …` — the active view resolves more rows than the large-root-set-warning threshold (rebuilt + decorated every keystroke); fired once per view, re-armed when the set drops back below
 
 </$fill>
 </$transclude>

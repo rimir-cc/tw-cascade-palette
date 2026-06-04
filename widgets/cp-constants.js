@@ -165,6 +165,11 @@ exports.LENS_ACTIONS_VIA_ENTITY_TYPE = "via-entity-type";
 
 // ---- Config tiddler titles ----
 exports.SOFT_DEPTH_CONFIG = "$:/config/rimir/cascade-palette/soft-depth-warning";
+// A view whose root set resolves to more rows than this is rebuilt AND
+// re-decorated on every keystroke — the dominant per-keystroke cost. Crossing
+// it emits a one-time console.warn (deduped per view, not per keystroke)
+// suggesting a narrower `ca-view-roots` or a filter pill. 0 disables the check.
+exports.LARGE_ROOT_SET_CONFIG = "$:/config/rimir/cascade-palette/large-root-set-warning";
 exports.POPUP_WIDTH_CONFIG = "$:/config/rimir/cascade-palette/popup-width";
 exports.MAX_RESULTS_CONFIG = "$:/config/rimir/cascade-palette/max-results";
 exports.DETAILS_ALWAYS_ON_CONFIG = "$:/config/rimir/cascade-palette/details-always-on";
@@ -249,6 +254,7 @@ exports.LENS_NS = "$:/plugins/rimir/cascade-palette/lens/";
 exports.DEFAULT_ORDER = 100;
 exports.DEFAULT_MAX_RESULTS = 30;
 exports.DEFAULT_SOFT_DEPTH = 10;
+exports.DEFAULT_LARGE_ROOT_SET = 2000;
 exports.DEFAULT_TRUE_VALUE = "yes";
 exports.DEFAULT_FALSE_VALUE = "no";
 exports.DEFAULT_STEP = 1;
