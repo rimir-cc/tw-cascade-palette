@@ -58,6 +58,20 @@ exports.NEW_AXIS_MESSAGE = "rimir-cascade-palette-new-axis";
 exports.CLONE_AXIS_MESSAGE = "rimir-cascade-palette-clone-axis";
 exports.DELETE_AXIS_MESSAGE = "rimir-cascade-palette-delete-axis";
 
+// Entry + action lifecycle — fired from the "Manage entries" / "Manage
+// actions" menus (cp-def-editor), mirroring the axis lifecycle. NEW prompts a
+// name and saves a fresh definition (tagged ENTRY_TAG / ACTION_TAG) under
+// ENTRIES_NS / ACTIONS_NS with sane defaults; CLONE copies a SHIPPED
+// (shadow-only) definition to an editable USER copy (paramObject.title);
+// DELETE removes a user definition (paramObject.title), behind the engine's
+// ca-on-delete confirm on the list row.
+exports.NEW_ENTRY_MESSAGE = "rimir-cascade-palette-new-entry";
+exports.CLONE_ENTRY_MESSAGE = "rimir-cascade-palette-clone-entry";
+exports.DELETE_ENTRY_MESSAGE = "rimir-cascade-palette-delete-entry";
+exports.NEW_ACTION_MESSAGE = "rimir-cascade-palette-new-action";
+exports.CLONE_ACTION_MESSAGE = "rimir-cascade-palette-clone-action";
+exports.DELETE_ACTION_MESSAGE = "rimir-cascade-palette-delete-action";
+
 // ---- Tags consumed by the engine ----
 exports.ENTRY_TAG = "$:/tags/rimir/cascade-palette/entry";
 exports.ACTION_TAG = "$:/tags/rimir/cascade-palette/action";
@@ -225,6 +239,8 @@ exports.SCRATCH_PREVIEW_ONLY_FIELD = "cp-scratch-preview-only";
 exports.VIEWS_NS = "$:/plugins/rimir/cascade-palette/views/";
 exports.LAYERS_NS = "$:/plugins/rimir/cascade-palette/structure-layers/";
 exports.AXES_NS = "$:/plugins/rimir/cascade-palette/axes/";
+exports.ENTRIES_NS = "$:/plugins/rimir/cascade-palette/entries/";
+exports.ACTIONS_NS = "$:/plugins/rimir/cascade-palette/actions/";
 // User-created lenses (collision-safe slug appended). Shipped lenses live
 // in the same namespace as plugin shadows; a fresh slug doesn't collide.
 exports.LENS_NS = "$:/plugins/rimir/cascade-palette/lens/";

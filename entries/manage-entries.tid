@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/entries/manage-entries
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Manage entries
+ca-hint: Create, edit or delete command entries (the rows in this menu)
+ca-icon: 📋
+ca-kind: drill
+ca-order: 62
+ca-items-from: [cp-entry-rows[]]
+ca-next-title: Manage entries
+type: text/vnd.tiddlywiki

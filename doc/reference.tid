@@ -57,6 +57,15 @@ The Structure strip edits a view's ''core structure'' (roots / children / leaf /
 * ''layers'' — each explicit structure-layer the view composes drills into its OWN field editor (name, `ca-layer-source`, `ca-layer-include-position`, and the `ca-layer-row-*` defaults)
 
 User views edit in place; a ''shipped'' (shadow-only) view or layer is read-only here and offers fork-to-edit (view) or a Structure-strip hint (layer) instead — editing in place would write an override. `ca-position-<view-slug>` is NOT edited here: per-entry placement lives on each ''entry'' tiddler, not the view.
+
+!! Editing entries & actions in-palette
+
+''Manage entries'' and ''Manage actions'' (top-level menu) list every command entry / action with a ''+ New …'' creator and one drillable row each. Drilling a row opens its field editor (`cp-entry-edit-rows` / `cp-action-edit-rows`):
+
+* ''Entry'' — identity (`ca-name`/`ca-icon`/`ca-hint`/`ca-order`), `ca-kind` (leaf | drill), leaf behaviour (`ca-actions`, `ca-after-fire`, `ca-confirm` + `ca-confirm-consequence`), and drill target (`ca-next-scope`, `ca-items-from`, `ca-next-title`, `ca-next-entity-type`). Per-view placement (`ca-position-<view-slug>`) is set by hand on the entry (it varies per view) — a note row points this out.
+* ''Action'' — identity, the three discovery facets (`ca-entity-type` = catalogue match · `ca-applies` = filter match · `ca-action-when` = narrowing — see [[Dev Workflow|$:/plugins/rimir/cascade-palette/doc/dev-workflow]] §"Debugging action discovery"), and behaviour (`ca-actions`, `ca-after-fire`, `ca-confirm` + consequence).
+
+Creating prompts for a name then saves a fresh definition under the plugin namespace with sane defaults (entry: `ca-kind: leaf`; action: empty `ca-applies`), reopening the list with the new row under ''Your …''. USER definitions edit in place; a ''shipped'' (shadow-only) one is clone-protected — ''📋 Clone to a custom … to edit'' copies it first (an in-place edit would write a shadow-masking override). Delete is confirm-gated (user definitions only).
 |''↑ / ↓'' |preset / visibility / filter / view / leader |Walk between pill rows. ↓ at the bottom-most row drops into input; ↑ at the top-most row no-ops. |
 |''Enter / Space'' |view |Activate the highlighted view — pops the stack to root, rebuilds the menu. (←/→ already applies on landing, so this is mostly redundant on the view strip.) |
 |''Enter / Space'' |preset |Apply the focused preset (replaces filters + visibility, switches view, keeps palette open). The applied preset becomes the ''active'' preset until cleared. (←/→ also applies on landing; only the ''+'' pill still requires Enter/Space.) On the trailing ''+'' pill: open the save-as prompt to capture current state as a new preset (same as the `s` leader). |

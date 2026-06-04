@@ -1,0 +1,10 @@
+title: $:/plugins/rimir/cascade-palette/entries/manage-actions
+tags: $:/tags/rimir/cascade-palette/entry
+ca-name: Manage actions
+ca-hint: Create, edit or delete actions (the per-row commands shown on Space)
+ca-icon: ⚡
+ca-kind: drill
+ca-order: 63
+ca-items-from: [cp-action-rows[]]
+ca-next-title: Manage actions
+type: text/vnd.tiddlywiki

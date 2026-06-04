@@ -260,6 +260,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     require("$:/plugins/rimir/cascade-palette/widgets/cp-row-decorations")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-view-editor")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-axis-editor")(CascadePaletteWidget.prototype);
+    require("$:/plugins/rimir/cascade-palette/widgets/cp-def-editor")(CascadePaletteWidget.prototype);
     require("$:/plugins/rimir/cascade-palette/widgets/cp-deep-search")(CascadePaletteWidget.prototype);
 
     /* ---------- lifecycle ---------- */
@@ -1031,6 +1032,38 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 var p = (event && event.paramObject) || {};
                 var t = p.axis || (event && event.param) || "";
                 if (t && self._deleteAxis) self._deleteAxis(t);
+                return false;
+            });
+            registerRootMessage(C.NEW_ENTRY_MESSAGE, function () {
+                if (self._newEntry) self._newEntry();
+                return false;
+            });
+            registerRootMessage(C.CLONE_ENTRY_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var t = p.title || (event && event.param) || "";
+                if (t && self._cloneEntryToUser) self._cloneEntryToUser(t);
+                return false;
+            });
+            registerRootMessage(C.DELETE_ENTRY_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var t = p.title || (event && event.param) || "";
+                if (t && self._deleteEntry) self._deleteEntry(t);
+                return false;
+            });
+            registerRootMessage(C.NEW_ACTION_MESSAGE, function () {
+                if (self._newAction) self._newAction();
+                return false;
+            });
+            registerRootMessage(C.CLONE_ACTION_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var t = p.title || (event && event.param) || "";
+                if (t && self._cloneActionToUser) self._cloneActionToUser(t);
+                return false;
+            });
+            registerRootMessage(C.DELETE_ACTION_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                var t = p.title || (event && event.param) || "";
+                if (t && self._deleteAction) self._deleteAction(t);
                 return false;
             });
             registerRootMessage(C.APPLY_PRESET_MESSAGE, function (event) {

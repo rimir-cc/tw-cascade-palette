@@ -15,8 +15,8 @@ type: text/vnd.tiddlywiki
 Cascade-palette is engineered to be extended by ''one tiddler per cascade edge''. The vast majority of integrations never touch JavaScript. Pick the right tag, set the right `ca-*` fields, save — restart only if you also added a JS module (filter operator, widget, startup).
 
 |!You want to add… |!Tag the tiddler with… |!Required fields |!See worked examples in |
-|A new menu entry (root stage) |`$:/tags/rimir/cascade-palette/entry` |`ca-name`, `ca-kind`, plus `ca-actions` (leaf) or `ca-next-scope` (drill) |[[Protocol|$:/plugins/rimir/cascade-palette/doc/protocol]] §"Worked example 1–4" |
-|A new action for an entity type |`$:/tags/rimir/cascade-palette/action` |`ca-name`, `ca-kind`, `ca-entity-type` and/or `ca-applies` |[[Protocol]] §"Worked example 3–5" |
+|A new menu entry (root stage) |`$:/tags/rimir/cascade-palette/entry` |`ca-name`, `ca-kind`, plus `ca-actions` (leaf) or `ca-next-scope` (drill) |[[Protocol|$:/plugins/rimir/cascade-palette/doc/protocol]] §"Worked example 1–4" (or create it in-palette: ''Manage entries'' → ''+ New entry…'') |
+|A new action for an entity type |`$:/tags/rimir/cascade-palette/action` |`ca-name`, `ca-kind`, `ca-entity-type` and/or `ca-applies` |[[Protocol]] §"Worked example 3–5" (or create it in-palette: ''Manage actions'' → ''+ New action…'') |
 |A new search-filter pill |`$:/tags/rimir/cascade-palette/filter` |`ca-filter-name`, `ca-filter-expr` |[[Protocol]] §"Worked example — Title-prefix filter" |
 |A new visibility (hide-predicate) pill |`$:/tags/rimir/cascade-palette/visibility` |`ca-visibility-name`, `ca-visibility-expr` |[[Protocol]] §"Worked example — Hide a group" |
 |A new view (root-stage strategy) |`$:/tags/rimir/cascade-palette/view` |`ca-view-name`, `ca-view-roots` |[[Protocol]] §"Views" |
