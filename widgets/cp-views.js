@@ -1112,8 +1112,8 @@ function setup(proto) {
         this._viewScopedPills(view).forEach(function (p) {
             pills.push(p);
         });
-        // (Lenses moved to their own per-slot selector strips in H4 — they
-        // are global row decorators, not part of any one view's structure.)
+        // (Lens choosers are part of _viewScopedPills now — they lead the
+        // view's structure pills as per-slot enum facets.)
         var self = this;
         pills.forEach(function (p) {
             rowEl.appendChild(self._buildConfigPill(p));
@@ -1158,10 +1158,9 @@ function setup(proto) {
             });
             self.viewConfigStripEl.appendChild(rowEl);
         });
-        // (H4: global row decorators — formerly the structure-toggle
-        // "lenses" row here — now live in their own per-slot selector strips
-        // above the Structure strip, so the viewconfig strip is purely the
-        // active view's own structure again.)
+        // (Lens choosers live inline now: view-default choosers lead the view
+        // header row via _viewScopedPills, and each channel row carries its own
+        // per-slot override choosers via _layerPills.)
         // Clamp focus index into the rebuilt list and highlight.
         if (this.viewConfigFocusIdx >= pillList.length) {
             this.viewConfigFocusIdx = Math.max(0, pillList.length - 1);
@@ -1528,11 +1527,11 @@ function setup(proto) {
                 value: "off"
             });
         }
-        // (Global row decorators are NOT pushed here — they aren't view-
-        // scoped. They live in their own per-slot lens selector strips
-        // (cp-lenses.js), above the Structure strip.)
+        // (The view-default lens choosers are pushed at the top of this
+        // function via _lensChooserPills — they ARE view-scoped now. Per-
+        // channel overrides ride each channel row in _layerPills.)
         // Compose-by-reference: "+ layer" appends a shared layer to this
-        // view's ca-view-layers (cp-view-editor _openLayerPicker). Shown for
+        // view's ca-view-channels (cp-view-editor _openLayerPicker). Shown for
         // any view with a real producer layer (implicit or explicit) — adding
         // a layer to an implicit view first triggers implicit→explicit
         // migration (_migrateImplicitToExplicit), so the original structure
