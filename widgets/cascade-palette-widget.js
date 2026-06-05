@@ -314,21 +314,9 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.viewStripEl.className = "rcp-view-strip";
         this.viewStripEl.setAttribute("tabindex", "-1");
 
-        // Lens slot strips (H4) — one single-select chooser per row-
-        // decoration slot (name / icon / annotation). Each sits in the
-        // visual stack just below the view strip; hidden via
-        // `rcp-has-lens-<slot>` on the popup when no lens projects that
-        // slot. Created in LENS_SLOTS order so the DOM matches the cycle.
-        this._lensStripEls = {};
-        this._lensFocusIdx = {};
-        var self0 = this;
-        C.LENS_SLOTS.forEach(function (slot) {
-            var el = self0.document.createElement("div");
-            el.className = "rcp-lens-strip rcp-lens-strip-" + slot;
-            el.setAttribute("tabindex", "-1");
-            self0._lensStripEls[slot] = el;
-            self0._lensFocusIdx[slot] = 0;
-        });
+        // (The standalone per-slot lens chooser strips were removed in
+        // 0.0.118 — the choosers now live in the Structure strip's
+        // view→channel tree, see cp-views#_lensChooserPills.)
 
         // View-config strip — pills depicting the active view's
         // primitives (roots / children / leaf / label filters). Hidden
@@ -443,10 +431,6 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.cascadeColEl.appendChild(this.fieldStripEl);
         this.cascadeColEl.appendChild(this.filterStripEl);
         this.cascadeColEl.appendChild(this.viewStripEl);
-        var self1 = this;
-        C.LENS_SLOTS.forEach(function (slot) {
-            self1.cascadeColEl.appendChild(self1._lensStripEls[slot]);
-        });
         this.cascadeColEl.appendChild(this.viewConfigStripEl);
         this.cascadeColEl.appendChild(this.leaderStripEl);
         this.cascadeColEl.appendChild(this.inputEl);
@@ -632,9 +616,6 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         wireStripFocus(this.metaStripEl, "meta");
         wireStripFocus(this.fieldStripEl, "field");
         wireStripFocus(this.viewStripEl, "view");
-        C.LENS_SLOTS.forEach(function (slot) {
-            wireStripFocus(self._lensStripEls[slot], "lens-" + slot);
-        });
         wireStripFocus(this.presetStripEl, "preset");
         wireStripFocus(this.viewConfigStripEl, "viewconfig");
         wireStripFocus(this.leaderStripEl, "leader");
@@ -781,7 +762,13 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 if (lensStateChanged ||
                     isTaggedChange({ tag: C.LENS_TAG, cachedTitles: lensTitles })) {
                     self._invalidateLenses();
-                    if (self.open) self._renderAllLensStrips();
+                    // The lens choosers now live in the view→channel tree, so a
+                    // lens create/edit/delete refreshes the Structure strip (its
+                    // chooser pills) + re-renders the rows (decorations).
+                    if (self.open) {
+                        if (self._renderViewConfigStrip) self._renderViewConfigStrip();
+                        if (self.renderStage) self.renderStage();
+                    }
                 }
                 // View / structure-layer / axis definition tiddlers (and
                 // scratchpad / layer-axes state) — invalidate the view
@@ -792,6 +779,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 // change event after a facet commit would re-render with the
                 // STALE cached view and silently undo the edit.
                 if (isTaggedChange({ tag: C.VIEW_TAG }) ||
+                    isTaggedChange({ tag: C.CHANNEL_TAG }) ||
                     isTaggedChange({ tag: C.STRUCTURE_LAYER_TAG }) ||
                     isTaggedChange({ tag: C.AXIS_TAG }) ||
                     Object.keys(changes).some(function (k) {
@@ -1144,7 +1132,6 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this._refreshContextPills();
         this._renderContextStrip();
         this._renderViewStrip();
-        this._renderAllLensStrips();
         this._renderVisibilityStrip();
         this._renderReachStrip();
         this._renderFieldStrip();
@@ -1334,12 +1321,10 @@ See doc/protocol.tid for the full authoring guide and worked examples.
     };
 
     CascadePaletteWidget.prototype.setFocus = function (section) {
-        var isLensSection = typeof section === "string" && section.indexOf("lens-") === 0;
         if (section !== "input" && section !== "menu" &&
             section !== "details" && section !== "preview" &&
             section !== "filter" && section !== "context" &&
             section !== "visibility" && section !== "view" &&
-            !isLensSection &&
             section !== "preset" && section !== "viewconfig" &&
             section !== "leader" &&
             section !== "reach" && section !== "meta" &&
@@ -1371,12 +1356,6 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // hidden so they don't count.
         if (section === "view" && this._visibleViews().length < 2) {
             section = "input";
-        }
-        // Lens slot strip joins the cycle only when a lens projects its
-        // slot. Don't focus an empty chooser (dead-end UX).
-        if (isLensSection) {
-            var guardSlot = section.slice("lens-".length);
-            if (this._lensPillCount(guardSlot) === 0) section = "input";
         }
         // Same for the preset strip when no presets exist.
         if (section === "preset" && this._presetPillCount() === 0) {
@@ -1514,24 +1493,6 @@ See doc/protocol.tid for the full authoring guide and worked examples.
             this.viewStripEl.focus();
             this._renderViewStrip();
             this._maybeRenderViewHelp();
-        } else if (typeof section === "string" && section.indexOf("lens-") === 0) {
-            // Anchor focus on the active lens (or the synthetic "off" head
-            // at index 0) so ←/→ starts adjacent to the current pick and
-            // Enter re-applies it as a no-op. Mirrors the row-label branch.
-            var lensSlot = section.slice("lens-".length);
-            var lensEntries = this._lensStripEntries(lensSlot);
-            var lensActive = this._readActiveLensTitle(lensSlot);
-            var lensIdx = 0;
-            if (lensActive) {
-                for (var lei = 0; lei < lensEntries.length; lei++) {
-                    if (lensEntries[lei].title === lensActive) { lensIdx = lei; break; }
-                }
-            }
-            this._lensFocusIdxSet(lensSlot,
-                Math.min(lensIdx, Math.max(0, lensEntries.length - 1)));
-            this._lensStripEls[lensSlot].focus();
-            this._renderLensStrip(lensSlot);
-            this._maybeRenderLensHelp(lensSlot);
         }
         // Re-render the strip when focus changes so pill-focused styling
         // updates (focused class only on pills of the focused strip).
@@ -1556,14 +1517,6 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         if (prevFocus === "view" || section === "view") {
             this._renderViewStrip();
         }
-        // Re-render whichever lens strip lost or gained focus so the
-        // focused-pill highlight only sits on the active chooser.
-        if (typeof prevFocus === "string" && prevFocus.indexOf("lens-") === 0) {
-            this._renderLensStrip(prevFocus.slice("lens-".length));
-        }
-        if (typeof section === "string" && section.indexOf("lens-") === 0) {
-            this._renderLensStrip(section.slice("lens-".length));
-        }
         if (prevFocus === "preset" || section === "preset") {
             this._renderPresetStrip();
         }
@@ -1578,7 +1531,6 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         // the user gets per-row preview again.
         var stripFoci = {
             filter: 1, context: 1, visibility: 1, view: 1,
-            "lens-name": 1, "lens-icon": 1, "lens-annotation": 1,
             preset: 1, viewconfig: 1, leader: 1
         };
         if (stripFoci[prevFocus] && !stripFoci[section] && this.detailsOpen) {
@@ -1606,10 +1558,6 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         else if (section === "meta") this.metaStripEl.focus();
         else if (section === "field") this.fieldStripEl.focus();
         else if (section === "view") this.viewStripEl.focus();
-        else if (section.indexOf && section.indexOf("lens-") === 0 &&
-                 this._lensStripEls[section.slice("lens-".length)]) {
-            this._lensStripEls[section.slice("lens-".length)].focus();
-        }
         else if (section === "viewconfig") this.viewConfigStripEl.focus();
         else if (section === "leader") this.leaderStripEl.focus();
         else this.inputEl.focus();
@@ -1746,9 +1694,6 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         else if (this.focus === "meta")       this.hintEl.textContent = C.HINT_META;
         else if (this.focus === "field")      this.hintEl.textContent = C.HINT_FIELD;
         else if (this.focus === "view")       this.hintEl.textContent = C.HINT_VIEW;
-        else if (typeof this.focus === "string" && this.focus.indexOf("lens-") === 0) {
-            this.hintEl.textContent = C.HINT_LENS;
-        }
         else if (this.focus === "viewconfig") {
             this.hintEl.textContent = this.viewConfigExpanded
                 ? C.HINT_VIEWCONFIG_EXPANDED

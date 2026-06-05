@@ -163,11 +163,44 @@ module.exports = function (proto) {
         return "";
     };
 
-    // Resolve the active lens object for a slot. Returns null when no lens
-    // is active, or the stored title no longer projects this slot / no
-    // longer applies (stale state → treated as off, the slot falls back).
-    proto._activeLensForSlot = function (slot) {
-        var title = this._readActiveLensTitle(slot);
+    // The effective lens TITLE for a slot on a given row — channel-aware.
+    // Resolution order:
+    //   1. the row's channel's baked effective lens (locked → view default;
+    //      else channel override; else view default), via item._layerIdx →
+    //      activeView.layers[idx].effectiveLens[slot];
+    //   2. for a CHANNEL-LESS row (filter / action-menu / synthetic items with
+    //      no _layerIdx) the active view's default lens (view.lens[slot]);
+    //   3. legacy / transitional fallback — the global per-slot lens state
+    //      strip ($:/state/…/lens/<slot>), so the pre-relocation global chooser
+    //      keeps working and un-configured views still decorate (this is also
+    //      what seeds `ca-lens-default`). Retired once the strips relocate onto
+    //      the view (Phase C), after which views carry their own lens fields.
+    // Returns "" when nothing projects the slot for this row.
+    proto._effectiveLensTitle = function (slot, item) {
+        var view = this._getViewByTitle
+            ? this._getViewByTitle(this.activeView) : null;
+        if (view) {
+            var baked = "";
+            var ch = (item && item._layerIdx != null && view.layers)
+                ? view.layers[item._layerIdx] : null;
+            if (ch && ch.effectiveLens &&
+                Object.prototype.hasOwnProperty.call(ch.effectiveLens, slot)) {
+                baked = ch.effectiveLens[slot] || "";
+            } else {
+                baked = (view.lens && view.lens[slot]) || "";
+            }
+            if (baked) return baked;
+        }
+        return this._readActiveLensTitle(slot);
+    };
+
+    // Resolve the active lens object for a slot on a row. Returns null when no
+    // lens projects the slot for this row, or the resolved title no longer
+    // projects this slot / no longer applies (stale → treated as off, the slot
+    // falls back). `item` selects the channel (channel-aware); omit it for the
+    // view/global default (used by the decoration signature).
+    proto._activeLensForSlot = function (slot, item) {
+        var title = this._effectiveLensTitle(slot, item);
         if (!title) return null;
         var lenses = this._projectingLenses(slot);
         for (var i = 0; i < lenses.length; i++) {
@@ -184,7 +217,7 @@ module.exports = function (proto) {
     // to H4 slice 4 — a slot with only a template resolves to null here.
     proto._resolveSlot = function (slot, item) {
         if (!item || !item.dataRow || !item.title) return null;
-        var lens = this._activeLensForSlot(slot);
+        var lens = this._activeLensForSlot(slot, item);
         if (!lens) return null;
         var proj = lens.slots[slot];
         if (!proj || !proj.filter) return null;
@@ -216,7 +249,7 @@ module.exports = function (proto) {
     // nothing to cache here.
     proto._activeSlotTemplate = function (slot, item) {
         if (!item || !item.dataRow || !item.title) return null;
-        var lens = this._activeLensForSlot(slot);
+        var lens = this._activeLensForSlot(slot, item);
         if (!lens) return null;
         var proj = lens.slots[slot];
         if (!proj || proj.filter || !proj.template) return null;
@@ -272,10 +305,12 @@ module.exports = function (proto) {
         return titles;
     };
 
-    // Persist a new active lens for a slot and refresh. Empty / null /
-    // unmatched title clears the slot (single-select "off"). Re-renders the
-    // slot's chooser strip + the result list so decorations appear / vanish
-    // immediately.
+    // Persist the active lens for a slot in the legacy global state tiddler
+    // and refresh the result list so decorations appear / vanish immediately.
+    // Empty / null / unmatched title clears the slot. Still used by the lens
+    // editor (create / clone / delete) — the view/channel lens fields are the
+    // primary control now, but this global pick remains the resolution
+    // fallback (cp-lenses#_effectiveLensTitle).
     proto._setSlotLens = function (slot, title) {
         var lenses = this._projectingLenses(slot);
         var matched = "";
@@ -287,7 +322,6 @@ module.exports = function (proto) {
             text: matched
         }));
         if (this._invalidateRowDecorations) this._invalidateRowDecorations();
-        if (this._renderLensStrip) this._renderLensStrip(slot);
         var top = this.topStage();
         if (top) {
             this.recomputeStage(top);
@@ -299,173 +333,28 @@ module.exports = function (proto) {
         this._setSlotLens(slot, "");
     };
 
-    /* ---------- per-slot selector strips (UI) ---------- */
+    /* ---------- decoration-slot helpers ---------- */
+    // Shared by the view→channel tree lens choosers (cp-views#_lensChooserPills):
+    // a human label + a friendly chip per slot. The former standalone chooser
+    // strips were removed in 0.0.118 when the choosers moved into the tree.
 
-    // Human label shown at the head of each slot's chooser strip.
+    // Human label per slot.
     var SLOT_LABELS = { name: "Name", icon: "Icon", annotation: "Note" };
-    // Sentinel title for the trailing "+ New…" authoring pill (never a real
-    // lens; handlers branch on `entry.isNew`).
-    var LENS_NEW_SENTINEL = "$:/cp-lens-new-sentinel";
-    // Chip for the synthetic "off" entry at index 0 of each strip. For the
-    // name slot "off" means "use the row's intrinsic name" (a default), for
-    // the augment slots it means "no glyph / no badge".
+    // Chip for the "off" / inherit state. For the name slot "off" means "use
+    // the row's intrinsic name"; for the augment slots "no glyph / no badge".
     var SLOT_OFF_CHIP = { name: "(default)", icon: "(off)", annotation: "(off)" };
 
     proto._lensSlotLabel = function (slot) { return SLOT_LABELS[slot] || slot; };
 
-    // The strip DOM element for a slot, created lazily by the widget setup
-    // into `this._lensStripEls`. Returns null before the popup is built.
-    proto._lensStripEl = function (slot) {
-        return this._lensStripEls ? this._lensStripEls[slot] : null;
-    };
-
-    proto._lensFocusIdxGet = function (slot) {
-        if (!this._lensFocusIdx) this._lensFocusIdx = {};
-        return this._lensFocusIdx[slot] || 0;
-    };
-    proto._lensFocusIdxSet = function (slot, i) {
-        if (!this._lensFocusIdx) this._lensFocusIdx = {};
-        this._lensFocusIdx[slot] = i;
-    };
-
-    // Entries rendered in a slot's strip: a synthetic "off" head at index 0,
-    // the projecting lenses, then a trailing "+ New…" authoring sentinel.
-    // Index 0 → clear; middle → lens; last (isNew) → create a new lens.
-    proto._lensStripEntries = function (slot) {
-        var lenses = this._projectingLenses(slot);
-        if (!lenses.length) return [];
-        var off = {
-            title: "",
-            chip: SLOT_OFF_CHIP[slot] || "(off)",
-            hint: slot === "name"
-                ? "Use each row's default name (no override)."
-                : "No " + (slot === "icon" ? "leading icon" : "annotation") + " (slot off)."
-        };
-        var add = {
-            title: LENS_NEW_SENTINEL,
-            isNew: true,
-            chip: "➕ New…",
-            hint: "Create a new " + this._lensSlotLabel(slot).toLowerCase() +
-                " lens (type its projection filter; live preview)."
-        };
-        return [off].concat(lenses).concat([add]);
-    };
-
-    // Count drives strip visibility + cycle membership. 0 = no projecting
-    // lenses → strip hidden + excluded from the Tab cycle (like row-label).
-    proto._lensPillCount = function (slot) {
-        return this._lensStripEntries(slot).length;
-    };
-
-    proto._renderLensStrip = function (slot) {
-        var stripEl = this._lensStripEl(slot);
-        if (!stripEl) return;
-        while (stripEl.firstChild) stripEl.removeChild(stripEl.firstChild);
-        var entries = this._lensStripEntries(slot);
-        var hasAny = entries.length > 0;
-        if (this.popupEl) {
-            this.popupEl.classList.toggle("rcp-has-lens-" + slot, hasAny);
+    // Friendly chip for a lens title (""/unknown → the slot-off chip). Used by
+    // the view→channel tree choosers to label the current pick.
+    proto._lensChipForTitle = function (title, slot) {
+        if (!title) return SLOT_OFF_CHIP[slot] || "(off)";
+        var lenses = this._loadLenses();
+        for (var i = 0; i < lenses.length; i++) {
+            if (lenses[i].title === title) return lenses[i].chip || lenses[i].name;
         }
-        if (!hasAny) return;
-        var self = this;
-        var active = this._readActiveLensTitle(slot);
-        // Non-interactive slot label at the head so the user always knows
-        // which decoration this chooser controls.
-        var labelEl = this.document.createElement("span");
-        labelEl.className = "rcp-lens-strip-label";
-        labelEl.textContent = this._lensSlotLabel(slot);
-        stripEl.appendChild(labelEl);
-        // Clamp focus into the rebuilt list; on first render anchor on the
-        // active entry so ↵/Space re-applies rather than overriding silently.
-        var fi = this._lensFocusIdxGet(slot);
-        if (fi === undefined || fi < 0 || fi >= entries.length) {
-            var startIdx = 0;
-            if (active) {
-                for (var k = 0; k < entries.length; k++) {
-                    if (entries[k].title === active) { startIdx = k; break; }
-                }
-            }
-            this._lensFocusIdxSet(slot, startIdx);
-        }
-        var focusIdx = this._lensFocusIdxGet(slot);
-        var section = "lens-" + slot;
-        entries.forEach(function (entry, i) {
-            var pillEl = self.document.createElement("span");
-            var cls = "rcp-lens-pill";
-            if (entry.isNew) cls += " rcp-lens-pill-new";
-            if (!entry.isNew && entry.title === active) cls += " rcp-lens-pill-active";
-            if (self.focus === section && i === focusIdx) {
-                cls += " rcp-lens-pill-focused";
-            }
-            pillEl.className = cls;
-            pillEl.textContent = entry.chip;
-            if (entry.hint) pillEl.title = entry.hint;
-            pillEl.dataset.lensIdx = String(i);
-            pillEl.addEventListener("mousedown", function (e) {
-                e.preventDefault();
-                self._lensFocusIdxSet(slot, i);
-                if (entry.isNew) {
-                    if (self._newLensScratchpad) self._newLensScratchpad(slot);
-                } else {
-                    self._setSlotLens(slot, entry.title);
-                    self.setFocus(section);
-                }
-            });
-            stripEl.appendChild(pillEl);
-        });
-    };
-
-    // Re-render every slot strip — used by the open lifecycle + change hook.
-    proto._renderAllLensStrips = function () {
-        var self = this;
-        LENS_SLOTS.forEach(function (slot) { self._renderLensStrip(slot); });
-    };
-
-    // Help line under the strip for the focused entry (mirrors the former
-    // row-label help). Index 0 is the synthetic "off" entry.
-    proto._maybeRenderLensHelp = function (slot) {
-        if (this.focus !== "lens-" + slot) return;
-        var lenses = this._projectingLenses(slot);
-        if (!lenses.length) return;
-        var pillstrip = require("$:/plugins/rimir/cascade-palette/widgets/cp-pillstrip");
-        var entries = this._lensStripEntries(slot);
-        var idx = this._lensFocusIdxGet(slot);
-        if (idx === 0) {
-            pillstrip.renderConstraintHelp(this, {
-                title: SLOT_OFF_CHIP[slot] || "(off)",
-                help: slot === "name"
-                    ? "Clear the active name lens. Rows fall back to whatever name the view / next-scope path assigned (typically the tiddler caption or title)."
-                    : "Turn the " + this._lensSlotLabel(slot) + " slot off — rows show no lens-supplied " + (slot === "icon" ? "leading glyph" : "annotation") + ".",
-                rows: []
-            });
-            return;
-        }
-        if (entries[idx] && entries[idx].isNew) {
-            pillstrip.renderConstraintHelp(this, {
-                title: "➕ New " + this._lensSlotLabel(slot).toLowerCase() + " lens",
-                help: "Create a new lens projecting the " + this._lensSlotLabel(slot) +
-                    " slot. ↵ / Space opens a raw-filter editor (live '✓ N matches'); " +
-                    "the rows decorate as you type. Commit names it and saves it as a new lens.",
-                rows: [
-                    ["Gesture", "↵ / Space  create · e edit focused lens · Shift-DEL delete"]
-                ]
-            });
-            return;
-        }
-        var lens = lenses[idx - 1];
-        if (!lens) return;
-        var proj = lens.slots[slot] || {};
-        pillstrip.renderConstraintHelp(this, {
-            title: lens.chip || lens.name,
-            help: lens.help || lens.hint ||
-                ("Project the " + this._lensSlotLabel(slot) + " slot using this lens."),
-            rows: [
-                ["Slot", this._lensSlotLabel(slot)],
-                [proj.template ? "Template" : "Filter",
-                 proj.template || proj.filter || "—"],
-                ["Lens", lens.title]
-            ]
-        });
+        return title.split("/").pop();
     };
 
 };

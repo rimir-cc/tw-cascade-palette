@@ -14,7 +14,7 @@ type: text/vnd.tiddlywiki
 
 The palette is one popup with up to eight focusable sections, partitioned into two groups:
 
-* ''pills group'' (top of the palette, visually stacked): ''preset'' (always present — trailing ''+'' pill is the save-as affordance even when no presets exist), ''visibility'' (only when ≥ 1 visibility rule active), ''filter'' (only when ≥ 1 filter active), ''view'' (only when ≥ 2 views declared), ''lens slots'' (one single-select chooser strip per row-decoration slot — ''name'' / ''icon'' / ''annotation'' — each shown only when ≥ 1 lens projects that slot), ''structure'' (always present when the active view declares any layers), ''leader'' (only when ≥ 1 leader is visible for the active view — see leader scoping below). The lens strips sit just below the view strip; each chooses among the lenses projecting its slot plus a leading ''(off)'' / ''(default)'' entry and a trailing ''➕ New…'' authoring pill (←/→ applies on landing, except ''➕ New…''). The structure strip has a ''two-stage'' interaction model: on focus it shows a ''compact'' summary row (view name, layer count + composition, view-scoped pills sort/entries/grouping); pressing ''Enter / Space / →'' expands it to the full stacked layout (view-scoped header row + one mini-row per layer with all primitive pills — roots/children/leaf/label + row decorations + entity-type). Built-in layers (the synthetic ''entries'' layer auto-appended to tree views) render muted to flag their automatic nature. ''Esc'' from expanded collapses back to compact; ''Esc'' from compact refocuses input. The leader strip surfaces every visible leader as a ''[key] name'' pill — same activation as the typed-gesture path (key + idle), but discoverable without prior knowledge. Leaders may opt into per-view scope via ''`ca-leader-views`'' (empty = global).
+* ''pills group'' (top of the palette, visually stacked): ''preset'' (always present — trailing ''+'' pill is the save-as affordance even when no presets exist), ''visibility'' (only when ≥ 1 visibility rule active), ''filter'' (only when ≥ 1 filter active), ''view'' (only when ≥ 2 views declared), ''structure'' (always present when the active view declares any channels), ''leader'' (only when ≥ 1 leader is visible for the active view — see leader scoping below). (As of 0.0.118 the three standalone row-decoration ''lens'' chooser strips are gone — they're relocated into the Structure strip's view→channel tree, see below.) The structure strip has a ''two-stage'' interaction model: on focus it shows a ''compact'' summary row (view name, channel count + composition, view-scoped pills sort/entries/grouping); pressing ''Enter / Space / →'' expands it to the full stacked layout. Expanded, the ''view'' row leads with three lens choosers — ''Name'' / ''Icon'' / ''Note'' — editing the view's default decoration lens per slot (`l` toggles a slot ''lock''); each ''channel'' row (indented under the view) leads with its own three choosers overriding or inheriting the view default (showing ''(inherit view)'' / 🔒 cues), followed by the channel's primitive pills (roots/children/leaf/label + row decorations + entity-type). A lens chooser cycles its lenses on ↵/Space and clears on DEL; new lenses are created via ''Manage lenses''. Built-in channels (the synthetic ''entries'' channel auto-appended to tree views) render muted to flag their automatic nature. ''Esc'' from expanded collapses back to compact; ''Esc'' from compact refocuses input. The leader strip surfaces every visible leader as a ''[key] name'' pill — same activation as the typed-gesture path (key + idle), but discoverable without prior knowledge. Leaders may opt into per-view scope via ''`ca-leader-views`'' (empty = global).
 * ''main group'': ''input'' (search box), ''menu'' (result list), ''detail'' (Ctrl-hold drawer below the menu, only when open), ''preview'' (right-column pane, only when an entry/action on the stack registered a ''`ca-preview-template`'').
 
 The active section gets the browser-level focus and a visual cue; keyboard gestures route accordingly. ''Tab'' cycles within the current group; ''Shift-Tab'' jumps between groups, restoring the focus you last held in the group you're entering (the menu row you were on, the filter pill you were editing, etc.); it falls back to the bottom-most pill (entering pills) or input (returning to main) when that slot has since disappeared or was never visited. ''↑ / ↓'' inside the pill group walks vertically across rows — ↑ from input enters pills at the bottom-most row, ↓ from the bottom-most pill drops back into input. ''Esc'' walks the stack back one step keystroke-by-keystroke: in input or menu focus it pops the current stage at any depth > 1, and from a pill section it returns focus to input. At root depth, Esc-from-input closes the palette and Esc-from-menu refocuses input. ''Shift-Esc'' is the universal "I'm done" — closes from any focus and any depth in one keystroke. ''Type-ahead'': pressing any printable character (no Ctrl/Alt/Meta) while focus is on a pill strip, the menu, the detail drawer or the preview background — and no section gesture claimed it — refocuses the input and appends the character, so you can start filtering from anywhere without first Tabbing back.
@@ -39,11 +39,11 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''Esc'' |preset / visibility / filter / view / details |Return focus to the input (without closing) |
 |''Esc'' |menu |Pop one stage (back). At root depth, refocuses input (since there's nothing to pop). Symmetric with ArrowLeft-in-menu. |
 |''← / →'' |visibility / filter |Move focus between pills within the row (clamps at edges) |
-|''← / →'' |view / preset / lens slots |Move focus between pills ''and apply on landing'' — these are single-select strips, so navigating IS selecting (no Space/Enter needed; clamps at edges). On preset the trailing ''+'' save pill is skipped, and on a lens strip the trailing ''➕ New…'' pill is skipped — they stay explicit Enter/Space gestures. |
+|''← / →'' |view / preset |Move focus between pills ''and apply on landing'' — these are single-select strips, so navigating IS selecting (no Space/Enter needed; clamps at edges). On preset the trailing ''+'' save pill is skipped — it stays an explicit Enter/Space gesture. (Lens choosers now live in the Structure strip's view→channel tree and cycle on ↵/Space, not on ←/→ landing.) |
 |''Enter / Space'' |lens slot |Apply the focused lens (←/→ also applies on landing). On the ''➕ New…'' pill: start authoring a new lens for this slot (filter editor with a live match-count → name → save). |
 |''e'' |lens slot (focused lens) |Edit the focused lens — reopens its projection filter live (a user lens is overwritten in place; a shipped lens is saved as a new copy). |
 |''DEL / Backspace'' |lens slot (focused lens) |Delete the focused lens via a confirm drill (shipped lenses refuse — press ''e'' to clone instead). To turn a slot ''off'' instead, ← to its ''(off)'' / ''(default)'' head pill. |
-|''DEL / Backspace'' |view |Delete the focused view via a confirm drill (shipped views refuse — fork via ''Manage views'' instead). ''Manage views → Fork current view'' makes a fully independent persisted copy: the `ca-view-*` fields PLUS a private copy of every explicit structure-layer and grouping axis the view references (titles rewritten), so editing the fork's structure never touches the original. The built-in entries layer is referenced, not copied. |
+|''DEL / Backspace'' |view |Delete the focused view via a confirm drill (shipped views refuse — fork via ''Manage views'' instead). ''Manage views → Fork current view'' makes a fully independent persisted copy: the `ca-view-*` fields PLUS a private copy of every explicit channel and grouping axis the view references (titles rewritten), so editing the fork's structure never touches the original. The built-in entries channel is referenced, not copied. |
 
 !! Editing a view's long-tail fields
 
@@ -54,9 +54,9 @@ The Structure strip edits a view's ''core structure'' (roots / children / leaf /
 * ''sort detail'' — `ca-view-sort-field`, `ca-view-sort-key`
 * ''picking'' — `ca-view-pick-mode`, `ca-view-pick-emits-filter`, `ca-view-after-fire`
 * ''row defaults'' — `ca-view-row-hint`, `ca-view-row-icon`, `ca-view-row-order`, `ca-view-row-next-scope`, `ca-view-row-items-from` (the per-row overrides not surfaced as Structure-strip pills)
-* ''layers'' — each explicit structure-layer the view composes drills into its OWN field editor (name, `ca-layer-source`, `ca-layer-include-position`, and the `ca-layer-row-*` defaults)
+* ''channels'' — each explicit channel the view composes drills into its OWN field editor (name, `ca-channel-source`, `ca-channel-include-position`, and the `ca-channel-row-*` defaults)
 
-User views edit in place; a ''shipped'' (shadow-only) view or layer is read-only here and offers fork-to-edit (view) or a Structure-strip hint (layer) instead — editing in place would write an override. `ca-position-<view-slug>` is NOT edited here: per-entry placement lives on each ''entry'' tiddler, not the view.
+User views edit in place; a ''shipped'' (shadow-only) view or channel is read-only here and offers fork-to-edit (view) or a Structure-strip hint (channel) instead — editing in place would write an override. `ca-position-<view-slug>` is NOT edited here: per-entry placement lives on each ''entry'' tiddler, not the view.
 
 !! Editing entries & actions in-palette
 
@@ -74,13 +74,13 @@ Creating prompts for a name then saves a fresh definition under the plugin names
 |''Home / End'' |preset |Jump focus to the first preset / to the ''+'' save pill (last position) |
 |''DEL / Backspace'' |filter / visibility |Remove the focused pill |
 |''Enter'' |filter / visibility |Move focus into the detail pane to scroll through the full help text |
-|''↵ / Space / →'' |structure (compact) |Expand the strip to the full per-layer layout (first pill focused) |
+|''↵ / Space / →'' |structure (compact) |Expand the strip to the full per-channel layout (first pill focused) |
 |''↑ / ↓'' |structure (compact) |Walk to adjacent pill section (up = previous, down = next or input) |
 |''← / →'' |structure (expanded) |Move focus between pills within the current sub-row |
 |''↑ / ↓'' |structure (expanded) |Move focus across sub-rows. ↑ at topmost sub-row ''collapses'' and steps into the pill section above; ↓ at bottommost sub-row collapses and steps into the section below (or input). |
 |''Esc'' |structure (expanded) |Collapse back to compact view (focus stays on strip) |
 |''Esc'' |structure (compact) |Return focus to input |
-|''Backspace / Delete'' |structure (focused axis pill) |Remove this axis from the layer's chain — re-renders the strip and the tree. |
+|''Backspace / Delete'' |structure (focused axis pill) |Remove this axis from the channel's chain — re-renders the strip and the tree. |
 |''Shift-← / Shift-→'' |structure (focused axis pill) |Reorder the focused axis within the chain. |
 |''Enter'' |structure (focused axis pill) |Open the axis picker in ''replace'' mode — pick a different axis to swap into this position. |
 |''Enter / Space'' |structure (focused `+` pill) |Open the axis picker in ''append'' mode — pick an axis to add to the end of the chain. |
@@ -126,9 +126,9 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`$:/tags/rimir/cascade-palette/template` |Detail-pane template — wikitext rendered with `currentTiddler` bound to the picked item |
 |`$:/tags/rimir/cascade-palette/filter` |Declarative ''filter'' — adds a removable pill whose expression is appended (intersected) to every result-list filter |
 |`$:/tags/rimir/cascade-palette/visibility` |Declarative ''visibility rule'' — adds a removable pill whose predicate filter hides matching root entries |
-|`$:/tags/rimir/cascade-palette/view` |Declarative view — composition of one or more structure layers. Each view appears as a pill in the view strip |
-|`$:/tags/rimir/cascade-palette/structure-layer` |Declarative structure layer — `(roots, children, leaf, label)` + row decorations + optional `ca-layer-axes` chain. Referenced by view tiddlers via `ca-view-layers` |
-|`$:/tags/rimir/cascade-palette/axis` |Declarative grouping axis — `(key, label, sort)` derive-key spec. Referenced by structure-layers / views via `ca-layer-axes` / `ca-view-axes`. Buckets the layer's source set at the top of the descent, with the chain consuming one tree depth per axis. Authored in-palette via ''Manage axes'': a ''+ New axis…'' creator opens the raw `ca-axis-key` editor with a live ''✓ N matches'' count then names + saves the axis under `…/axes/`; each existing axis drills into a per-facet field editor (name / hint / icon / key / label / sort / sort-keys / empty-label / delete), while a shipped (shadow-only) axis offers ''clone to edit'' instead. Composed into a layer's chain from the Structure strip's axis pills. |
+|`$:/tags/rimir/cascade-palette/view` |Declarative view — composition of one or more channels. Each view appears as a pill in the view strip |
+|`$:/tags/rimir/cascade-palette/channel` |Declarative channel — `(roots, children, leaf, label)` + row decorations + optional `ca-channel-axes` chain. Referenced by view tiddlers via `ca-view-channels` |
+|`$:/tags/rimir/cascade-palette/axis` |Declarative grouping axis — `(key, label, sort)` derive-key spec. Referenced by channels / views via `ca-channel-axes` / `ca-view-axes`. Buckets the channel's source set at the top of the descent, with the chain consuming one tree depth per axis. Authored in-palette via ''Manage axes'': a ''+ New axis…'' creator opens the raw `ca-axis-key` editor with a live ''✓ N matches'' count then names + saves the axis under `…/axes/`; each existing axis drills into a per-facet field editor (name / hint / icon / key / label / sort / sort-keys / empty-label / delete), while a shipped (shadow-only) axis offers ''clone to edit'' instead. Composed into a channel's chain from the Structure strip's axis pills. |
 |`$:/tags/rimir/cascade-palette/leader` |Leader-key gesture — key + idle window fires a wikitext action chain |
 |`$:/tags/rimir/cascade-palette/preset` |Saved `(view, filters, visibility)` bundle — surfaced as a pill in the preset strip |
 |`$:/tags/rimir/cascade-palette/help` |In-palette help section — drillable via the ''Help'' entry or the `?` leader. Uses standard cascade-item fields (`ca-name`, `ca-icon`, `ca-group`, `ca-order`, `ca-hint`); body wikitext renders in the side preview |
@@ -148,7 +148,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-confirm` |`yes`\|empty |leaf items |When `yes`, the leaf's actions are wrapped in a confirm-drill stage rather than fired directly. The consequence text shows the cost of confirming (e.g. "Delete tiddler X"). |
 |`ca-confirm-consequence` |string |leaf with `ca-confirm:yes` |Text shown as the ''hint'' of the synthetic Confirm row (inline, always visible) AND in the detail drawer banner (Ctrl-hold or details-always-on). Supports `<<picked>>` / `<<parent-picked>>` / `<<stage-N-picked>>` substitution. |
 |`ca-after-fire` |`close`\|`pop` |leaf |Post-fire behaviour. Default `close` (closes the palette). `pop` fires the action then pops one stage, keeping the palette open — for single-select sub-drills inside a field-edit flow, so the user lands back on the field stage with their pick already applied. |
-|`ca-entity-type` |string\|`*` |action |Catalogue-path binding. The action surfaces on rows whose emitting layer declared `ca-layer-row-entity-type` matching this value. Use `*` for a global. Tree-view rows have no bound entityType — use `ca-applies` for those. |
+|`ca-entity-type` |string\|`*` |action |Catalogue-path binding. The action surfaces on rows whose emitting channel declared `ca-channel-row-entity-type` matching this value. Use `*` for a global. Tree-view rows have no bound entityType — use `ca-applies` for those. |
 |`ca-applies` |filter |action |Filter-path discovery. Evaluated with `<currentTiddler>` bound to the row's title; non-empty result ⇒ action surfaces on that row in ''any'' view (catalogue or tree). Combines with `ca-entity-type` (union, deduplicated by action title). |
 |''(auto-derive)'' |//config// |action |When the wiki sets `$:/config/rimir/cascade-palette/entity-type-field` to a field name, an action's `ca-entity-type: <X>` ALSO matches any row whose tiddler carries `<configured-field>: <X>`. Lets catalogue plugins surface their actions in tree / flat views without authoring per-action `ca-applies`. The cascade-palette engine ships no default — typically set by a type-system plugin (e.g. `rimir/kind` ≥ 0.1.50 ships it as `kind.type`). Empty / missing config = no auto-derive. |
 |`ca-default` |`yes`\|empty |action |Marks the "Enter on entity result" default action |
@@ -192,7 +192,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-filter-name` |string |filter |Display name. Required. |
 |`ca-filter-prefix` |string |filter |Input-prefix that triggers the filter (e.g. `/`, `prefix:`). Optional. Matched greedy-by-length, across both filter and visibility tag families. |
 |`ca-filter-arg` |`text`\|`tag`\|`tiddler`\|`none` |filter |How the trailing input is interpreted. Default `text`. |
-|`ca-filter-expr` |filter snippet |filter |Appended (intersected) with every producer's base filter — applied ''globally'' across all views (flat, tree, axis-bucketed). Virtual menu entries (tiddlers tagged `$:/tags/rimir/cascade-palette/entry`) are ''exempted'' from the narrowing by default; to narrow them too, type the query into the input bar. ''In tree-container views'' (layers with `ca-view-children` / `ca-layer-children` and no axis chain) ancestors of filter-matches are revealed so matches remain reachable via drill-down; revealed-only ancestors render dimmed (CSS class `rcp-row-ancestor-only`). Use `<arg>` as the argument operand placeholder; engine substitutes `[<arg>]` at pill-push time. |
+|`ca-filter-expr` |filter snippet |filter |Appended (intersected) with every producer's base filter — applied ''globally'' across all views (flat, tree, axis-bucketed). Virtual menu entries (tiddlers tagged `$:/tags/rimir/cascade-palette/entry`) are ''exempted'' from the narrowing by default; to narrow them too, type the query into the input bar. ''In tree-container views'' (channels with `ca-view-children` / `ca-channel-children` and no axis chain) ancestors of filter-matches are revealed so matches remain reachable via drill-down; revealed-only ancestors render dimmed (CSS class `rcp-row-ancestor-only`). Use `<arg>` as the argument operand placeholder; engine substitutes `[<arg>]` at pill-push time. |
 |`ca-filter-chip` |string template |filter |Plain-text pill label. Use `<<arg>>` for substitution. Defaults to `ca-filter-name`. |
 |`ca-filter-hint` / `-help` |string |filter |Hover / details-pane help. |
 |`ca-reach-name` |string |reach |Display name. Required. |
@@ -213,26 +213,29 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-view-name` |string |view |Display name on the view-strip pill and as the root breadcrumb segment |
 |`ca-view-hint` |string |view |Tooltip on hover; appears in the detail pane when the view pill is focused |
 |`ca-view-default` |`yes`\|empty |view |One view declares `yes` to be the initial selection on page load |
-|`ca-view-layers` |space-separated titles |view |List of structure-layer tiddler titles composing this view. When set, the view is multi-layer and the view-level structure fields are ignored. When unset, the engine wraps the view's own `ca-view-roots` / `ca-view-children` / etc. into a single implicit layer (back-compat). |
-|`ca-view-include-entries` |`yes`\|`no`\|`auto` |view |Whether the built-in entries layer is appended. Default `auto` — appended iff at least one declared layer is tree-shaped. `yes` always appends, `no` never. |
-|`ca-view-grouping` |`yes`\|`no` |view |Whether result rows cluster under section headers. Default `yes`. Replaces the deprecated global `$:/config/rimir/cascade-palette/grouping-enabled` toggle removed in 0.0.38 — grouping is structural intent of the view (e.g. multi-layer composition wants section headers; a strict flat list might not), so the view author owns the decision. |
-|`ca-view-roots` |filter |view (implicit-layer) |Filter producing the root rows (no `<currentTiddler>` binding). Equivalent to a layer's `ca-layer-roots`. Back-compat alias: `ca-view-source` is honoured when `ca-view-roots` is absent. |
-|`ca-view-children` |filter |view (implicit-layer) |Filter producing direct children of a node, with `<currentTiddler>` bound to the parent. Empty = flat view (every root row is a leaf). |
-|`ca-view-leaf` |filter |view (implicit-layer) |Optional leaf-test for the implicit layer. |
-|`ca-view-label` |filter |view (implicit-layer) |Optional display-name override for the implicit layer. |
-|`ca-view-row-entity-type` |filter |view (implicit-layer) |Optional per-row entity-type filter for the implicit layer. Right-arrow on a leaf with a non-empty type opens the action-menu stage of that type. |
-|`ca-layer-name` |string |structure-layer |Display name. Appears as the per-layer label in the Structure pill row; also the default `ca-group` for rows the layer emits. |
-|`ca-layer-roots` |filter |structure-layer |Filter producing root rows (no `<currentTiddler>` binding). |
-|`ca-layer-children` |filter |structure-layer |Filter producing direct children of `<currentTiddler>` (the parent). |
-|`ca-layer-leaf` |filter |structure-layer |Optional leaf-test (`<currentTiddler>` = candidate). |
-|`ca-layer-label` |filter |structure-layer |Optional display-name override (`<currentTiddler>` = node). |
-|`ca-layer-row-name` / `-hint` / `-icon` / `-kind` / `-group` / `-order` |filter |structure-layer |Per-row field overrides (`<currentTiddler>` = row). |
-|`ca-layer-row-actions` |filter ''or'' wikitext |structure-layer |Action fired on a leaf pick. Same dual-mode behaviour as `ca-view-row-actions`. |
-|`ca-layer-row-entity-type` |filter |structure-layer |Per-row entity-type filter. Returning a non-empty type on a leaf row makes Right-arrow open the action-menu stage of that type. |
-|`ca-layer-row-next-scope` / `-items-from` |filter |structure-layer |Per-row synthetic drill filter. |
-|`ca-layer-include-position` |`yes`\|`no` |structure-layer |Whether `ca-position` annotations apply to rows emitted by this layer. Default `yes`. |
-|`ca-layer-axes` |space-separated axis titles ''or'' JSON |structure-layer |Optional axis chain. Each entry is the title of a tiddler tagged `$:/tags/rimir/cascade-palette/axis`. When non-empty, the chain runs at the top of the descent, bucketing `layer.roots` by each axis in order; past the chain, `layer.children` (if set) takes over recursively under the leaf bucket. JSON form `[{"title":"…","params":{"field":"status"}}, …]` supports parametric axes. Per-session overrides land in `$:/state/rimir/cascade-palette/layer-axes/<slug>` — declared default is the reset target. |
-|`ca-view-axes` |space-separated axis titles ''or'' JSON |view (implicit-layer) |Same semantics as `ca-layer-axes` but for views that declare structure inline (no `ca-view-layers`). The chain attaches to the synthesised implicit layer. |
+|`ca-view-channels` |space-separated titles |view |List of channel tiddler titles composing this view. When set, the view is multi-channel and the view-level structure fields are ignored. When unset, the engine wraps the view's own `ca-view-roots` / `ca-view-children` / etc. into a single implicit channel (back-compat). |
+|`ca-view-include-entries` |`yes`\|`no`\|`auto` |view |Whether the built-in entries channel is appended. Default `auto` — appended iff at least one declared channel is tree-shaped. `yes` always appends, `no` never. |
+|`ca-view-grouping` |`yes`\|`no` |view |Whether result rows cluster under section headers. Default `yes`. Replaces the deprecated global `$:/config/rimir/cascade-palette/grouping-enabled` toggle removed in 0.0.38 — grouping is structural intent of the view (e.g. multi-channel composition wants section headers; a strict flat list might not), so the view author owns the decision. |
+|`ca-view-roots` |filter |view (implicit-channel) |Filter producing the root rows (no `<currentTiddler>` binding). Equivalent to a channel's `ca-channel-roots`. Back-compat alias: `ca-view-source` is honoured when `ca-view-roots` is absent. |
+|`ca-view-children` |filter |view (implicit-channel) |Filter producing direct children of a node, with `<currentTiddler>` bound to the parent. Empty = flat view (every root row is a leaf). |
+|`ca-view-leaf` |filter |view (implicit-channel) |Optional leaf-test for the implicit channel. |
+|`ca-view-label` |filter |view (implicit-channel) |Optional display-name override for the implicit channel. |
+|`ca-view-row-entity-type` |filter |view (implicit-channel) |Optional per-row entity-type filter for the implicit channel. Right-arrow on a leaf with a non-empty type opens the action-menu stage of that type. |
+|`ca-channel-name` |string |channel |Display name. Appears as the per-channel label in the Structure pill row; also the default `ca-group` for rows the channel emits. |
+|`ca-channel-roots` |filter |channel |Filter producing root rows (no `<currentTiddler>` binding). |
+|`ca-channel-children` |filter |channel |Filter producing direct children of `<currentTiddler>` (the parent). |
+|`ca-channel-leaf` |filter |channel |Optional leaf-test (`<currentTiddler>` = candidate). |
+|`ca-channel-label` |filter |channel |Optional display-name override (`<currentTiddler>` = node). |
+|`ca-channel-row-name` / `-hint` / `-icon` / `-kind` / `-group` / `-order` |filter |channel |Per-row field overrides (`<currentTiddler>` = row). |
+|`ca-channel-row-actions` |filter ''or'' wikitext |channel |Action fired on a leaf pick. Same dual-mode behaviour as `ca-view-row-actions`. |
+|`ca-channel-row-entity-type` |filter |channel |Per-row entity-type filter. Returning a non-empty type on a leaf row makes Right-arrow open the action-menu stage of that type. |
+|`ca-channel-row-next-scope` / `-items-from` |filter |channel |Per-row synthetic drill filter. |
+|`ca-channel-include-position` |`yes`\|`no` |channel |Whether `ca-position` annotations apply to rows emitted by this channel. Default `yes`. |
+|`ca-channel-axes` |space-separated axis titles ''or'' JSON |channel |Optional axis chain. Each entry is the title of a tiddler tagged `$:/tags/rimir/cascade-palette/axis`. When non-empty, the chain runs at the top of the descent, bucketing `channel.roots` by each axis in order; past the chain, `channel.children` (if set) takes over recursively under the leaf bucket. JSON form `[{"title":"…","params":{"field":"status"}}, …]` supports parametric axes. Per-session overrides land in `$:/state/rimir/cascade-palette/channel-axes/<slug>` — declared default is the reset target. |
+|`ca-view-axes` |space-separated axis titles ''or'' JSON |view (implicit-channel) |Same semantics as `ca-channel-axes` but for views that declare structure inline (no `ca-view-channels`). The chain attaches to the synthesised implicit channel. |
+|`ca-view-lens-name` / `-icon` / `-annotation` |lens title |view |The view's DEFAULT row-decoration lens per slot (Name / Icon / Note). Inherited by every channel unless the channel overrides it. Empty = slot off by default. These are the relocated global lens choosers — edited from the VIEW row of the Structure strip. |
+|`ca-channel-lens-name` / `-icon` / `-annotation` |lens title |channel |Per-channel OVERRIDE of the view's default lens for that slot. Empty = inherit the view default. Edited from the channel's row in the Structure strip (shows "(inherit view)" when inheriting). The same tiddler appearing in two channels can therefore decorate differently. |
+|`ca-view-locked` |space-separated slot names |view |Slots the view LOCKS (`name` / `icon` / `annotation`): a locked slot forces the view's default lens onto every channel, ignoring channel overrides. Toggled with `l` on a VIEW lens pill in the Structure strip. |
 |`ca-axis-name` |string |axis |Display name shown on the chain pill in the Structure strip and in the axis picker. |
 |`ca-axis-hint` |string |axis |Detail-drawer help text — shown when the axis pill is focused, prepended to the generic axis-pill help. |
 |`ca-axis-key` |filter |axis |Per-row filter returning the bucket key. ''Required.'' The filter's input source is the row's tiddler title, and `<currentTiddler>` is also bound to it — so bare filters like `[get[created]format:date[YYYY]]` and `<currentTiddler>`-anchored filters like `[<currentTiddler>get[created]format:date[YYYY]]` both work. Examples: `[get[created]format:date[YYYY]]`, `[get<axis-param-field>]` (parametric — receives `<<axis-param-field>>`). |
@@ -257,7 +260,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-view-sort-field` |string |view (by-field) |Field name read off each row |
 |`ca-view-sort-key` |filter |view (custom) |Per-row filter returning a sortable key |
 |`ca-view-containers-first` |`yes`\|`no` |view |Containers float above leaves at each tree level. Default `yes` for tree views |
-|`ca-view-show-count` |`yes`\|`no` |view |Render a child-count badge on tree-container rows. Default `no`. Tree-container counts are suppressed while a filter pill is active AND the layer doesn't qualify for ancestor-reveal (rare — axis-bucketed layers); when ancestor-reveal is on, counts come from the cached revealed-set (O(direct-children) check) so they stay accurate on revealed-only ancestor rows. Axis-bucket counts remain on (they're free — bucket existence already implies a non-empty post-filter set). |
+|`ca-view-show-count` |`yes`\|`no` |view |Render a child-count badge on tree-container rows. Default `no`. Tree-container counts are suppressed while a filter pill is active AND the channel doesn't qualify for ancestor-reveal (rare — axis-bucketed channels); when ancestor-reveal is on, counts come from the cached revealed-set (O(direct-children) check) so they stay accurate on revealed-only ancestor rows. Axis-bucket counts remain on (they're free — bucket existence already implies a non-empty post-filter set). |
 |`ca-view-count-format` |template |view |Badge template, default ` (<<count>>)` |
 |`ca-view-show-action-preview` |`yes`\|`no` |view |Render a small `→N` badge on typed leaf rows showing how many actions would appear on drill (after `ca-action-when` applicability is evaluated per row). Default `yes`. Set to `no` on views where the visual would be noisy or per-row applicability evaluation is too costly. |
 |`ca-view-show-side-preview` |`yes`\|`no` |view |Auto-open the side-preview pane on rows whose title matches any tag-registered preview's `ca-preview-applies` filter (tiddlers tagged `$:/tags/rimir/cascade-palette/side-preview`). Default `yes`. Set to `no` on views where the pane would be noisy / unwanted (e.g. pure structural browsers). Pane stays hidden when no candidate matches — no placeholder. Per-menu (`ca-preview-template` on an entry/action) and explicit opt-in (`ca-preview-per-row: yes`) are unaffected by this flag. |
@@ -266,8 +269,8 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-position` |string |entry |Position fallback used by every view when no per-view override is set. `at-root` (default), `none`, a tree path like `Tools/Search`, or multi-position via `:` / newlines |
 |`ca-position-<view-slug>` |string |entry |Per-view position override. Slug is the view tiddler's basename. Same value space as `ca-position` |
 |`ca-view-pick-mode` |`yes`\|empty |view |When `yes`, Enter on any row commits the row's effective path as a filter arg and returns to the prior view. Right-arrow still drills. |
-|`ca-view-context-aware` |`yes`\|empty |view |When `yes` AND the sticky context strip is non-empty, the view pill paints a small indigo badge. Signals "this view will specialize for the pinned set" — the actual narrowing happens in layer/filter expressions that reference `<<sticky-context-list>>`. Purely a visual cue; the engine does not auto-narrow anything. |
-|`ca-lens-<slot>-filter` |filter |lens |Per-row projection for ''<slot>'' (`name` / `icon` / `annotation`) — evaluated with `<currentTiddler>` bound to the row's backing tiddler title; the first non-empty result fills the slot, on data rows only (view-built rows, except entries-layer command rows, and ca-next-scope items; static palette entries / actions keep their explicit `ca-name`). Empty result → slot falls back (intrinsic name / no glyph). |
+|`ca-view-context-aware` |`yes`\|empty |view |When `yes` AND the sticky context strip is non-empty, the view pill paints a small indigo badge. Signals "this view will specialize for the pinned set" — the actual narrowing happens in channel/filter expressions that reference `<<sticky-context-list>>`. Purely a visual cue; the engine does not auto-narrow anything. |
+|`ca-lens-<slot>-filter` |filter |lens |Per-row projection for ''<slot>'' (`name` / `icon` / `annotation`) — evaluated with `<currentTiddler>` bound to the row's backing tiddler title; the first non-empty result fills the slot, on data rows only (view-built rows, except entries-channel command rows, and ca-next-scope items; static palette entries / actions keep their explicit `ca-name`). Empty result → slot falls back (intrinsic name / no glyph). |
 |`ca-lens-<slot>-template` |wikitext |lens |Rich per-row projection for ''<slot>'' (reserved — not yet rendered). When present without a `-filter`, the lens still appears as a slot option but resolves to nothing for now. |
 |`ca-lens-name` / `-chip` / `-hint` / `-help` |string |lens |Lens display name, the chip shown in the slot strip, short tooltip, and the long-form help line surfaced in the detail drawer when the pill is focused. |
 |`ca-lens-when` |filter |lens |Applicability — a global existence test (evaluated with no row context). Empty result hides the lens from every slot chooser (e.g. ''are there any kind types?''). Missing / empty = always applicable. |
@@ -286,16 +289,16 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 
 ! Shipped views (concrete shapes)
 
-The built-in views compose layers as follows:
+The built-in views compose channels as follows:
 
-|!View |!Layers |!Notes |
-|`entries` |implicit single layer (`roots: [tag[…/entry]]`); built-in entries layer not appended (auto, flat) |Default view; surfaces all plugin-declared entry tiddlers |
-|`all-tiddlers` |implicit single layer (`roots: [!is[system]]`); built-in entries layer not appended (auto, flat) |Flat list of user tiddlers; row-actions navigate |
-|`by-namespace` |implicit single layer (`roots: [!is[system]cp-child-of[]]`, `children: [!is[system]cp-child-of<currentTiddler>]`); built-in entries layer auto-appended |Path-segment tree via the plugin's `cp-child-of` filter operator |
-|`by-parent` |implicit single layer (`roots: [tag[TableOfContents]]`, `children: [tag<currentTiddler>]`); built-in entries layer auto-appended |TW tag-tree |
+|!View |!Channels |!Notes |
+|`entries` |implicit single channel (`roots: [tag[…/entry]]`); built-in entries channel not appended (auto, flat) |Default view; surfaces all plugin-declared entry tiddlers |
+|`all-tiddlers` |implicit single channel (`roots: [!is[system]]`); built-in entries channel not appended (auto, flat) |Flat list of user tiddlers; row-actions navigate |
+|`by-namespace` |implicit single channel (`roots: [!is[system]cp-child-of[]]`, `children: [!is[system]cp-child-of<currentTiddler>]`); built-in entries channel auto-appended |Path-segment tree via the plugin's `cp-child-of` filter operator |
+|`by-parent` |implicit single channel (`roots: [tag[TableOfContents]]`, `children: [tag<currentTiddler>]`); built-in entries channel auto-appended |TW tag-tree |
 |`by-namespace-pick` |same as `by-namespace` plus `ca-view-pick-mode: yes` |Hidden pick variant — Enter commits picked tiddler as filter arg |
-|`hybrid` |two explicit layers (`structure-layers/tag-tree` + `structure-layers/path-tree`) plus built-in entries layer |Demo view exercising multi-layer composition. Rows from each layer interleave by sort; the layer name becomes the default `ca-group` per row |
-|`by-date` |implicit single layer (`roots: [!is[system]!is[shadow]]`); chain `[by-year-created, by-month-created, by-day-created]` |Demo view exercising the axis chain. Pure grouping — no `children`, so day buckets contain tiddler leaves directly. |
+|`hybrid` |two explicit channels (`channels/tag-tree` + `channels/path-tree`) plus built-in entries channel |Demo view exercising multi-channel composition. Rows from each channel interleave by sort; the channel name becomes the default `ca-group` per row |
+|`by-date` |implicit single channel (`roots: [!is[system]!is[shadow]]`); chain `[by-year-created, by-month-created, by-day-created]` |Demo view exercising the axis chain. Pure grouping — no `children`, so day buckets contain tiddler leaves directly. |
 
 The `cp-child-of` filter operator is shipped by this plugin (`widgets/cp-filter-ops.js`). Its operand is the parent tiddler title; with an empty operand it returns titles that contain no `/`. Authors writing custom path-style views can reuse it directly.
 
@@ -332,10 +335,10 @@ The action menu for a typed row is reachable via two keys:
 
 Space also keeps its existing per-kind bindings (toggle / text / number / date edit) — those win when the row matches one of those kinds. Entity-type firing only applies when no kind-specific Space handler claims the keystroke.
 
-The entity type is computed per row by the row's emitting layer:
+The entity type is computed per row by the row's emitting channel:
 
-* `ca-layer-row-entity-type` filter on a structure-layer tiddler, OR
-* `ca-view-row-entity-type` filter on an implicit-layer view
+* `ca-channel-row-entity-type` filter on a channel tiddler, OR
+* `ca-view-row-entity-type` filter on an implicit-channel view
 
 Both are evaluated with `<currentTiddler>` bound to the row's title. A non-empty first result is the entity type. Actions tagged `$:/tags/rimir/cascade-palette/action` with `ca-entity-type` matching that type (or `*` for global) populate the action menu.
 
@@ -378,7 +381,7 @@ The plugin ships five axes for the common cases. All live under `$:/plugins/rimi
 |`by-year-modified` |`[get[modified]format:date[YYYY]]` |`desc` |Same shape as the created variant. |
 |`by-field` |`[get<axis-param-field>]` |`asc` |''Parametric.'' Set the `field` param when adding the axis via the picker (default empty — placeholder for user to fill in). |
 
-''Session state for an axis chain'' lives at `$:/state/rimir/cascade-palette/layer-axes/<slug>` where `<slug>` is the layer title's last `/`-segment (or, for implicit layers, the view title's last segment). Body: JSON `{"axes":[{"title":"…","params":{…}}, …]}`. Delete the tiddler to revert a layer to its declared `ca-layer-axes` default.
+''Session state for an axis chain'' lives at `$:/state/rimir/cascade-palette/channel-axes/<slug>` where `<slug>` is the channel title's last `/`-segment (or, for implicit channels, the view title's last segment). Body: JSON `{"axes":[{"title":"…","params":{…}}, …]}`. Delete the tiddler to revert a channel to its declared `ca-channel-axes` default.
 
 ! Settings
 

@@ -13,8 +13,8 @@ A keyboard-driven, cascading command palette engine for TiddlyWiki. Open with a 
 
 The engine ships well beyond the core cascade:
 
-- **Views & structure layers** — compose the result list as Entries / All tiddlers / By namespace / By parent / Hybrid / By date, picked from a pill strip.
-- **Axes** — per-layer grouping chains (year → month → day, status → prefix, etc.), editable live.
+- **Views & channels** — compose the result list as Entries / All tiddlers / By namespace / By parent / Hybrid / By date, picked from a pill strip.
+- **Axes** — per-channel grouping chains (year → month → day, status → prefix, etc.), editable live.
 - **Filters, visibility & presets** — pill strips that narrow results, hide entries, and save/replay view + filter combinations.
 - **Leaders** — single-key shortcuts (clear constraints, tree-picker, save preset, help, …).
 - **Side-preview pane** — per-menu or tag-auto-attached wikitext preview of the focused row.

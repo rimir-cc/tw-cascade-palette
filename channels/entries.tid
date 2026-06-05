@@ -1,0 +1,12 @@
+title: $:/plugins/rimir/cascade-palette/channels/entries
+tags: $:/tags/rimir/cascade-palette/channel
+ca-channel-name: Entries
+ca-channel-source: entries
+ca-channel-roots: [tag[$:/tags/rimir/cascade-palette/entry]]
+ca-channel-children: [tag[$:/tags/rimir/cascade-palette/entry]]
+ca-channel-include-position: yes
+type: text/vnd.tiddlywiki
+
+This is the built-in ''entries'' channel. It is a normal channel tiddler whose `ca-channel-source: entries` discriminator selects a JS-backed producer (`widgets/cp-views.js` → `_evaluateEntriesLayer`) instead of the default raw-filter producer (`ca-channel-source: filter`). The entries producer respects per-entry `ca-position-<view-slug>` / `ca-position` placement; the `ca-channel-roots` / `ca-channel-children` filters above are illustrative (shown in the Structure pill row), not evaluated directly.
+
+Authors usually don't need to reference this channel explicitly — it is auto-appended to tree views unless `ca-view-include-entries: no`. To opt out for a specific view, set `ca-view-include-entries: no` on the view tiddler. To always include it (e.g. on a flat view that wants entries at-root), set `ca-view-include-entries: yes`. It may also be listed explicitly in a view's `ca-view-channels`, in which case the auto-append is suppressed (no double-add).

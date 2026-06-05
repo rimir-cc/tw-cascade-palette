@@ -23,7 +23,7 @@ Pills are the palette's persistent state. Each strip is a separate concern, sits
 
 ! Plus: the Structure strip
 
-Below the view strip sits a ''Structure'' strip (only visible when the active view declares layers). Tab into it, Enter / → to expand. Each layer's mini-row carries primitive pills (roots / children / leaf / label / row decorations) AND, after them, the layer's ''axis chain'' as yellow ''by'' / ''→'' pills + a dashed ''+'' pill to append. The axis chain is the only ''editable'' part of the Structure strip — primitive pills are read-only.
+Below the view strip sits a ''Structure'' strip (only visible when the active view declares channels). Tab into it, Enter / → to expand into the view→channel tree: a ''view'' header row leading with three lens choosers (Name / Icon / Note — the view's default row decorations; ''`l`'' toggles a lock) and one indented ''channel'' mini-row each. A channel's mini-row leads with its own three lens choosers (overriding or inheriting the view default), then its primitive pills (roots / children / leaf / label / row decorations) AND its ''axis chain'' as yellow ''by'' / ''→'' pills + a dashed ''+'' pill to append. Lens choosers cycle on ↵/Space, the axis chain edits live (Backspace removes, Shift-←/→ reorders, Enter swaps); the remaining primitive pills are read-only here (edit them via ''Manage views → Edit all fields…'').
 
 See <$link to="$:/plugins/rimir/cascade-palette/help/axes">Axes</$link> for the axis grammar and edit gestures.
 

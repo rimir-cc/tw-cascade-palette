@@ -87,6 +87,27 @@ function buildConstraintInstance(meta, arg) {
     };
 }
 
+// Dual-read a CHANNEL field from a tiddler's fields: prefer the new
+// `ca-channel-<key>`, fall back to the legacy `ca-layer-<key>` so
+// un-migrated channel tiddlers keep loading. The presence test is
+// `!== undefined` (not truthiness) so an author who explicitly clears a new
+// field to "" is honoured over a stale legacy value. Single home for the
+// field-key literals shared by the parser (cp-views), the editor
+// (cp-view-editor) and the long-tail drills (cp-view-edit-rows /
+// cp-channel-edit-rows). WRITES always use the ca-channel-* namespace.
+function channelField(f, key) {
+    var nv = f && f["ca-channel-" + key];
+    return nv !== undefined ? nv : (f && f["ca-layer-" + key]);
+}
+
+// Dual-read a view's composed-channels list: prefer `ca-view-channels`,
+// fall back to the legacy `ca-view-layers`. Always returns a string.
+function viewChannelsRaw(f) {
+    var nv = f && f["ca-view-channels"];
+    if (nv !== undefined) return nv || "";
+    return (f && f["ca-view-layers"]) || "";
+}
+
 // Detect whether `text` begins with a known constraint prefix.
 // Pure function — takes already-loaded filter + visibility meta lists
 // (each entry having {prefix, ...}) rather than reading from `this`.
@@ -179,6 +200,8 @@ function resetDeprecationsForTesting() {
 
 exports.parseNumOrNull = parseNumOrNull;
 exports.parseNumOrDefault = parseNumOrDefault;
+exports.channelField = channelField;
+exports.viewChannelsRaw = viewChannelsRaw;
 exports.sanitizeConstraintArg = sanitizeConstraintArg;
 exports.buildConstraintInstance = buildConstraintInstance;
 exports.detectInputPrefix = detectInputPrefix;

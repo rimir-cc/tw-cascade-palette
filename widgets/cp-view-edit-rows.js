@@ -39,11 +39,18 @@ cp-view-edit-rows[<view-title>]
 "use strict";
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
+var utils = require("$:/plugins/rimir/cascade-palette/widgets/cp-utils");
 var VIEW_TAG = C.VIEW_TAG;
 var MANAGE_VIEWS_ENTRY = "$:/plugins/rimir/cascade-palette/entries/manage-views";
-var BUILTIN_ENTRIES_LAYER = "$:/plugins/rimir/cascade-palette/structure-layers/entries";
+var BUILTIN_ENTRIES_LAYER = "$:/plugins/rimir/cascade-palette/channels/entries";
 
 function esc(s) { return String(s == null ? "" : s); }
+
+// Dual-read helpers (cp-utils): prefer the ca-channel-* / ca-view-channels
+// namespace, fall back to the legacy fields, so the drill reads un-migrated
+// tiddlers.
+var channelField = utils.channelField;
+var viewChannelsRaw = utils.viewChannelsRaw;
 
 // Resolve the target view: explicit operand → active-view state → default
 // view (ca-view-default) → first view. Self-healing so the drill works on the
@@ -75,7 +82,7 @@ exports["cp-view-edit-rows"] = function (source, operator, options) {
             "ca-icon": "⑂",
             "ca-hint": "Shipped views can't be edited in place (they'd reappear " +
                 "from the plugin). Fork “" + esc(name) + "” to an independent copy " +
-                "(its layers + axes are deep-copied), then edit that.",
+                "(its channels + axes are deep-copied), then edit that.",
             "ca-kind": "leaf",
             "ca-after-fire": "keep",
             "ca-order": "10",
@@ -175,23 +182,24 @@ exports["cp-view-edit-rows"] = function (source, operator, options) {
     rows.push(textRow("ca-view-row-items-from", "row-items-from", "🧩", 78, "row defaults",
         "Filter emitting synthetic child items (JSON cascade-items) per row."));
 
-    // layers — drill each explicit (non-built-in) layer into its own field
-    // editor (cp-layer-edit-rows). Implicit views carry no ca-view-layers, so
-    // this group is empty for them (their row-* defaults live above).
-    var layerRefs = String(f["ca-view-layers"] || "").trim();
+    // channels — drill each explicit (non-built-in) channel into its own
+    // field editor (cp-channel-edit-rows). Implicit views carry no
+    // ca-view-channels, so this group is empty for them (their row-* defaults
+    // live above).
+    var layerRefs = viewChannelsRaw(f).trim();
     (layerRefs ? layerRefs.split(/\s+/) : []).forEach(function (lt, i) {
         if (lt === BUILTIN_ENTRIES_LAYER) return;
         var lf = (wiki.getTiddler(lt) || { fields: {} }).fields;
-        var lname = lf["ca-layer-name"] || lt.split("/").pop();
+        var lname = channelField(lf, "name") || lt.split("/").pop();
         rows.push(JSON.stringify({
-            "ca-name": "layer: " + lname,
+            "ca-name": "channel: " + lname,
             "ca-icon": "🧱",
             "ca-kind": "drill",
-            "ca-group": "layers",
+            "ca-group": "channels",
             "ca-order": String(80 + i),
-            "ca-items-from": "[cp-layer-edit-rows[" + lt + "]]",
-            "ca-next-title": "Edit layer: " + lname,
-            "ca-hint": "Edit this layer's long-tail fields (source, row defaults)."
+            "ca-items-from": "[cp-channel-edit-rows[" + lt + "]]",
+            "ca-next-title": "Edit channel: " + lname,
+            "ca-hint": "Edit this channel's long-tail fields (source, row defaults)."
         }));
     });
 
@@ -199,7 +207,7 @@ exports["cp-view-edit-rows"] = function (source, operator, options) {
     rows.push(JSON.stringify({
         "ca-name": "⑂ Fork this view",
         "ca-icon": "⑂",
-        "ca-hint": "Make an independent persisted copy (layers + axes deep-copied) and switch to it.",
+        "ca-hint": "Make an independent persisted copy (channels + axes deep-copied) and switch to it.",
         "ca-kind": "leaf",
         "ca-after-fire": "keep",
         "ca-group": "lifecycle",
@@ -214,7 +222,7 @@ exports["cp-view-edit-rows"] = function (source, operator, options) {
         "ca-kind": "leaf",
         "ca-confirm": "yes",
         "ca-confirm-consequence": "Permanently delete the view “" + name +
-            "”. This cannot be undone (its private layers/axes are left in place).",
+            "”. This cannot be undone (its private channels/axes are left in place).",
         "ca-actions": '<$action-sendmessage $message="' + C.DELETE_VIEW_MESSAGE +
             '" view="' + viewTitle + '"/>' +
             '<$action-sendmessage $message="' + C.OPEN_ENTRY_MESSAGE +

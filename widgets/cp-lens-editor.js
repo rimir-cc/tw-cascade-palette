@@ -20,20 +20,20 @@ Authoring here edits a slot's `ca-lens-<slot>-filter` (the cheap projection).
 Template projections (`-template`) and actions (`ca-lens-actions`) are
 authored by hand for now; the live editor covers the common filter case.
 
-Flows:
-  • New      `+ New…` pill / "Manage lenses" → seed a scratch lens
-             projecting the slot with a starter filter → edit the filter
-             (live match-count) → name it → save-as-new under LENS_NS.
-  • Edit     `e` on a lens pill → clone to scratch, edit the filter live,
-             then commit: a USER lens is overwritten in place; a SHIPPED
-             (shadow-only) lens is saved-as-new so the original survives.
-             (The ''Manage lenses'' list drills each lens into a per-facet
-             field editor — `widgets/cp-lens-rows.js` / `cp-lens-edit-rows.js`
-             — which bind-edits a user lens in place; `_cloneLensToUser`
-             clones a shipped lens first.)
-  • Delete   DEL on a user lens pill → confirm → delete; the head
-             `(off)`/`(default)` pill is how a slot is turned off. Shipped
-             lenses refuse deletion (clone & edit instead).
+Flows (all reached from the ''Manage lenses'' entry — the standalone lens
+strips were removed in 0.0.118 when the choosers moved into the Structure
+strip's view→channel tree):
+  • New      "Manage lenses → + New lens" (NEW_LENS_MESSAGE with a slot) →
+             seed a scratch lens projecting the slot with a starter filter →
+             edit the filter (live match-count) → name it → save-as-new under
+             LENS_NS.
+  • Edit     the ''Manage lenses'' list drills each lens into a per-facet
+             field editor (`widgets/cp-lens-rows.js` / `cp-lens-edit-rows.js`)
+             which bind-edits a USER lens in place; `_cloneLensToUser` clones a
+             SHIPPED (shadow-only) lens first so the original survives.
+  • Delete   DEL on a user-lens row / the 🗑 Delete row fires
+             DELETE_LENS_MESSAGE → `_deleteLens`. Shipped lenses refuse
+             deletion (clone & edit instead).
 
 Reuses from cp-view-editor: `_titleTaken`, `_slugTitle`, `_isScratchpadTitle`.
 Reuses from cp-firing: `enterEditMode` (editKind "filter" gives the live
@@ -75,19 +75,6 @@ module.exports = function (proto) {
             if (k.indexOf("ca-lens-") === 0 || k === "ca-order") out[k] = src[k];
         });
         return out;
-    }
-
-    // ca-lens-* keys present on either tiddler — so a field the user CLEARED
-    // in the scratchpad (now absent) is also removed from the target on
-    // overwrite.
-    function lensFieldKeys(a, b) {
-        var keys = {};
-        [a, b].forEach(function (f) {
-            Object.keys(f || {}).forEach(function (k) {
-                if (k.indexOf("ca-lens-") === 0 || k === "ca-order") keys[k] = true;
-            });
-        });
-        return Object.keys(keys);
     }
 
     // ---- scratch identity -------------------------------------------------
@@ -134,42 +121,22 @@ module.exports = function (proto) {
         this._lensScratchTitle = scratch;
         if (this._invalidateLenses) this._invalidateLenses();
         this._selectLensForPreview(slot, scratch);
-        this._editLensFilter(slot, scratch, true);
+        this._editLensFilter(slot, scratch);
         return scratch;
     };
 
     // ---- Edit -------------------------------------------------------------
+    // (In-place editing of an existing lens is done from "Manage lenses" — the
+    // per-lens field drill in cp-lens-rows / cp-lens-edit-rows binds each
+    // ca-lens-* facet directly; a shipped lens is cloned first via
+    // _cloneLensToUser. The former strip-driven `e`-to-edit clone-and-commit
+    // flow — _beginLensEdit / _commitLensEdit / _overwriteLens — was removed in
+    // 0.0.118 with the standalone lens strips.)
 
-    // Clone an existing lens into a scratch, preview it live, and open the
-    // projection-filter editor for `slot`.
-    proto._beginLensEdit = function (lensTitle, slot) {
-        var src = this.wiki.getTiddler(lensTitle);
-        if (!src) return null;
-        var sf = src.fields || {};
-        var scratch = this._lensScratchTitleFor(lensTitle);
-        var fields = copyLensFields(sf);
-        fields.title = scratch;
-        fields.tags = [LENS_TAG];
-        fields.type = "text/vnd.tiddlywiki";
-        fields["ca-lens-name"] =
-            (sf["ca-lens-name"] || lensTitle.split("/").pop()) + SCRATCH_NAME_SUFFIX;
-        // A clone is never itself a default while being edited.
-        delete fields["ca-lens-default"];
-        fields[SCRATCH_KIND_FIELD] = "lens";
-        fields[SCRATCH_SOURCE_FIELD] = lensTitle;
-        fields[SCRATCH_SLOT_FIELD] = slot;
-        this.wiki.addTiddler(new $tw.Tiddler(fields));
-        this._lensScratchTitle = scratch;
-        if (this._invalidateLenses) this._invalidateLenses();
-        this._selectLensForPreview(slot, scratch);
-        this._editLensFilter(slot, scratch, false);
-        return scratch;
-    };
-
-    // Open the raw-filter editor on the scratch's `ca-lens-<slot>-filter`
-    // (editKind "filter" → live match count). On commit, re-decorate and
-    // route to the next step; on cancel, discard the scratch.
-    proto._editLensFilter = function (slot, scratchTitle, isNew) {
+    // Open the raw-filter editor on the new scratch lens's
+    // `ca-lens-<slot>-filter` (editKind "filter" → live match count). On commit,
+    // re-decorate and prompt for a name → save-as-new; on cancel, discard.
+    proto._editLensFilter = function (slot, scratchTitle) {
         var self = this;
         var t = this.wiki.getTiddler(scratchTitle);
         var f = (t && t.fields) || {};
@@ -181,14 +148,12 @@ module.exports = function (proto) {
             editKind: "filter",
             name: label + " projection filter",
             initialValue: f["ca-lens-" + slot + "-filter"] || "",
-            returnFocus: "lens-" + slot,
+            returnFocus: "input",
             onCommitFn: function () {
                 if (self._invalidateLenses) self._invalidateLenses();
-                if (self._renderAllLensStrips) self._renderAllLensStrips();
                 var top = self.topStage && self.topStage();
                 if (top) { self.recomputeStage(top); self.renderStage(); }
-                if (isNew) self._promptLensName(slot, scratchTitle);
-                else self._commitLensEdit(slot, scratchTitle);
+                self._promptLensName(slot, scratchTitle);
             },
             onCancelFn: function () {
                 self._discardLensScratch(slot, scratchTitle);
@@ -208,7 +173,7 @@ module.exports = function (proto) {
             editKind: "text",
             name: "New lens name",
             initialValue: stripPencil(f["ca-lens-name"]),
-            returnFocus: "lens-" + slot,
+            returnFocus: "input",
             onCommitFn: function (name) {
                 self._finalizeLensSaveAsNew(slot, scratchTitle, name);
             },
@@ -219,27 +184,6 @@ module.exports = function (proto) {
     };
 
     // ---- Commit -----------------------------------------------------------
-
-    // Edit-clone commit: overwrite the source IN PLACE when it's a user lens
-    // (real tiddler); save-as-new when the source is shipped (shadow-only)
-    // so the original survives. Lenses aren't referenced by views, so there
-    // is no consumer blast-radius to confirm — the in-place overwrite is safe.
-    proto._commitLensEdit = function (slot, scratchTitle) {
-        var st = this.wiki.getTiddler(scratchTitle);
-        var sf = (st && st.fields) || {};
-        var source = sf[SCRATCH_SOURCE_FIELD] || "";
-        if (source && this.wiki.tiddlerExists(source)) {
-            this._overwriteLens(source, sf);
-            this.wiki.deleteTiddler(scratchTitle);
-            this._lensScratchTitle = null;
-            if (this._invalidateLenses) this._invalidateLenses();
-            this._setSlotLens(slot, source);
-            this._afterLensCommit(slot);
-        } else {
-            // Shipped lens (no real tiddler) — keep it, save the edit as new.
-            this._promptLensName(slot, scratchTitle);
-        }
-    };
 
     proto._finalizeLensSaveAsNew = function (slot, scratchTitle, rawName) {
         var name = stripPencil(rawName) || "Custom lens";
@@ -263,20 +207,6 @@ module.exports = function (proto) {
         delete fields["ca-lens-default"]; // a fresh user lens isn't a default
         this.wiki.addTiddler(new $tw.Tiddler(fields));
         return newTitle;
-    };
-
-    proto._overwriteLens = function (targetTitle, scratchFields) {
-        var existing = this.wiki.getTiddler(targetTitle);
-        var ef = (existing && existing.fields) || {};
-        var apply = {};
-        lensFieldKeys(ef, scratchFields).forEach(function (k) {
-            if (k === "ca-lens-default") return; // preserve the target's default flag
-            apply[k] = (scratchFields[k] !== undefined) ? scratchFields[k] : undefined;
-        });
-        apply["ca-lens-name"] = stripPencil(scratchFields["ca-lens-name"]) ||
-            stripPencil(ef["ca-lens-name"]) || targetTitle.split("/").pop();
-        this.wiki.addTiddler(new $tw.Tiddler(ef, apply));
-        return targetTitle;
     };
 
     // Clone a SHIPPED (shadow-only) lens to an editable USER lens under
@@ -332,41 +262,20 @@ module.exports = function (proto) {
         });
         this.wiki.deleteTiddler(lensTitle);
         if (this._invalidateLenses) this._invalidateLenses();
-        if (this._renderAllLensStrips) this._renderAllLensStrips();
+        // The change hook re-renders the Structure strip choosers + rows.
         return true;
-    };
-
-    // Push the standard delete-confirmation stage for a focused lens pill
-    // (DEL on a lens strip routes here). Shipped (shadow-only) lenses can't
-    // be deleted — surface the clone hint instead of a confirm. On confirm,
-    // a sendmessage fires DELETE_LENS_MESSAGE → _deleteLens.
-    proto._confirmDeleteLens = function (lensTitle, slot) {
-        if (!lensTitle) return;
-        if (this.wiki.isShadowTiddler(lensTitle) && !this.wiki.tiddlerExists(lensTitle)) {
-            if (this.hintEl) {
-                this.hintEl.textContent =
-                    "Shipped lenses can't be deleted — press e to clone & edit instead.";
-            }
-            return;
-        }
-        var t = this.wiki.getTiddler(lensTitle);
-        var name = (t && t.fields && t.fields["ca-lens-name"]) || lensTitle.split("/").pop();
-        this.pushStage(this.buildConfirmStage({
-            title: "Delete lens " + name,
-            consequence: "Permanently delete the lens “" + name +
-                "”. Any slot currently using it falls back to its default / off. " +
-                "This cannot be undone.",
-            actions: '<$action-sendmessage $message="' + C.DELETE_LENS_MESSAGE +
-                '" lens="' + this._escapeAttr(lensTitle) + '"/>'
-        }));
-        if (this.setFocus) this.setFocus("menu");
     };
 
     // ---- shared tail ------------------------------------------------------
 
+    // After an authoring commit / discard: refresh the view→channel tree
+    // choosers + the decorated rows, and return focus to the input. (`slot`
+    // is retained for signature stability with the call sites.)
     proto._afterLensCommit = function (slot) {
-        if (this._renderAllLensStrips) this._renderAllLensStrips();
-        if (this.setFocus) this.setFocus("lens-" + slot);
+        if (this._renderViewConfigStrip) this._renderViewConfigStrip();
+        var top = this.topStage && this.topStage();
+        if (top) { this.recomputeStage(top); this.renderStage(); }
+        if (this.setFocus) this.setFocus("input");
     };
 
 };

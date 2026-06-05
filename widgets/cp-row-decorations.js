@@ -43,8 +43,29 @@ module.exports = function (proto) {
         var parts = [];
         for (var i = 0; i < LENS_SLOTS.length; i++) {
             var slot = LENS_SLOTS[i];
+            // No-item call → the view/global default lens for the slot.
             var lens = this._activeLensForSlot ? this._activeLensForSlot(slot) : null;
             parts.push(slot + ":" + (lens ? lens.title : ""));
+        }
+        // Fold in the active view's per-channel EFFECTIVE lenses so the same
+        // tiddler decorated under two channels caches separately, and a view
+        // switch / reload (which re-bakes effectiveLens) invalidates the cache.
+        // Effective lenses change only on view load → wiki change-count bump,
+        // so this is stable across keystrokes.
+        var view = this._getViewByTitle
+            ? this._getViewByTitle(this.activeView) : null;
+        if (view && view.layers) {
+            parts.push("view:" + view.title);
+            for (var j = 0; j < view.layers.length; j++) {
+                var ch = view.layers[j];
+                if (!ch || !ch.effectiveLens) continue;
+                var slots = [];
+                for (var k = 0; k < LENS_SLOTS.length; k++) {
+                    slots.push(LENS_SLOTS[k] + "=" +
+                        (ch.effectiveLens[LENS_SLOTS[k]] || ""));
+                }
+                parts.push(j + "{" + slots.join(",") + "}");
+            }
         }
         return parts.join("|");
     };
@@ -65,10 +86,14 @@ module.exports = function (proto) {
         var cc = (this.wiki.getChangeCount && this.wiki.getChangeCount()) || 0;
         var cache = this._rowDecorationCache;
         if (!cache || cache.sig !== sig || cache.cc !== cc) {
-            cache = this._rowDecorationCache = { sig: sig, cc: cc, byTitle: {} };
+            cache = this._rowDecorationCache = { sig: sig, cc: cc, byKey: {} };
         }
-        if (Object.prototype.hasOwnProperty.call(cache.byTitle, item.title)) {
-            return cache.byTitle[item.title];
+        // Key by CHANNEL + title: the same tiddler in two channels can resolve
+        // to different lenses (channel-aware resolution), so title alone is not
+        // a safe cache key. Channel-less rows share the "_" bucket.
+        var key = (item._layerIdx != null ? item._layerIdx : "_") + "::" + item.title;
+        if (Object.prototype.hasOwnProperty.call(cache.byKey, key)) {
+            return cache.byKey[key];
         }
         // Resolve each slot via its active lens (cp-lenses#_resolveSlot).
         // Slots without an active lens return null → the renderer falls
@@ -78,7 +103,7 @@ module.exports = function (proto) {
             icon: this._resolveSlot ? this._resolveSlot("icon", item) : null,
             annotation: this._resolveSlot ? this._resolveSlot("annotation", item) : null
         };
-        cache.byTitle[item.title] = deco;
+        cache.byKey[key] = deco;
         return deco;
     };
 

@@ -47,17 +47,19 @@ a live match-count). Structural facets map onto `ca-view-*` fields via
 "use strict";
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
+var utils = require("$:/plugins/rimir/cascade-palette/widgets/cp-utils");
 var parseChainSpec =
     require("$:/plugins/rimir/cascade-palette/widgets/cp-axes").parseChainSpec;
 var VIEW_TAG = C.VIEW_TAG;
 var STRUCTURE_LAYER_TAG = C.STRUCTURE_LAYER_TAG;
+var CHANNEL_TAG = C.CHANNEL_TAG;
 var AXIS_TAG = C.AXIS_TAG;
 var SCRATCHPAD_PREFIX = C.SCRATCHPAD_PREFIX;
 var SCRATCH_KIND_FIELD = C.SCRATCH_KIND_FIELD;
 var SCRATCH_SOURCE_FIELD = C.SCRATCH_SOURCE_FIELD;
 var SCRATCH_PREVIEW_ONLY_FIELD = C.SCRATCH_PREVIEW_ONLY_FIELD;
 var VIEWS_NS = C.VIEWS_NS;
-var LAYERS_NS = C.LAYERS_NS;
+var CHANNELS_NS = C.CHANNELS_NS;
 var AXES_NS = C.AXES_NS;
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 
@@ -65,10 +67,16 @@ var DEFAULT_ORDER = C.DEFAULT_ORDER;
 // pill makes the editing state obvious.
 var SCRATCH_NAME_SUFFIX = " ✎"; // ✎
 
-// The built-in synthetic entries layer's descriptor title — excluded from
-// the layer picker (it's auto-appended, not composed by reference).
+// The built-in synthetic entries channel's descriptor title — excluded from
+// the channel picker (it's auto-appended, not composed by reference).
 var BUILTIN_ENTRIES_LAYER_TITLE =
-    "$:/plugins/rimir/cascade-palette/structure-layers/entries";
+    "$:/plugins/rimir/cascade-palette/channels/entries";
+
+// Dual-read helpers shared with the parser + drills (cp-utils): prefer the
+// ca-channel-* / ca-view-channels namespace, fall back to the legacy fields.
+// WRITES here always use the new namespace.
+var channelField = utils.channelField;
+var viewChannelsRaw = utils.viewChannelsRaw;
 
 // Map a structural pill kind → the ca-view-* field it edits, for implicit
 // layers (where structure lives on the view tiddler). Filter-valued kinds
@@ -190,6 +198,14 @@ module.exports = function (proto) {
                 fields[k] = srcFields[k];
             }
         });
+        // Normalize a legacy composed-channels list onto the new field so the
+        // scratchpad (and everything the editor reads off it) uses new vocab.
+        if (fields["ca-view-layers"] !== undefined) {
+            if (fields["ca-view-channels"] === undefined) {
+                fields["ca-view-channels"] = fields["ca-view-layers"];
+            }
+            delete fields["ca-view-layers"];
+        }
         // Never inherit "default view" status onto a transient copy.
         delete fields["ca-view-default"];
         fields.tags = [VIEW_TAG];
@@ -257,28 +273,28 @@ module.exports = function (proto) {
             freshCarrier = true;
         }
 
-        // Clone the layer.
+        // Clone the channel.
         var scratchLayer = this._scratchTitleFor(layerTitle, "layer");
-        var lFields = this._copyLayerFields(lf);
+        var lFields = this._copyChannelFields(lf);
         lFields.title = scratchLayer;
-        lFields.tags = [STRUCTURE_LAYER_TAG];
+        lFields.tags = [CHANNEL_TAG];
         lFields.type = "text/vnd.tiddlywiki";
-        lFields["ca-layer-name"] =
-            (lf["ca-layer-name"] || layerTitle.split("/").pop()) + SCRATCH_NAME_SUFFIX;
+        lFields["ca-channel-name"] =
+            (channelField(lf, "name") || layerTitle.split("/").pop()) + SCRATCH_NAME_SUFFIX;
         lFields[SCRATCH_KIND_FIELD] = "layer";
         lFields[SCRATCH_SOURCE_FIELD] = layerTitle;
         this.wiki.addTiddler(new $tw.Tiddler(lFields));
 
-        // Rewire the scratch view's ca-view-layers (original → clone) and
-        // stamp the layer-edit markers.
+        // Rewire the scratch view's ca-view-channels (original → clone) and
+        // stamp the channel-edit markers.
         var vt = this.wiki.getTiddler(scratchView);
         var vf = (vt && vt.fields) || {};
-        var raw = (vf["ca-view-layers"] || "").trim();
+        var raw = viewChannelsRaw(vf).trim();
         var titles = raw ? raw.split(/\s+/) : [];
         var rewired = titles.map(function (t) {
             return t === layerTitle ? scratchLayer : t;
         }).join(" ");
-        var mods = { "ca-view-layers": rewired };
+        var mods = { "ca-view-channels": rewired, "ca-view-layers": undefined };
         if (freshCarrier) mods[SCRATCH_PREVIEW_ONLY_FIELD] = "yes";
         this.wiki.addTiddler(new $tw.Tiddler(vf, mods));
 
@@ -300,6 +316,36 @@ module.exports = function (proto) {
     proto._pillEditDescriptor = function (pill, layer) {
         if (!pill) return null;
         var k = pill.kind;
+        // Lens-slot chooser (Phase C): an enum cycling the projecting lenses
+        // for the slot (+ "" = off / inherit), bound to the view default or
+        // the channel override. A locked CHANNEL slot is NOT editable (the
+        // view forces its lens); the VIEW slot stays editable even when locked.
+        if (k === "lens-slot") {
+            var slot = pill._slot;
+            var titles = [""];
+            if (this._projectingLenses) {
+                this._projectingLenses(slot).forEach(function (l) {
+                    titles.push(l.title);
+                });
+            }
+            if (pill._scope === "view") {
+                return {
+                    bindTiddler: this.activeView,
+                    bindField: "ca-view-lens-" + slot,
+                    editKind: "enum", enumValues: titles,
+                    name: pill.label + " lens (view default)"
+                };
+            }
+            // channel scope
+            if (!layer || layer.isBuiltIn || pill._locked) return null;
+            return {
+                bindTiddler: layer.title,
+                bindField: "ca-channel-lens-" + slot,
+                editKind: "enum", enumValues: titles,
+                name: pill.label + " lens (channel override)",
+                scope: "layer"
+            };
+        }
         // View-scoped enum / toggle facets (bind to the view tiddler).
         if (k === "sort") {
             return {
@@ -344,11 +390,11 @@ module.exports = function (proto) {
                     name: pill.label || k
                 };
             }
-            if (layer.isBuiltIn) return null; // entries layer — not editable
-            // Explicit shared layer: same suffix, ca-layer-* prefix.
+            if (layer.isBuiltIn) return null; // entries channel — not editable
+            // Explicit shared channel: same suffix, ca-channel-* prefix.
             return {
                 bindTiddler: layer.title,
-                bindField: vfield.replace("ca-view-", "ca-layer-"),
+                bindField: vfield.replace("ca-view-", "ca-channel-"),
                 editKind: editKind,
                 name: pill.label || k,
                 scope: "layer"
@@ -384,6 +430,7 @@ module.exports = function (proto) {
                 bindTiddler: scratchLayer,
                 bindField: ed.bindField,
                 editKind: ed.editKind,
+                enumValues: ed.enumValues,
                 name: ed.name,
                 scope: "layer"
             };
@@ -443,6 +490,27 @@ module.exports = function (proto) {
         var i = vals.indexOf(cur);
         if (i < 0) i = 0; // absent ≈ the implicit default at index 0
         this.writeBoundValue(item, vals[(i + 1) % vals.length]);
+        this._afterViewConfigEdit();
+    };
+
+    // Toggle a slot's membership in the view's `ca-view-locked` list. A
+    // locked slot forces the view's default lens onto every channel for that
+    // slot (channel overrides ignored). Routes through the view scratchpad
+    // (clones a persisted view first) so the change is committed via the
+    // view's save/overwrite pills like any other view-scoped edit, then
+    // re-bakes inheritance via _afterViewConfigEdit (reload → _loadView →
+    // _applyLensInheritance).
+    proto._toggleSlotLock = function (slot) {
+        var sv = this._ensureViewScratchForCompose();
+        if (!sv) return;
+        var t = this.wiki.getTiddler(sv);
+        if (!t) return;
+        var locked = $tw.utils.parseStringArray(t.fields["ca-view-locked"] || "") || [];
+        var i = locked.indexOf(slot);
+        if (i >= 0) locked.splice(i, 1); else locked.push(slot);
+        this.wiki.addTiddler(new $tw.Tiddler(t.fields, {
+            "ca-view-locked": $tw.utils.stringifyList(locked)
+        }));
         this._afterViewConfigEdit();
     };
 
@@ -548,7 +616,7 @@ module.exports = function (proto) {
         });
         if (source) {
             var st = this.wiki.getTiddler(source);
-            var sname = (st && st.fields && st.fields["ca-layer-name"]) ||
+            var sname = (st && channelField(st.fields, "name")) ||
                 source.split("/").pop();
             var n = this._layerConsumerCount(source);
             pills.push({
@@ -586,7 +654,7 @@ module.exports = function (proto) {
     proto._scratchLayerRefs = function (viewScratchTitle) {
         var self = this;
         var t = this.wiki.getTiddler(viewScratchTitle);
-        var raw = (t && t.fields && t.fields["ca-view-layers"]) || "";
+        var raw = viewChannelsRaw(t && t.fields);
         return raw.split(/\s+/).filter(function (x) {
             return self._isScratchpadTitle(x);
         });
@@ -604,7 +672,7 @@ module.exports = function (proto) {
         titles.forEach(function (vt) {
             if (vt.indexOf(SCRATCHPAD_PREFIX) === 0) return;
             var t = self.wiki.getTiddler(vt);
-            var raw = (t && t.fields && t.fields["ca-view-layers"]) || "";
+            var raw = viewChannelsRaw(t && t.fields);
             if (raw.split(/\s+/).indexOf(layerTitle) >= 0) n++;
         });
         return n;
@@ -720,12 +788,14 @@ module.exports = function (proto) {
             apply["ca-view-name"] = apply["ca-view-name"]
                 .replace(/\s*✎\s*$/, "").trim();
         }
-        // Migrated layers were persisted under fresh titles — point the
+        // Migrated channels were persisted under fresh titles — point the
         // overwritten view at those (an implicit→explicit overwrite drops the
         // now-migrated ca-view-* structural fields, handled above by the
-        // scratch lacking them).
+        // scratch lacking them). Also clear any legacy ca-view-layers on the
+        // target so the new ca-view-channels is the single source of truth.
         if (materializedLayers !== undefined) {
-            apply["ca-view-layers"] = materializedLayers || undefined;
+            apply["ca-view-channels"] = materializedLayers || undefined;
+            apply["ca-view-layers"] = undefined;
         }
         this.wiki.addTiddler(new $tw.Tiddler(existingFields, apply));
     };
@@ -746,8 +816,11 @@ module.exports = function (proto) {
             if (v.order > maxOrder) maxOrder = v.order;
         });
         fields["ca-order"] = String(maxOrder + 100);
+        // The clone loop above may have copied a legacy ca-view-layers — drop
+        // it; ca-view-channels is the single source of truth on a new view.
+        delete fields["ca-view-layers"];
         if (arguments.length > 3 && arguments[3] !== undefined) {
-            fields["ca-view-layers"] = arguments[3]; // materialized layer refs
+            fields["ca-view-channels"] = arguments[3]; // materialized channel refs
         }
         this.wiki.addTiddler(new $tw.Tiddler(fields));
     };
@@ -761,7 +834,7 @@ module.exports = function (proto) {
     // Returns the rewritten ca-view-layers string (or "" when none).
     proto._materializeMigratedLayers = function (scratchFields) {
         var self = this;
-        var raw = (scratchFields["ca-view-layers"] || "").trim();
+        var raw = viewChannelsRaw(scratchFields).trim();
         if (!raw) return raw;
         return raw.split(/\s+/).map(function (ref) {
             if (!self._isScratchpadTitle(ref)) return ref;
@@ -770,9 +843,9 @@ module.exports = function (proto) {
             if (lf[SCRATCH_KIND_FIELD] !== "layer") return ref; // unknown — leave
             var src = lf[SCRATCH_SOURCE_FIELD] || "";
             if (src) return src; // edit-clone — view commit restores the original
-            var name = (lf["ca-layer-name"] || "Structure")
+            var name = (channelField(lf, "name") || "Structure")
                 .replace(/\s*✎\s*$/, "").trim() || "Structure";
-            var newTitle = self._slugTitle(name, LAYERS_NS);
+            var newTitle = self._slugTitle(name, CHANNELS_NS);
             self._writeNewLayer(newTitle, lf, name);
             self.wiki.deleteTiddler(ref);
             return newTitle;
@@ -819,12 +892,13 @@ module.exports = function (proto) {
         var viewScratch = this.activeView;
         var vt = this.wiki.getTiddler(viewScratch);
         if (vt && vt.fields && vt.fields[SCRATCH_KIND_FIELD] === "view") {
-            var raw = (vt.fields["ca-view-layers"] || "").trim();
+            var raw = viewChannelsRaw(vt.fields).trim();
             var titles = raw ? raw.split(/\s+/) : [];
             var rewired = titles.map(function (t) {
                 return t === layerCloneTitle ? restoreTitle : t;
             }).filter(function (t) { return t; }).join(" ");
-            this.wiki.addTiddler(new $tw.Tiddler(vt.fields, { "ca-view-layers": rewired }));
+            this.wiki.addTiddler(new $tw.Tiddler(vt.fields,
+                { "ca-view-channels": rewired, "ca-view-layers": undefined }));
         }
         this.wiki.deleteTiddler(layerCloneTitle);
         this._reloadViewsPreservingActive();
@@ -847,13 +921,17 @@ module.exports = function (proto) {
         if (this.setFocus) this.setFocus("viewconfig");
     };
 
-    // ca-layer-* keys present on either tiddler, so a field cleared in the
-    // scratchpad is also removed from the target on overwrite.
+    // ca-channel-* / legacy ca-layer-* keys present on either tiddler, so a
+    // field cleared in the scratchpad is also removed from the target on
+    // overwrite. Both prefixes are collected so overwriting an un-migrated
+    // (ca-layer-*) target with a new-vocab (ca-channel-*) scratch clears the
+    // stale legacy keys (the scratch never carries them).
     function layerFieldKeys(a, b) {
         var keys = {};
         [a, b].forEach(function (f) {
             Object.keys(f || {}).forEach(function (k) {
-                if (k.indexOf("ca-layer-") === 0) keys[k] = true;
+                if (k.indexOf("ca-channel-") === 0 ||
+                    k.indexOf("ca-layer-") === 0) keys[k] = true;
             });
         });
         return Object.keys(keys);
@@ -867,8 +945,8 @@ module.exports = function (proto) {
         layerFieldKeys(existingFields, scratchFields).forEach(function (k) {
             apply[k] = hasOwn.call(scratchFields, k) ? scratchFields[k] : undefined;
         });
-        if (apply["ca-layer-name"]) {
-            apply["ca-layer-name"] = apply["ca-layer-name"]
+        if (apply["ca-channel-name"]) {
+            apply["ca-channel-name"] = apply["ca-channel-name"]
                 .replace(/\s*✎\s*$/, "").trim();
         }
         this.wiki.addTiddler(new $tw.Tiddler(existingFields, apply));
@@ -876,26 +954,27 @@ module.exports = function (proto) {
 
     proto._writeNewLayer = function (newTitle, scratchFields, name) {
         var fields = {
-            title: newTitle, tags: [STRUCTURE_LAYER_TAG], type: "text/vnd.tiddlywiki"
+            title: newTitle, tags: [CHANNEL_TAG], type: "text/vnd.tiddlywiki"
         };
-        Object.keys(scratchFields).forEach(function (k) {
-            if (k.indexOf("ca-layer-") === 0) fields[k] = scratchFields[k];
-        });
-        fields["ca-layer-name"] = name;
+        // Copy the channel's authoring fields, normalizing any legacy
+        // ca-layer-* the scratch might still carry into the channel namespace.
+        var copied = this._copyChannelFields(scratchFields);
+        Object.keys(copied).forEach(function (k) { fields[k] = copied[k]; });
+        fields["ca-channel-name"] = name;
         this.wiki.addTiddler(new $tw.Tiddler(fields));
     };
 
     proto._promptSaveAsNewLayer = function (layerCloneTitle, layerSource) {
         var self = this;
         var lt = this.wiki.getTiddler(layerCloneTitle);
-        var suggested = ((lt && lt.fields && lt.fields["ca-layer-name"]) || "")
+        var suggested = ((lt && channelField(lt.fields, "name")) || "")
             .replace(/\s*✎\s*$/, "").trim();
         this.enterEditMode({
             bindTiddler: layerCloneTitle,
-            bindField: "ca-layer-name",
+            bindField: "ca-channel-name",
             kind: "text",
             editKind: "text",
-            name: "New layer name",
+            name: "New channel name",
             initialValue: suggested,
             returnFocus: "viewconfig",
             onCommitFn: function (name) {
@@ -905,9 +984,9 @@ module.exports = function (proto) {
     };
 
     proto._finalizeLayerSaveAsNew = function (layerCloneTitle, layerSource, rawName) {
-        var name = String(rawName || "").replace(/\s*✎\s*$/, "").trim() || "Custom layer";
+        var name = String(rawName || "").replace(/\s*✎\s*$/, "").trim() || "Custom channel";
         var lst = this.wiki.getTiddler(layerCloneTitle);
-        var newTitle = this._slugTitle(name, LAYERS_NS);
+        var newTitle = this._slugTitle(name, CHANNELS_NS);
         this._writeNewLayer(newTitle, (lst && lst.fields) || {}, name);
         // Save-as-new is the "don't touch anyone" path: the view goes back to
         // referencing the original layer; the new layer joins the library.
@@ -925,8 +1004,7 @@ module.exports = function (proto) {
     // scratchpad or persisted).
     proto._viewLayerRefs = function (viewTitle) {
         var t = this.wiki.getTiddler(viewTitle || this.activeView);
-        var raw = (t && t.fields && t.fields["ca-view-layers"]) || "";
-        raw = raw.trim();
+        var raw = viewChannelsRaw(t && t.fields).trim();
         return raw ? raw.split(/\s+/) : [];
     };
 
@@ -944,7 +1022,7 @@ module.exports = function (proto) {
         var t = this.wiki.getTiddler(scratchView);
         if (!t) return;
         this.wiki.addTiddler(new $tw.Tiddler(t.fields,
-            { "ca-view-layers": titles.join(" ") }));
+            { "ca-view-channels": titles.join(" "), "ca-view-layers": undefined }));
         this._afterViewConfigEdit();
     };
 
@@ -979,30 +1057,32 @@ module.exports = function (proto) {
         var t = this.wiki.getTiddler(viewScratchTitle);
         if (!t) return null;
         var vf = t.fields;
-        if ((vf["ca-view-layers"] || "").trim()) return null; // already explicit
+        if (viewChannelsRaw(vf).trim()) return null; // already explicit
 
         var layerScratch = this._migratedLayerScratchTitle(viewScratchTitle);
         var lFields = {
             title: layerScratch,
-            tags: [STRUCTURE_LAYER_TAG],
+            tags: [CHANNEL_TAG],
             type: "text/vnd.tiddlywiki"
         };
         MIGRATE_STRUCT_SUFFIXES.forEach(function (suf) {
             var vk = "ca-view-" + suf;
             if (vf[vk] !== undefined && vf[vk] !== "") {
-                lFields["ca-layer-" + suf] = vf[vk];
+                lFields["ca-channel-" + suf] = vf[vk];
             }
         });
-        lFields["ca-layer-name"] = vf["ca-view-layer-name"] ||
+        lFields["ca-channel-name"] = (vf["ca-view-channel-name"] !== undefined
+            ? vf["ca-view-channel-name"] : vf["ca-view-layer-name"]) ||
             (vf["ca-view-name"] || "").replace(/\s*✎\s*$/, "").trim() || "Structure";
         lFields[SCRATCH_KIND_FIELD] = "layer";
         lFields[SCRATCH_SOURCE_FIELD] = ""; // migrated/new — commits with the view
         this.wiki.addTiddler(new $tw.Tiddler(lFields));
 
-        var mods = { "ca-view-layers": layerScratch };
+        var mods = { "ca-view-channels": layerScratch, "ca-view-layers": undefined };
         MIGRATE_STRUCT_SUFFIXES.forEach(function (suf) {
             mods["ca-view-" + suf] = undefined;
         });
+        mods["ca-view-channel-name"] = undefined;
         mods["ca-view-layer-name"] = undefined;
         this.wiki.addTiddler(new $tw.Tiddler(vf, mods));
         this._reloadViewsPreservingActive();
@@ -1046,6 +1126,7 @@ module.exports = function (proto) {
         var present = {};
         this._viewLayerRefs(this.activeView).forEach(function (t) { present[t] = true; });
         var titles = this.wiki.filterTiddlers(
+            "[all[shadows+tiddlers]tag[" + CHANNEL_TAG + "]] " +
             "[all[shadows+tiddlers]tag[" + STRUCTURE_LAYER_TAG + "]]"
         ).filter(function (title) {
             return !self._isScratchpadTitle(title) &&
@@ -1055,7 +1136,7 @@ module.exports = function (proto) {
         if (!titles.length) {
             if (this.hintEl) {
                 this.hintEl.textContent =
-                    "No other shared layers to add — create one via 'save as new layer'.";
+                    "No other shared channels to add — create one via 'save as new channel'.";
             }
             return;
         }
@@ -1063,16 +1144,16 @@ module.exports = function (proto) {
             var t = self.wiki.getTiddler(title);
             var f = (t && t.fields) || {};
             var item = self._buildCascadeItem({
-                "ca-name": f["ca-layer-name"] || title.split("/").pop(),
-                "ca-hint": (f["ca-layer-roots"] || "") +
-                    (f["ca-layer-children"] ? " → " + f["ca-layer-children"] : ""),
+                "ca-name": channelField(f, "name") || title.split("/").pop(),
+                "ca-hint": (channelField(f, "roots") || "") +
+                    (channelField(f, "children") ? " → " + channelField(f, "children") : ""),
                 "ca-kind": "leaf"
             }, title);
             item.isItem = true;
             return item;
         });
         var stage = {
-            kind: "filter", title: "Add layer to view", query: "", selectedIndex: 0,
+            kind: "filter", title: "Add channel to view", query: "", selectedIndex: 0,
             filter: "", itemsFromFilter: "", stageDefaultAction: "",
             entityDefaultActions: [], asLink: false,
             items: items, results: items.slice(),
@@ -1095,7 +1176,7 @@ module.exports = function (proto) {
     proto._deleteScratchLayersOf = function (viewScratchTitle) {
         var self = this;
         var t = this.wiki.getTiddler(viewScratchTitle);
-        var raw = (t && t.fields && t.fields["ca-view-layers"]) || "";
+        var raw = viewChannelsRaw(t && t.fields);
         raw.split(/\s+/).forEach(function (ref) {
             if (!self._isScratchpadTitle(ref)) return;
             var lt = self.wiki.getTiddler(ref);
@@ -1170,15 +1251,22 @@ module.exports = function (proto) {
         return this._cloneViewToScratchpad(this.activeView);
     };
 
-    // Copy a structure-layer's authoring fields (ca-layer-*) from `src` into
-    // a fresh field set. Bookkeeping (cp-scratch-*) and tags/type/title are
-    // NOT copied — the caller sets those. Shared by _beginLayerEdit (clone for
-    // editing) and _forkLayer (deep view-fork) so the layer field set lives in
-    // one place — sibling of cp-axis-editor's _copyAxisFields.
-    proto._copyLayerFields = function (src) {
+    // Copy a channel's authoring fields (ca-channel-*) from `src` into a fresh
+    // field set, normalizing any legacy ca-layer-* into the channel namespace
+    // so a clone/fork of an un-migrated channel carries new-vocab fields.
+    // Bookkeeping (cp-scratch-*) and tags/type/title are NOT copied — the
+    // caller sets those. Shared by _beginLayerEdit (clone for editing) and
+    // _forkChannel (deep view-fork) so the channel field set lives in one
+    // place — sibling of cp-axis-editor's _copyAxisFields.
+    proto._copyChannelFields = function (src) {
         var out = {};
         Object.keys(src || {}).forEach(function (k) {
-            if (k.indexOf("ca-layer-") === 0) out[k] = src[k];
+            if (k.indexOf("ca-channel-") === 0) {
+                out[k] = src[k];
+            } else if (k.indexOf("ca-layer-") === 0) {
+                var nk = "ca-channel-" + k.slice("ca-layer-".length);
+                if (out[nk] === undefined) out[nk] = src[k];
+            }
         });
         return out;
     };
@@ -1209,13 +1297,14 @@ module.exports = function (proto) {
             }
         });
         delete fields["ca-view-default"]; // a fork is never the default
+        delete fields["ca-view-layers"]; // legacy — normalized to ca-view-channels
         fields["ca-view-name"] = name;
 
-        // Deep-copy referenced explicit layers (private copies, refs rewritten).
+        // Deep-copy referenced explicit channels (private copies, refs rewritten).
         var layerRefs = this._viewLayerRefs(sourceTitle);
         if (layerRefs.length) {
-            fields["ca-view-layers"] = layerRefs.map(function (t) {
-                return self._forkLayer(t);
+            fields["ca-view-channels"] = layerRefs.map(function (t) {
+                return self._forkChannel(t);
             }).join(" ");
         }
         // Deep-copy the view-level axis chain (implicit-layer views).
@@ -1229,26 +1318,26 @@ module.exports = function (proto) {
         return newTitle;
     };
 
-    // Copy a referenced structure-layer into a private persisted layer and
-    // return its new title. The layer's own axis chain (ca-layer-axes) is
-    // deep-copied too. The built-in entries layer (no editable structure) and
-    // any unresolvable reference are returned verbatim — never copied.
-    proto._forkLayer = function (layerTitle) {
+    // Copy a referenced channel into a private persisted channel and return
+    // its new title. The channel's own axis chain (ca-channel-axes) is
+    // deep-copied too. The built-in entries channel (no editable structure)
+    // and any unresolvable reference are returned verbatim — never copied.
+    proto._forkChannel = function (layerTitle) {
         if (layerTitle === BUILTIN_ENTRIES_LAYER_TITLE) return layerTitle;
         var lt = this.wiki.getTiddler(layerTitle);
         if (!lt) return layerTitle;
         var lf = lt.fields || {};
-        var baseName = (lf["ca-layer-name"] || layerTitle.split("/").pop())
+        var baseName = (channelField(lf, "name") || layerTitle.split("/").pop())
             .replace(/\s*✎\s*$/, "").trim();
         var name = baseName + " (copy)";
-        var newTitle = this._slugTitle(name, LAYERS_NS);
-        var fields = this._copyLayerFields(lf);
+        var newTitle = this._slugTitle(name, CHANNELS_NS);
+        var fields = this._copyChannelFields(lf);
         fields.title = newTitle;
-        fields.tags = [STRUCTURE_LAYER_TAG];
+        fields.tags = [CHANNEL_TAG];
         fields.type = "text/vnd.tiddlywiki";
-        fields["ca-layer-name"] = name;
-        if ((lf["ca-layer-axes"] || "").trim()) {
-            fields["ca-layer-axes"] = this._forkAxisChain(lf["ca-layer-axes"]);
+        fields["ca-channel-name"] = name;
+        if ((channelField(lf, "axes") || "").trim()) {
+            fields["ca-channel-axes"] = this._forkAxisChain(channelField(lf, "axes"));
         }
         this.wiki.addTiddler(new $tw.Tiddler(fields));
         return newTitle;

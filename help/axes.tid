@@ -4,12 +4,12 @@ ca-name: Axes
 ca-icon: 📐
 ca-group: Pills
 ca-order: 250
-ca-hint: Group any tree by year, status, prefix — chain axes inside a structure-layer.
+ca-hint: Group any tree by year, status, prefix — chain axes inside a channel.
 ca-kind: leaf
 ca-actions: <$action-navigate $to=<<picked>>/>
 type: text/vnd.tiddlywiki
 
-An ''axis'' is a reusable derive-key spec — a filter that maps each tiddler to a bucket key (a year, a status, the first tag, anything). A structure-layer can chain several axes to build a grouped tree:
+An ''axis'' is a reusable derive-key spec — a filter that maps each tiddler to a bucket key (a year, a status, the first tag, anything). A channel can chain several axes to build a grouped tree:
 
 ''year → month → day → tiddlers in that day''.
 
@@ -18,7 +18,7 @@ Each axis runs at one tree depth. Drilling into a bucket narrows the source set 
 ! Where to find it
 
 * ''Pick a grouped view:'' Tab into the view strip, switch to ''By date'' — the shipped demo (axes: year → month → day, no children).
-* ''Edit any layer's chain in-place:'' Tab to the ''Structure'' strip, press Enter / → to expand. Each layer's mini-row shows its current chain as yellow ''by'' / ''→'' pills, ending in a dashed ''+''. The strip is hidden when there are no pills to show.
+* ''Edit any channel's chain in-place:'' Tab to the ''Structure'' strip, press Enter / → to expand. Each channel's mini-row shows its current chain as yellow ''by'' / ''→'' pills, ending in a dashed ''+''. The strip is hidden when there are no pills to show.
 
 ! Editing the chain
 
@@ -29,11 +29,11 @@ Each axis runs at one tree depth. Drilling into a bucket narrows the source set 
 |''Enter'' / ''Space'' on the ''+'' pill |Open the picker in ''append'' mode |
 |''Esc'' in the picker |Cancel — no change to the chain |
 
-The picker is itself a cascade stage listing every axis registered in the wiki. On commit, the new chain is written to a session-state tiddler — survives reload, but isn't filesystem-synced. Delete that state tiddler to revert the layer to its declared default.
+The picker is itself a cascade stage listing every axis registered in the wiki. On commit, the new chain is written to a session-state tiddler — survives reload, but isn't filesystem-synced. Delete that state tiddler to revert the channel to its declared default.
 
 ! Axes vs. children — one descent, two halves
 
-|!Layer has |!Result |
+|!Channel has |!Result |
 |axes only |Pure grouping. Buckets all the way down; deepest buckets contain tiddler leaves. |
 |children only |Today's recursive tree (''By parent'', ''By namespace''). Axes never engage. |
 |axes + children |Buckets at the top, recursive tree at the bottom. E.g. "TOC tiddlers grouped by year, each TOC then expanding its tag-subtree." |
@@ -59,6 +59,6 @@ ca-axis-sort: asc
 ca-axis-empty-label: untagged
 ```
 
-The next palette open picks it up. Attach it to a layer via `ca-layer-axes` (or `ca-view-axes` on an implicit-layer view) — space-separated tiddler titles, in chain order.
+The next palette open picks it up. Attach it to a channel via `ca-channel-axes` (or `ca-view-axes` on an implicit-channel view) — space-separated tiddler titles, in chain order.
 
 ''→'' Full axis schema + composition rules: <$link to="$:/plugins/rimir/cascade-palette/doc/protocol">doc/protocol</$link> (Axes section).

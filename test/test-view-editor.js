@@ -329,21 +329,21 @@ describe("cascade-palette: cp-view-editor", function () {
             expect(d.editKind).toBe("text");
         });
 
-        it("maps explicit (shared) layer pills to ca-layer-* with scope:layer", function () {
+        it("maps explicit (shared) channel pills to ca-channel-* with scope:layer", function () {
             var layer = { isImplicit: false, isBuiltIn: false, title: "$:/some/layer" };
             var d = w._pillEditDescriptor({ kind: "roots" }, layer);
             expect(d).toEqual(jasmine.objectContaining({
                 bindTiddler: "$:/some/layer",
-                bindField: "ca-layer-roots",
+                bindField: "ca-channel-roots",
                 editKind: "filter",
                 scope: "layer"
             }));
-            // row-entity-type keeps the row- segment under the layer prefix.
+            // row-entity-type keeps the row- segment under the channel prefix.
             expect(w._pillEditDescriptor({ kind: "entity-type" }, layer).bindField)
-                .toBe("ca-layer-row-entity-type");
-            // The Enter-actions facet maps to ca-layer-row-actions (text).
+                .toBe("ca-channel-row-entity-type");
+            // The Enter-actions facet maps to ca-channel-row-actions (text).
             var act = w._pillEditDescriptor({ kind: "actions" }, layer);
-            expect(act.bindField).toBe("ca-layer-row-actions");
+            expect(act.bindField).toBe("ca-channel-row-actions");
             expect(act.editKind).toBe("text");
         });
 
@@ -519,12 +519,13 @@ describe("cascade-palette: cp-view-editor", function () {
             var lf = w.wiki.getTiddler(scratchLayer).fields;
             expect(lf[C.SCRATCH_KIND_FIELD]).toBe("layer");
             expect(lf[C.SCRATCH_SOURCE_FIELD]).toBe(LAYER);
-            expect(lf["ca-layer-roots"]).toBe("[tag[TableOfContents]]");
+            // The clone normalizes the legacy ca-layer-* source onto ca-channel-*.
+            expect(lf["ca-channel-roots"]).toBe("[tag[TableOfContents]]");
             // The active view is a preview-only carrier rewired to the clone.
             var vf = w.wiki.getTiddler(w.activeView).fields;
             expect(vf[C.SCRATCH_KIND_FIELD]).toBe("view");
             expect(vf[C.SCRATCH_PREVIEW_ONLY_FIELD]).toBe("yes");
-            expect(vf["ca-view-layers"]).toBe(scratchLayer); // original ref replaced
+            expect(vf["ca-view-channels"]).toBe(scratchLayer); // original ref replaced
             // BOTH originals byte-identical (isolation guarantee).
             expect(JSON.stringify(w.wiki.getTiddler(HYBRID).fields)).toBe(hybridBefore);
             expect(JSON.stringify(w.wiki.getTiddler(LAYER).fields)).toBe(layerBefore);
@@ -562,11 +563,11 @@ describe("cascade-palette: cp-view-editor", function () {
             w.activeView = HYBRID;
             var scratchLayer = w._beginLayerEdit(LAYER);
             var scratchView = w.activeView;
-            w.wiki.setText(scratchLayer, "ca-layer-roots", null, "[tag[Done]]");
+            w.wiki.setText(scratchLayer, "ca-channel-roots", null, "[tag[Done]]");
 
             w._commitLayer("overwrite", scratchLayer);
 
-            expect(w.wiki.getTiddler(LAYER).fields["ca-layer-roots"]).toBe("[tag[Done]]");
+            expect(w.wiki.getTiddler(LAYER).fields["ca-channel-roots"]).toBe("[tag[Done]]");
             expect(w.wiki.tiddlerExists(scratchLayer)).toBe(false);
             expect(w.wiki.tiddlerExists(scratchView)).toBe(false); // preview-only carrier gone
             expect(w.activeView).toBe(HYBRID);
@@ -577,18 +578,18 @@ describe("cascade-palette: cp-view-editor", function () {
             w.activeView = HYBRID;
             var scratchLayer = w._beginLayerEdit(LAYER);
             var scratchView = w.activeView;
-            w.wiki.setText(scratchLayer, "ca-layer-roots", null, "[tag[Done]]");
+            w.wiki.setText(scratchLayer, "ca-channel-roots", null, "[tag[Done]]");
             var layerBefore = JSON.stringify(w.wiki.getTiddler(LAYER).fields);
 
             w._finalizeLayerSaveAsNew(scratchLayer, LAYER, "My tags");
 
             var created = w.wiki.filterTiddlers(
-                "[all[tiddlers]prefix[" + C.LAYERS_NS + "]] -[[" + LAYER + "]]"
+                "[all[tiddlers]prefix[" + C.CHANNELS_NS + "]] -[[" + LAYER + "]]"
             );
             expect(created.length).toBe(1);
             var nf = w.wiki.getTiddler(created[0]).fields;
-            expect(nf["ca-layer-name"]).toBe("My tags");
-            expect(nf["ca-layer-roots"]).toBe("[tag[Done]]");
+            expect(nf["ca-channel-name"]).toBe("My tags");
+            expect(nf["ca-channel-roots"]).toBe("[tag[Done]]");
             expect(JSON.stringify(w.wiki.getTiddler(LAYER).fields)).toBe(layerBefore);
             expect(w.wiki.tiddlerExists(scratchLayer)).toBe(false);
             expect(w.wiki.tiddlerExists(scratchView)).toBe(false);
@@ -755,16 +756,16 @@ describe("cascade-palette: cp-view-editor", function () {
             expect(layerScratch).not.toBeNull();
             expect(w._isScratchpadTitle(layerScratch)).toBe(true);
             var lf = w.wiki.getTiddler(layerScratch).fields;
-            // ca-view-* → ca-layer-*.
-            expect(lf["ca-layer-roots"]).toBe("[all[tiddlers]!is[system]]");
-            expect(lf["ca-layer-children"]).toBe("[tag<currentTiddler>]");
-            expect(lf["ca-layer-row-actions"]).toBe("<$action-navigate/>");
-            // Migrated/new layer: kind=layer, NO source (commits with view).
+            // ca-view-* → ca-channel-*.
+            expect(lf["ca-channel-roots"]).toBe("[all[tiddlers]!is[system]]");
+            expect(lf["ca-channel-children"]).toBe("[tag<currentTiddler>]");
+            expect(lf["ca-channel-row-actions"]).toBe("<$action-navigate/>");
+            // Migrated/new channel: kind=layer, NO source (commits with view).
             expect(lf[C.SCRATCH_KIND_FIELD]).toBe("layer");
             expect(lf[C.SCRATCH_SOURCE_FIELD]).toBe("");
 
             var vf = w.wiki.getTiddler(scratch).fields;
-            expect(vf["ca-view-layers"]).toBe(layerScratch);
+            expect(vf["ca-view-channels"]).toBe(layerScratch);
             // Structural fields stripped; view-level policy preserved.
             expect(vf["ca-view-roots"]).toBeUndefined();
             expect(vf["ca-view-children"]).toBeUndefined();
@@ -806,12 +807,12 @@ describe("cascade-palette: cp-view-editor", function () {
             var newView = w.activeView;
             expect(w._isScratchpadTitle(newView)).toBe(false);
             var nvf = w.wiki.getTiddler(newView).fields;
-            var layers = nvf["ca-view-layers"].split(" ");
+            var layers = nvf["ca-view-channels"].split(" ");
             expect(layers.length).toBe(2);
-            // Migrated layer persisted under the layers namespace; shared one passes through.
-            expect(layers[0].indexOf(C.LAYERS_NS)).toBe(0);
+            // Migrated channel persisted under the channels namespace; shared one passes through.
+            expect(layers[0].indexOf(C.CHANNELS_NS)).toBe(0);
             expect(layers[1]).toBe(L2);
-            expect(w.wiki.getTiddler(layers[0]).fields["ca-layer-roots"])
+            expect(w.wiki.getTiddler(layers[0]).fields["ca-channel-roots"])
                 .toBe("[all[tiddlers]!is[system]]");
             // The new view carries no structural ca-view-* fields.
             expect(nvf["ca-view-roots"]).toBeUndefined();
@@ -832,9 +833,9 @@ describe("cascade-palette: cp-view-editor", function () {
             w._commitScratchpad("overwrite");
 
             var sf = w.wiki.getTiddler(SRC).fields;
-            var layers = sf["ca-view-layers"].split(" ");
+            var layers = sf["ca-view-channels"].split(" ");
             expect(layers.length).toBe(2);
-            expect(layers[0].indexOf(C.LAYERS_NS)).toBe(0);
+            expect(layers[0].indexOf(C.CHANNELS_NS)).toBe(0);
             expect(layers[1]).toBe(L2);
             // Migrated structural fields removed from the (now explicit) view.
             expect(sf["ca-view-roots"]).toBeUndefined();

@@ -20,7 +20,7 @@ Cascade-palette is engineered to be extended by ''one tiddler per cascade edge''
 |A new search-filter pill |`$:/tags/rimir/cascade-palette/filter` |`ca-filter-name`, `ca-filter-expr` |[[Protocol]] §"Worked example — Title-prefix filter" |
 |A new visibility (hide-predicate) pill |`$:/tags/rimir/cascade-palette/visibility` |`ca-visibility-name`, `ca-visibility-expr` |[[Protocol]] §"Worked example — Hide a group" |
 |A new view (root-stage strategy) |`$:/tags/rimir/cascade-palette/view` |`ca-view-name`, `ca-view-roots` |[[Protocol]] §"Views" |
-|A new structure-layer (sub-component of a view) |`$:/tags/rimir/cascade-palette/structure-layer` |`ca-layer-name`, `ca-layer-roots` |[[Protocol]] §"Multi-layer views" |
+|A new channel (sub-component of a view) |`$:/tags/rimir/cascade-palette/channel` |`ca-channel-name`, `ca-channel-roots` |[[Protocol]] §"Multi-channel views" |
 |A new grouping axis |`$:/tags/rimir/cascade-palette/axis` |`ca-axis-name`, `ca-axis-key` |[[Protocol]] §"Axes" (or create it in-palette: ''Manage axes'' → ''+ New axis…'') |
 |A new leader-key gesture |`$:/tags/rimir/cascade-palette/leader` |`ca-leader-key`, `ca-leader-actions` |[[Protocol]] §"Leader keys" |
 |A new side-preview template |`$:/tags/rimir/cascade-palette/side-preview` |`ca-preview-applies` or `ca-preview-context`, body wikitext |[[Protocol]] §"Side preview" |
@@ -30,7 +30,7 @@ If you find yourself wishing for a tag or field that doesn't exist, you're proba
 
 ! Local dev cycle
 
-You're editing tiddlers in `dev-wiki/`. The filesystem-watcher plugin (also rimir) picks up changes in `dev-wiki/tiddlers/` and `dev-wiki/plugins/`. Everything declarative is hot — close & reopen the palette to pick up new entries / actions / leaders / axes / filters / visibility / views / structure-layers / side-previews / row-icons.
+You're editing tiddlers in `dev-wiki/`. The filesystem-watcher plugin (also rimir) picks up changes in `dev-wiki/tiddlers/` and `dev-wiki/plugins/`. Everything declarative is hot — close & reopen the palette to pick up new entries / actions / leaders / axes / filters / visibility / views / channels / side-previews / row-icons.
 
 JS modules (`widgets/cp-*.js`, custom filter operators, startup modules) are NOT hot — restart the wiki server:
 
@@ -58,7 +58,7 @@ When an action doesn't appear where you expect:
 # Open the palette, navigate to the target row.
 # Hit Space — if you see ''empty list, no actions'', the engine found zero applicable actions for this row.
 # Three discovery paths are unioned and deduplicated:
-## ''Catalogue'' — does the action's `ca-entity-type` match the row's bound `entityType`? (Bound by `ca-layer-row-entity-type` on the emitting layer.)
+## ''Catalogue'' — does the action's `ca-entity-type` match the row's bound `entityType`? (Bound by `ca-channel-row-entity-type` on the emitting channel.)
 ## ''Configured-field bridge'' — is `$:/config/rimir/cascade-palette/entity-type-field` set to a field, AND does the row's tiddler have that field's value matching the action's `ca-entity-type`? (E.g. `rimir/kind` sets it to `kind.type`.)
 ## ''Filter'' — when the action declares `ca-applies`, does the filter return non-empty for `<currentTiddler>` = row title?
 # Every discovered action is then narrowed by its `ca-action-when` (if set) — same `<currentTiddler>` binding.
@@ -69,7 +69,7 @@ When an action doesn't appear where you expect:
 When evolving the protocol, never break authored tiddlers. The plugin's track record:
 
 * ''Aliases.'' `ca-view-source` is honoured as a back-compat alias for `ca-view-roots`. Pattern: read the new field first; fall back to the old one. Document the alias in `doc/protocol.tid` and `doc/reference.tid`.
-* ''Phased rollout.'' When a complex refactor is needed (e.g. the 0.0.37 → 0.0.38 multi-layer view model), ship the new primitives first with back-compat, then rewrite the engine on top in the next version. Two-phase landings keep risk down.
+* ''Phased rollout.'' When a complex refactor is needed (e.g. the 0.0.37 → 0.0.38 multi-channel view model), ship the new primitives first with back-compat, then rewrite the engine on top in the next version. Two-phase landings keep risk down.
 * ''Soft deprecation'' — when an old form should no longer be used, emit a one-time `console.warn` via `cp.deprecationWarning(key, message)` (cp-utils.js). Never per-keystroke; never silent removal. Surface active deprecations in the ''Diagnostics → Deprecations'' sub-entry so users find them without reading the changelog.
 
 ! Versioning
@@ -78,11 +78,11 @@ When evolving the protocol, never break authored tiddlers. The plugin's track re
 
 ! Testing your additions
 
-Cascade-palette is the prime ''extending another plugin'' reference plugin — so testing your authoring layer matters. Two patterns work without touching JS:
+Cascade-palette is the prime ''extending another plugin'' reference plugin — so testing your authoring channel matters. Two patterns work without touching JS:
 
 ''CLI gotchas fixture'' (`tw-tests/gotchas/fixtures/<your-slug>/`) — small standalone wiki with `tiddlywiki.info` loading cascade-palette + your contribution, `tiddlers/RunTest.tid` rendering a representative filter (e.g. action discovery for a specific entity type, or position resolution for an entry), and `expected.txt` capturing the byte-stable output. Run with `bin/tw test:gotchas <your-slug>`. Bootstrap `expected.txt` via `UPDATE=1 ./tw-tests/gotchas/run.sh <your-slug>`.
 
-''Wiki test spec'' — for authoring-layer behaviour like cascade-position-fallback or filter substitution semantics, write a tiddler tagged `$:/tags/wiki-test-spec` in `tw-tests/test-edition/tiddlers/` with `Setup`, `Description`, `ExpectedResult`, and `Narrative` sections. See [[tw-gotchas-testing#Wiki-based test ExpectedResult…]] for the trailing-newline trap.
+''Wiki test spec'' — for authoring-channel behaviour like cascade-position-fallback or filter substitution semantics, write a tiddler tagged `$:/tags/wiki-test-spec` in `tw-tests/test-edition/tiddlers/` with `Setup`, `Description`, `ExpectedResult`, and `Narrative` sections. See [[tw-gotchas-testing#Wiki-based test ExpectedResult…]] for the trailing-newline trap.
 
 ''Jasmine spec'' (`tw-tests/test-edition/tests/cascade-palette/*.spec.js`) — for pure-function unit tests of any JS utility you contribute (e.g. a new sort comparator, a sanitisation helper). Run with `bin/tw test cascade-palette`.
 
@@ -97,7 +97,7 @@ dev-wiki/plugins/rimir/cascade-palette/
 │   ├── cp-constants.js             # tag names, message strings, defaults
 │   ├── cp-filter-ops.js            # custom filter operator(s)
 │   └── cp-*.js                     # subsystem libraries (each patches the prototype)
-├── actions/, entries/, axes/, views/, structure-layers/, filters/, visibility/, leaders/, reach/, row-icons/, settings/
+├── actions/, entries/, axes/, views/, channels/, filters/, visibility/, leaders/, reach/, row-icons/, settings/
 │                                   # shipped declarative content
 ├── config/                         # raw $:/config/... tiddlers (engine-facing)
 ├── diagnostics/                    # entries that drill into loaded-* lists

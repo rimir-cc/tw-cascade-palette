@@ -52,8 +52,8 @@ var cpAxes = require("$:/plugins/rimir/cascade-palette/widgets/cp-axes");
 var utils = require("$:/plugins/rimir/cascade-palette/widgets/cp-utils");
 var pillstrip = require("$:/plugins/rimir/cascade-palette/widgets/cp-pillstrip");
 var VIEW_TAG = C.VIEW_TAG;
-var STRUCTURE_LAYER_TAG = C.STRUCTURE_LAYER_TAG;
 var ENTRY_TAG = C.ENTRY_TAG;
+var channelField = utils.channelField;
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 
 // Title for the synthetic entries layer surfaced in the Structure pill
@@ -61,7 +61,7 @@ var DEFAULT_ORDER = C.DEFAULT_ORDER;
 // in this module. A read-only descriptor tiddler with the same title is
 // shipped so authors can click through and see what the layer does.
 var BUILTIN_ENTRIES_LAYER_TITLE =
-    "$:/plugins/rimir/cascade-palette/structure-layers/entries";
+    "$:/plugins/rimir/cascade-palette/channels/entries";
 
 // Parse a ca-position-<slug> / ca-position field value into a list of
 // effective positions. Three accepted shapes:
@@ -176,12 +176,26 @@ function setup(proto) {
             // the visual cue.
             contextAware:
                 (f["ca-view-context-aware"] || "").toLowerCase() === "yes",
+            // Per-slot DEFAULT lens for the view (the relocated global lens
+            // strip). Each is a lens tiddler title or "" (slot off by default).
+            // Channels inherit these unless they override or the slot is locked.
+            lens: {
+                name: f["ca-view-lens-name"] || "",
+                icon: f["ca-view-lens-icon"] || "",
+                annotation: f["ca-view-lens-annotation"] || ""
+            },
+            // Space-separated slot list the view LOCKS: a locked slot forces the
+            // view's default lens onto every channel (channel overrides ignored).
+            lockedSlots: $tw.utils.parseStringArray(f["ca-view-locked"] || "") || [],
             order: order,
             layers: []
         };
-        // Layers: explicit via ca-view-layers, or implicit single-layer
-        // adapted from the view's own structure fields.
-        var explicit = (f["ca-view-layers"] || "").trim();
+        // Channels: explicit via ca-view-channels (dual-read of legacy
+        // ca-view-layers), or implicit single channel adapted from the
+        // view's own structure fields.
+        var explicitRaw = f["ca-view-channels"] !== undefined
+            ? f["ca-view-channels"] : f["ca-view-layers"];
+        var explicit = (explicitRaw || "").trim();
         if (explicit) {
             var layerTitles = explicit.split(/\s+/).filter(function (s) { return s; });
             for (var i = 0; i < layerTitles.length; i++) {
@@ -203,7 +217,52 @@ function setup(proto) {
         }
         // Convenience flag — any layer declares children ⇒ view is tree-shaped.
         view.isTree = view.layers.some(function (l) { return !!l.children; });
+        // Bake the effective per-slot lens onto each channel (resolve-at-parse).
+        this._applyLensInheritance(view);
         return view;
+    };
+
+    // Resolve-at-parse: stamp `channel.effectiveLens[slot]` (the lens title
+    // that actually projects this channel's rows for the slot) + provenance
+    // `channel._lensFrom[slot]` ("view" | "channel" | "off"), and the view's
+    // locked-slot set. Per slot:
+    //   locked        → view default lens (channel override ignored)
+    //   channel own   → the channel's own lens
+    //   view default  → inherited from the view
+    //   else          → off (slot empty)
+    // The built-in entries channel is exempt — commands aren't data-decorated.
+    // Baking once per view-load keeps the per-keystroke resolution path flat.
+    proto._applyLensInheritance = function (view) {
+        var SLOTS = C.LENS_SLOTS;
+        var locked = Object.create(null);
+        (view.lockedSlots || []).forEach(function (s) { locked[s] = true; });
+        view._lockedSlots = locked;
+        view.layers.forEach(function (ch) {
+            ch.effectiveLens = {};
+            ch._lensFrom = {};
+            SLOTS.forEach(function (slot) {
+                if (ch.isBuiltIn) {
+                    ch.effectiveLens[slot] = "";
+                    ch._lensFrom[slot] = "off";
+                    return;
+                }
+                var viewLens = (view.lens && view.lens[slot]) || "";
+                var ownLens = (ch.lensOwn && ch.lensOwn[slot]) || "";
+                if (locked[slot]) {
+                    ch.effectiveLens[slot] = viewLens;
+                    ch._lensFrom[slot] = viewLens ? "view" : "off";
+                } else if (ownLens) {
+                    ch.effectiveLens[slot] = ownLens;
+                    ch._lensFrom[slot] = "channel";
+                } else if (viewLens) {
+                    ch.effectiveLens[slot] = viewLens;
+                    ch._lensFrom[slot] = "view";
+                } else {
+                    ch.effectiveLens[slot] = "";
+                    ch._lensFrom[slot] = "off";
+                }
+            });
+        });
     };
 
     // Wrap a view's own structure fields into a single implicit layer.
@@ -225,7 +284,9 @@ function setup(proto) {
             source: "filter",
             isImplicit: true,
             isBuiltIn: false,
-            name: f["ca-view-layer-name"] || view.name || "",
+            name: (f["ca-view-channel-name"] !== undefined
+                ? f["ca-view-channel-name"] : f["ca-view-layer-name"])
+                || view.name || "",
             roots: rootsFilter,
             children: f["ca-view-children"] || "",
             leaf: f["ca-view-leaf"] || "",
@@ -241,7 +302,10 @@ function setup(proto) {
             rowEntityType: f["ca-view-row-entity-type"] || "",
             rowNextScope: f["ca-view-row-next-scope"] || "",
             rowItemsFrom: f["ca-view-row-items-from"] || "",
-            includePosition: true
+            includePosition: true,
+            // Implicit channel == the view itself, so it has no own override:
+            // it inherits the view's default lens per slot.
+            lensOwn: { name: "", icon: "", annotation: "" }
         };
     };
 
@@ -250,7 +314,7 @@ function setup(proto) {
         if (!t) {
             if (console && console.warn) {
                 console.warn(
-                    "[cascade-palette] structure-layer not found:", title
+                    "[cascade-palette] channel not found:", title
                 );
             }
             return null;
@@ -260,30 +324,38 @@ function setup(proto) {
         // (roots/children/leaf below). Non-"filter" sources (e.g. "entries")
         // are JS-backed producers dispatched in _evaluateLayer; they are
         // treated as built-in (non-editable structure) for now.
-        var source = (f["ca-layer-source"] || "filter").toLowerCase();
+        var source = (channelField(f, "source") || "filter").toLowerCase();
         return {
             title: title,
             source: source,
             isImplicit: false,
             isBuiltIn: source !== "filter",
-            name: f["ca-layer-name"] || title.split("/").pop(),
-            roots: f["ca-layer-roots"] || "",
-            children: f["ca-layer-children"] || "",
-            leaf: f["ca-layer-leaf"] || "",
-            label: f["ca-layer-label"] || "",
-            axes: f["ca-layer-axes"] || "",
-            rowName: f["ca-layer-row-name"] || "",
-            rowHint: f["ca-layer-row-hint"] || "",
-            rowIcon: f["ca-layer-row-icon"] || "",
-            rowKind: f["ca-layer-row-kind"] || "",
-            rowGroup: f["ca-layer-row-group"] || "",
-            rowOrder: f["ca-layer-row-order"] || "",
-            rowActions: f["ca-layer-row-actions"] || "",
-            rowEntityType: f["ca-layer-row-entity-type"] || "",
-            rowNextScope: f["ca-layer-row-next-scope"] || "",
-            rowItemsFrom: f["ca-layer-row-items-from"] || "",
+            name: channelField(f, "name") || title.split("/").pop(),
+            roots: channelField(f, "roots") || "",
+            children: channelField(f, "children") || "",
+            leaf: channelField(f, "leaf") || "",
+            label: channelField(f, "label") || "",
+            axes: channelField(f, "axes") || "",
+            rowName: channelField(f, "row-name") || "",
+            rowHint: channelField(f, "row-hint") || "",
+            rowIcon: channelField(f, "row-icon") || "",
+            rowKind: channelField(f, "row-kind") || "",
+            rowGroup: channelField(f, "row-group") || "",
+            rowOrder: channelField(f, "row-order") || "",
+            rowActions: channelField(f, "row-actions") || "",
+            rowEntityType: channelField(f, "row-entity-type") || "",
+            rowNextScope: channelField(f, "row-next-scope") || "",
+            rowItemsFrom: channelField(f, "row-items-from") || "",
             includePosition:
-                (f["ca-layer-include-position"] || "yes").toLowerCase() !== "no"
+                (channelField(f, "include-position") || "yes").toLowerCase() !== "no",
+            // Per-channel lens OVERRIDE per slot (own lens title or "" = inherit
+            // the view default). _applyLensInheritance resolves the effective
+            // lens from these + the view defaults + lock state.
+            lensOwn: {
+                name: channelField(f, "lens-name") || "",
+                icon: channelField(f, "lens-icon") || "",
+                annotation: channelField(f, "lens-annotation") || ""
+            }
         };
     };
 
@@ -293,11 +365,11 @@ function setup(proto) {
     // dispatch hint. Filter strings here are illustrative (shown in the
     // Structure pill row); they aren't evaluated directly.
     proto._builtInEntriesLayer = function () {
-        // The shipped structure-layers/entries tiddler (ca-layer-source:
-        // entries) is the single source of truth. Load it through the
-        // normal layer path so descriptor and discoverable tiddler can't
-        // drift; the JS-backed descent (_evaluateEntriesLayer) is selected
-        // by source === "entries" in _evaluateLayer.
+        // The shipped channels/entries tiddler (ca-channel-source: entries)
+        // is the single source of truth. Load it through the normal channel
+        // path so descriptor and discoverable tiddler can't drift; the
+        // JS-backed descent (_evaluateEntriesLayer) is selected by
+        // source === "entries" in _evaluateLayer.
         var loaded = this._loadLayer(BUILTIN_ENTRIES_LAYER_TITLE);
         if (loaded) return loaded;
         // Fallback if the tiddler is missing (defensive — keeps entries
@@ -1280,8 +1352,25 @@ function setup(proto) {
             "layer-ref": "This shared layer, composed into the view by " +
                 "reference. Shift-↑/↓ reorders it among the view's layers; " +
                 "DEL removes it from the view (the layer itself is not " +
-                "deleted). Edit its filters via the pills to the right."
+                "deleted). Edit its filters via the pills to the right.",
+            "lens-slot": "Decoration lens for this slot. On the VIEW row it " +
+                "sets the view's default lens (inherited by every channel); on " +
+                "a CHANNEL row it overrides just that channel. ↵/Space cycles " +
+                "the available lenses (and off / inherit); DEL clears. On a " +
+                "VIEW slot, `l` toggles the lock — a locked slot forces the " +
+                "view lens onto all channels. Create new lenses via Manage lenses."
         };
+        if (pill && pill.kind === "lens-slot") {
+            var lensHelp = H["lens-slot"];
+            if (pill._scope === "channel" && pill._locked) {
+                return "Locked by the view — this channel can't override the " +
+                    pill.label + " lens.\n\n" + lensHelp;
+            }
+            if (pill._scope === "channel" && pill._lensFrom === "view") {
+                return "Inherited from the view default.\n\n" + lensHelp;
+            }
+            return lensHelp;
+        }
         // Editable facet pills: append the gesture hint so the user knows
         // Enter edits and DEL clears. Filter/text facets edit raw; enum/
         // toggle facets cycle/flip on Enter or Space.
@@ -1326,11 +1415,64 @@ function setup(proto) {
         // Editable facets and scratchpad commit actions get marker classes
         // so the theme can hint that Enter does something here.
         if (pill._edit) el.classList.add("rcp-view-config-pill-editable");
+        if (pill.kind === "lens-slot") {
+            el.classList.add("rcp-view-config-pill-lens");
+            el.classList.add("rcp-view-config-pill-lens-" + pill._scope);
+            if (pill._locked) el.classList.add("rcp-view-config-pill-locked");
+            // A channel slot whose lens is inherited from the view (or off)
+            // renders dimmed — the value isn't authored on this channel.
+            if (pill._scope === "channel" && pill._lensFrom !== "channel") {
+                el.classList.add("rcp-view-config-pill-inherited");
+            }
+        }
         if (pill.kind === "scratch-commit") {
             el.classList.add("rcp-view-config-pill-commit");
             el.classList.add("rcp-view-config-pill-commit-" + pill.commitMode);
         }
         return el;
+    };
+
+    // Lens-slot chooser pills for the view→channel tree (Phase C). With
+    // `layer` null → the VIEW-default choosers (bound to ca-view-lens-<slot>),
+    // shown in the view header row. With `layer` set → that CHANNEL's override
+    // choosers (bound to ca-channel-lens-<slot>), shown in the channel row.
+    // Each pill is an enum facet (its `_edit` descriptor cycles among the
+    // projecting lenses + off), so it reuses the whole edit/scratchpad/commit
+    // pipeline. A locked slot shows the view lens with 🔒 and is non-editable;
+    // an inherited channel slot shows the view lens dimmed with "(inherit
+    // view)". The built-in entries channel gets none (commands aren't
+    // decorated).
+    proto._lensChooserPills = function (view, layer) {
+        if (!this._lensChipForTitle) return []; // lens subsystem absent
+        if (layer && layer.isBuiltIn) return [];
+        var self = this;
+        var locked = view._lockedSlots || {};
+        return C.LENS_SLOTS.map(function (slot) {
+            var isLocked = !!locked[slot];
+            if (!layer) {
+                // VIEW default chooser.
+                var vt = (view.lens && view.lens[slot]) || "";
+                return {
+                    kind: "lens-slot", _slot: slot, _scope: "view",
+                    _locked: isLocked, _lensTitle: vt,
+                    label: self._lensSlotLabel(slot),
+                    value: (isLocked ? "🔒 " : "") +
+                        self._lensChipForTitle(vt, slot)
+                };
+            }
+            // CHANNEL override chooser.
+            var eff = (layer.effectiveLens && layer.effectiveLens[slot]) || "";
+            var from = (layer._lensFrom && layer._lensFrom[slot]) || "off";
+            var suffix = "";
+            if (isLocked) suffix = " 🔒";
+            else if (from === "view") suffix = " (inherit view)";
+            return {
+                kind: "lens-slot", _slot: slot, _scope: "channel",
+                _locked: isLocked, _lensFrom: from, _lensTitle: eff,
+                label: self._lensSlotLabel(slot),
+                value: self._lensChipForTitle(eff, slot) + suffix
+            };
+        });
     };
 
     // View-scoped header pills: things that apply across all layers.
@@ -1342,6 +1484,11 @@ function setup(proto) {
         if (this._scratchCommitPills) {
             this._scratchCommitPills().forEach(function (p) { pills.push(p); });
         }
+        // VIEW-default lens choosers (Name / Icon / Note) — the relocated
+        // global lens strips, now editing the view's per-slot default. Lead
+        // the facet pills so the decoration controls are the first thing in
+        // the view row.
+        this._lensChooserPills(view, null).forEach(function (p) { pills.push(p); });
         // Sort policy when non-default.
         if (view.sort && view.sort !== "alphabetical") {
             var sortVal = view.sort;
@@ -1420,6 +1567,17 @@ function setup(proto) {
             pills.push({
                 kind: "layer-ref", label: "layer", value: layer.name || layer.title.split("/").pop(),
                 layerTitle: layer.title
+            });
+        }
+        // CHANNEL lens-override choosers (Name / Icon / Note) lead the
+        // channel's structural pills — they edit ca-channel-lens-<slot>, with
+        // an "(inherit view)" cue when the effective lens comes from the view
+        // default and 🔒 when the view locks the slot.
+        var activeView = this._getViewByTitle
+            ? this._getViewByTitle(this.activeView) : null;
+        if (activeView) {
+            this._lensChooserPills(activeView, layer).forEach(function (p) {
+                pills.push(p);
             });
         }
         if (layer.roots)         pills.push({ kind: "roots",        label: "roots",    value: layer.roots });

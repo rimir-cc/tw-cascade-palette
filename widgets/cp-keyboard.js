@@ -19,8 +19,6 @@ context" semantics:
 \*/
 "use strict";
 
-var LENS_SLOTS = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants").LENS_SLOTS;
-
 // Section-level dispatch table — `(focus) → handler-method-name`. Maps
 // every value `this.focus` can hold (set by setFocus across modules)
 // to the per-section keydown handler. Hoisted out of the switch
@@ -40,11 +38,6 @@ var SECTION_HANDLERS = {
     "meta":       "_handleKeydownMeta",
     "field":      "_handleKeydownField",
     "view":       "_handleKeydownView",
-    // Per-slot lens selector strips (H4). Each is a single-select pill
-    // strip; one shared handler derives the slot from `this.focus`.
-    "lens-name":       "_handleKeydownLensSlot",
-    "lens-icon":       "_handleKeydownLensSlot",
-    "lens-annotation": "_handleKeydownLensSlot",
     "viewconfig": "_handleKeydownViewConfig",
     "leader":     "_handleKeydownLeader",
     "preset":     "_handleKeydownPreset",
@@ -96,10 +89,7 @@ function dispatchTableSnapshot() {
 // and close the palette.
 var ENTER_DELEGATE_FOCUSES = {
     "filter": 1, "visibility": 1, "view": 1, "preset": 1,
-    "reach": 1, "meta": 1, "field": 1, "viewconfig": 1,
-    // Lens slot choosers: Enter activates the focused lens pill (the
-    // section handler's onEnter) rather than firing the hidden menu row.
-    "lens-name": 1, "lens-icon": 1, "lens-annotation": 1
+    "reach": 1, "meta": 1, "field": 1, "viewconfig": 1
 };
 
 // True when bare Enter should fire the current selection for `focus`;
@@ -918,64 +908,6 @@ module.exports = function (proto) {
     proto._handleKeydownContext    = function (e) { this._handleKeydownPillStrip(e, CONTEXT_KEY_DESC); };
     proto._handleKeydownVisibility = function (e) { this._handleKeydownPillStrip(e, VISIBILITY_KEY_DESC); };
     proto._handleKeydownView       = function (e) { this._handleKeydownPillStrip(e, VIEW_KEY_DESC); };
-    // Lens slot strip — single-select like the view strip, with a synthetic
-    // "off" entry at index 0 (clear the slot). One descriptor is built per
-    // slot on the fly; the shared handler reads the slot from `this.focus`
-    // ("lens-<slot>"). Indices: 0 = off, i≥1 → projectingLenses[i-1].
-    proto._lensKeyDesc = function (slot) {
-        var self = this;
-        return {
-            getCount:    function () { return self._lensPillCount(slot); },
-            getFocusIdx: function () { return self._lensFocusIdxGet(slot); },
-            setFocusIdx: function (i) { self._lensFocusIdxSet(slot, i); },
-            render:      function () { self._renderLensStrip(slot); },
-            maybeHelp:   function () { self._maybeRenderLensHelp(slot); },
-            enterAcceptsSpace: true,
-            // Apply on ←/→ landing — but NOT the trailing "+ New…" sentinel,
-            // which must stay an explicit ↵/Space gesture (mirrors preset "+").
-            selectOnMove: function (i) {
-                var entry = self._lensStripEntries(slot)[i];
-                return !(entry && entry.isNew);
-            },
-            onEnter: function (i) {
-                var entry = self._lensStripEntries(slot)[i];
-                if (!entry) return;
-                if (entry.isNew) {
-                    if (self._newLensScratchpad) self._newLensScratchpad(slot);
-                    return;
-                }
-                // index 0 is the synthetic "off" entry (empty title → clear).
-                self._setSlotLens(slot, entry.title || "");
-                // Stay on the strip so ←/→ keeps comparing lenses.
-                self.setFocus("lens-" + slot);
-            }
-            // No onDelete: DEL is intercepted in _handleKeydownLensSlot to
-            // delete the focused lens (with confirm). "Turn the slot off" is
-            // the ← (off) / (default) head pill at index 0.
-        };
-    };
-    proto._handleKeydownLensSlot = function (e) {
-        var slot = (this.focus || "").indexOf("lens-") === 0
-            ? this.focus.slice("lens-".length) : "name";
-        var entries = this._lensStripEntries(slot);
-        var entry = entries[this._lensFocusIdxGet(slot)];
-        var realLens = entry && !entry.isNew && entry.title;
-        // 'e' → edit the focused real lens (clone → live filter edit).
-        if (realLens && (e.key === "e" || e.key === "E") && !e.ctrlKey && !e.altKey && !e.metaKey) {
-            e.preventDefault();
-            if (this._beginLensEdit) this._beginLensEdit(entry.title, slot);
-            return;
-        }
-        // DEL / Backspace → delete the focused lens, via the standard
-        // confirmation stage (only on a real lens — not the off head or the
-        // + New sentinel; those fall through to the shared handler / no-op).
-        if (realLens && (e.key === "Delete" || e.key === "Backspace")) {
-            e.preventDefault();
-            if (this._confirmDeleteLens) this._confirmDeleteLens(entry.title, slot);
-            return;
-        }
-        this._handleKeydownPillStrip(e, this._lensKeyDesc(slot));
-    };
     proto._handleKeydownPreset     = function (e) { this._handleKeydownPillStrip(e, PRESET_KEY_DESC); };
     proto._handleKeydownLeader     = function (e) { this._handleKeydownPillStrip(e, LEADER_KEY_DESC); };
     proto._handleKeydownReach      = function (e) { this._handleKeydownPillStrip(e, REACH_KEY_DESC); };
@@ -1023,7 +955,6 @@ module.exports = function (proto) {
         return f === "preset" || f === "visibility" ||
                f === "reach" || f === "meta" || f === "field" ||
                f === "filter" || f === "view" ||
-               (typeof f === "string" && f.indexOf("lens-") === 0) ||
                f === "viewconfig" || f === "leader";
     };
 
@@ -1178,6 +1109,17 @@ module.exports = function (proto) {
                 return;
             }
         }
+        // Lens-slot chooser: `l` on a VIEW slot toggles the lock (forces the
+        // view's default lens onto every channel for that slot). The Enter/
+        // Space (cycle) + DEL (clear) gestures fall through to the generic
+        // _edit handling below (the pill is an enum facet).
+        if (focusedPill && focusedPill.kind === "lens-slot" &&
+            focusedPill._scope === "view" &&
+            (e.key === "l" || e.key === "L")) {
+            e.preventDefault();
+            if (this._toggleSlotLock) this._toggleSlotLock(focusedPill._slot);
+            return;
+        }
         // Editable structural facets (cp-view-editor). Enter edits (filter/
         // text → edit mode with live match-count; enum/toggle → cycle/flip).
         // Space also cycles/flips enum/toggle. DEL clears the field. Editing
@@ -1249,21 +1191,8 @@ module.exports = function (proto) {
         if (this.fieldPills && this.fieldPills.length) order.push("field");
         if (this.filters && this.filters.length) order.push("filter");
         if (this._visibleViews().length >= 2) order.push("view");
-        // Row-label sits directly after the view strip in the DOM; same
-        // position in the Tab cycle. Joins the cycle whenever any
-        // row-label pill is registered (count is +1 for the synthetic
-        // "(none)" entry, so a true 0 means no pills registered at all).
-        // Lens slot strips (name / icon / annotation) sit directly below
-        // the view strip — one chooser per decoration slot. Each joins the
-        // cycle only when at least one lens projects that slot (count > 0),
-        // so the annotation strip stays absent until an annotation lens
-        // exists. Order matches LENS_SLOTS / the DOM stacking.
-        if (this._lensPillCount) {
-            var self = this;
-            LENS_SLOTS.forEach(function (slot) {
-                if (self._lensPillCount(slot) > 0) order.push("lens-" + slot);
-            });
-        }
+        // (Lens choosers no longer have standalone strips — they live in the
+        // Structure strip's view→channel tree, navigated as viewconfig pills.)
         // Structure (viewconfig) sits below view in the visual stack and
         // is conceptually "more detail about the active view" — place it
         // last in the pill cycle so Tab walks through configuration top-

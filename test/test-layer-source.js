@@ -24,7 +24,7 @@ describe("cascade-palette: ca-layer-source (H1)", function () {
     var VIEW_TAG = C.VIEW_TAG;
     var ENTRY_TAG = C.ENTRY_TAG;
     var ENTRIES_LAYER =
-        "$:/plugins/rimir/cascade-palette/structure-layers/entries";
+        "$:/plugins/rimir/cascade-palette/channels/entries";
 
     // A proto carrying the real cp-views methods over a fresh wiki.
     function makeWidget(tiddlers) {

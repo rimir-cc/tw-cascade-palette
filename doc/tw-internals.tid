@@ -43,7 +43,7 @@ The widget centralises this through ''`proto.makeFakeWidget(variables)`'' (`cp-a
 ```js
 proto.makeFakeWidget = function (variables) {
     // Delegates to TW core's Widget.prototype.makeFakeWidgetWithVariables —
-    // it layers `variables` on top of this widget's parent chain (so both
+    // it channels `variables` on top of this widget's parent chain (so both
     // injected literals AND $:/tags/Macro-tagged \function defs imported by
     // the startup \import resolve correctly), AND propagates
     // makeFakeWidgetWithVariables onto the returned fake widget so nested

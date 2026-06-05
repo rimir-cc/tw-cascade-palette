@@ -1,0 +1,8 @@
+title: $:/plugins/rimir/cascade-palette/channels/tag-tree
+tags: $:/tags/rimir/cascade-palette/channel
+ca-channel-name: Tag tree
+ca-channel-roots: [tag[TableOfContents]]
+ca-channel-children: [tag<currentTiddler>]
+ca-channel-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+ca-channel-row-entity-type: [[tag-tree-node]]
+type: text/vnd.tiddlywiki

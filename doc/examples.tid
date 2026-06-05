@@ -125,21 +125,21 @@ The plugin's own ''By date'' view is the same shape with a slightly different or
 ''By parent, sliced by year'' — TOC-tagged tiddlers grouped by their creation year, with each TOC then expanding its tag-subtree under the matching year:
 
 ```
-title: $:/plugins/example/structure-layers/by-parent-by-year
-tags: $:/tags/rimir/cascade-palette/structure-layer
-ca-layer-name: By parent (by year)
-ca-layer-roots: [tag[TableOfContents]]
-ca-layer-children: [tag<currentTiddler>]
-ca-layer-axes: $:/plugins/rimir/cascade-palette/axes/by-year-created
-ca-layer-row-actions: <$action-navigate $to=<<currentTiddler>>/>
-ca-layer-row-entity-type: [[tag-tree-node]]
+title: $:/plugins/example/channels/by-parent-by-year
+tags: $:/tags/rimir/cascade-palette/channel
+ca-channel-name: By parent (by year)
+ca-channel-roots: [tag[TableOfContents]]
+ca-channel-children: [tag<currentTiddler>]
+ca-channel-axes: $:/plugins/rimir/cascade-palette/axes/by-year-created
+ca-channel-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+ca-channel-row-entity-type: [[tag-tree-node]]
 ```
 
 ```
 title: $:/plugins/example/views/by-parent-yearly
 tags: $:/tags/rimir/cascade-palette/view
 ca-view-name: By parent (yearly)
-ca-view-layers: $:/plugins/example/structure-layers/by-parent-by-year
+ca-view-channels: $:/plugins/example/channels/by-parent-by-year
 ca-view-sort: alphabetical
 ca-view-containers-first: yes
 ca-view-show-count: yes
@@ -148,19 +148,19 @@ ca-order: 700
 
 Descent: root shows year buckets containing TOC tiddlers. Drill ''2026'' → TOC tiddlers created in 2026. Drill any TOC → its `tag<currentTiddler>` subtree, recursive — axes are exhausted; from here on it's standard ''By parent''.
 
-Watch out: ''cross-bucket children.'' Inside the 2026 subtree, a child tiddler tagged with one of the 2026 TOCs may itself have been created in 2025 — the year bucketing only applies at the transition, not all the way down. Almost always what you want for tag-trees. If you need date-coherent descent, intersect a date predicate into `ca-layer-children` (e.g. `[tag<currentTiddler>get[created]format:date[YYYY]match<stage-1-picked>]`).
+Watch out: ''cross-bucket children.'' Inside the 2026 subtree, a child tiddler tagged with one of the 2026 TOCs may itself have been created in 2025 — the year bucketing only applies at the transition, not all the way down. Almost always what you want for tag-trees. If you need date-coherent descent, intersect a date predicate into `ca-channel-children` (e.g. `[tag<currentTiddler>get[created]format:date[YYYY]match<stage-1-picked>]`).
 
 ! 10. Group by an arbitrary field — parametric `by-field`
 
 The shipped ''By field'' axis takes a `field` param at runtime. Add it via the picker → edit the state tiddler to fill in the field name:
 
 ```
-title: $:/state/rimir/cascade-palette/layer-axes/by-tasks
+title: $:/state/rimir/cascade-palette/channel-axes/by-tasks
 type: application/json
 {"axes":[{"title":"$:/plugins/rimir/cascade-palette/axes/by-field","params":{"field":"status"}}]}
 ```
 
-This activates a ''By status'' grouping on whichever layer has slug `by-tasks`. For task lists, that produces buckets like ''open'' / ''in-progress'' / ''done'' — one per distinct value of the `status` field.
+This activates a ''By status'' grouping on whichever channel has slug `by-tasks`. For task lists, that produces buckets like ''open'' / ''in-progress'' / ''done'' — one per distinct value of the `status` field.
 
 ! 11. Custom axis — first tag as bucket
 
@@ -174,7 +174,7 @@ ca-axis-sort: asc
 ca-axis-empty-label: untagged
 ```
 
-Drop this on any structure-layer's `ca-layer-axes` to bucket the layer's source by primary tag.
+Drop this on any channel's `ca-channel-axes` to bucket the channel's source by primary tag.
 
 ! 12. Custom axis — namespace prefix (first /-segment)
 

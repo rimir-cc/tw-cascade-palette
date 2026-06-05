@@ -16,11 +16,11 @@ tiddler), self-healing to the default view when unset.
 describe("cascade-palette: view field editor (Phase 4)", function () {
 
     var editOp = require("$:/plugins/rimir/cascade-palette/widgets/cp-view-edit-rows.js")["cp-view-edit-rows"];
-    var layerOp = require("$:/plugins/rimir/cascade-palette/widgets/cp-layer-edit-rows.js")["cp-layer-edit-rows"];
+    var layerOp = require("$:/plugins/rimir/cascade-palette/widgets/cp-channel-edit-rows.js")["cp-channel-edit-rows"];
     var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
     var VIEW_TAG = C.VIEW_TAG;
     var LAYER_TAG = C.STRUCTURE_LAYER_TAG;
-    var BUILTIN_ENTRIES = "$:/plugins/rimir/cascade-palette/structure-layers/entries";
+    var BUILTIN_ENTRIES = "$:/plugins/rimir/cascade-palette/channels/entries";
 
     function wikiWith(fieldsList, shippedTitle) {
         var wiki = new $tw.Wiki();
@@ -122,30 +122,42 @@ describe("cascade-palette: view field editor (Phase 4)", function () {
         });
     });
 
-    describe("explicit-layer view → layer drill rows", function () {
+    describe("explicit-channel view → channel drill rows", function () {
         var VT = "$:/plugins/rimir/cascade-palette/views/v";
-        var L1 = "$:/plugins/rimir/cascade-palette/structure-layers/tree";
+        var L1 = "$:/plugins/rimir/cascade-palette/channels/tree";
 
         function rows() {
             return run(VT, wikiWith([
-                viewFields(VT, { "ca-view-layers": BUILTIN_ENTRIES + " " + L1 }),
-                { title: L1, tags: [LAYER_TAG], type: "text/vnd.tiddlywiki",
-                  "ca-layer-name": "Tree", "ca-layer-roots": "[!is[system]]" }
+                viewFields(VT, { "ca-view-channels": BUILTIN_ENTRIES + " " + L1 }),
+                { title: L1, tags: [C.CHANNEL_TAG], type: "text/vnd.tiddlywiki",
+                  "ca-channel-name": "Tree", "ca-channel-roots": "[!is[system]]" }
             ]));
         }
 
-        it("drills each explicit layer into cp-layer-edit-rows, skipping the built-in entries layer", function () {
+        it("drills each explicit channel into cp-channel-edit-rows, skipping the built-in entries channel", function () {
             var r = rows();
-            var layerRows = r.filter(function (x) { return x["ca-group"] === "layers"; });
-            expect(layerRows.length).toBe(1); // entries layer excluded
+            var layerRows = r.filter(function (x) { return x["ca-group"] === "channels"; });
+            expect(layerRows.length).toBe(1); // entries channel excluded
             expect(layerRows[0]["ca-kind"]).toBe("drill");
-            expect(layerRows[0]["ca-items-from"]).toBe("[cp-layer-edit-rows[" + L1 + "]]");
+            expect(layerRows[0]["ca-items-from"]).toBe("[cp-channel-edit-rows[" + L1 + "]]");
             expect(layerRows[0]["ca-name"]).toContain("Tree");
+        });
+
+        it("dual-reads a legacy ca-view-layers + ca-layer-* channel for the drill", function () {
+            var r = run(VT, wikiWith([
+                viewFields(VT, { "ca-view-layers": BUILTIN_ENTRIES + " " + L1 }),
+                { title: L1, tags: [LAYER_TAG], type: "text/vnd.tiddlywiki",
+                  "ca-layer-name": "Legacy", "ca-layer-roots": "[!is[system]]" }
+            ]));
+            var layerRows = r.filter(function (x) { return x["ca-group"] === "channels"; });
+            expect(layerRows.length).toBe(1);
+            expect(layerRows[0]["ca-items-from"]).toBe("[cp-channel-edit-rows[" + L1 + "]]");
+            expect(layerRows[0]["ca-name"]).toContain("Legacy");
         });
     });
 
-    describe("cp-layer-edit-rows", function () {
-        var LT = "$:/plugins/rimir/cascade-palette/structure-layers/mine";
+    describe("cp-channel-edit-rows", function () {
+        var LT = "$:/plugins/rimir/cascade-palette/channels/mine";
         function layerRows(operand, wiki) {
             return layerOp(null, { operand: operand }, { wiki: wiki }).map(function (s) { return JSON.parse(s); });
         }
@@ -153,30 +165,30 @@ describe("cascade-palette: view field editor (Phase 4)", function () {
             return rows.filter(function (r) { return r["ca-bind-field"] === field; })[0];
         }
 
-        it("emits identity / producer / row-default facets for a USER layer, bound in place", function () {
-            var wiki = wikiWith([{ title: LT, tags: [LAYER_TAG], type: "text/vnd.tiddlywiki", "ca-layer-name": "L" }]);
+        it("emits identity / producer / row-default facets for a USER channel, bound in place", function () {
+            var wiki = wikiWith([{ title: LT, tags: [C.CHANNEL_TAG], type: "text/vnd.tiddlywiki", "ca-channel-name": "L" }]);
             var r = layerRows(LT, wiki);
-            ["ca-layer-name", "ca-layer-source", "ca-layer-row-hint", "ca-layer-row-icon",
-             "ca-layer-row-order", "ca-layer-row-next-scope", "ca-layer-row-items-from"]
+            ["ca-channel-name", "ca-channel-source", "ca-channel-row-hint", "ca-channel-row-icon",
+             "ca-channel-row-order", "ca-channel-row-next-scope", "ca-channel-row-items-from"]
                 .forEach(function (fld) {
                     expect(lbind(r, fld)).toBeDefined();
                     expect(lbind(r, fld)["ca-bind-tiddler"]).toBe(LT);
                 });
-            expect(lbind(r, "ca-layer-include-position")["ca-kind"]).toBe("toggle");
+            expect(lbind(r, "ca-channel-include-position")["ca-kind"]).toBe("toggle");
         });
 
-        it("does NOT repeat Structure-strip layer facets (roots/children/leaf/label/axes/row-name/...)", function () {
-            var wiki = wikiWith([{ title: LT, tags: [LAYER_TAG], type: "text/vnd.tiddlywiki", "ca-layer-name": "L" }]);
+        it("does NOT repeat Structure-strip channel facets (roots/children/leaf/label/axes/row-name/...)", function () {
+            var wiki = wikiWith([{ title: LT, tags: [C.CHANNEL_TAG], type: "text/vnd.tiddlywiki", "ca-channel-name": "L" }]);
             var r = layerRows(LT, wiki);
-            ["ca-layer-roots", "ca-layer-children", "ca-layer-leaf", "ca-layer-label",
-             "ca-layer-axes", "ca-layer-row-name", "ca-layer-row-group", "ca-layer-row-kind",
-             "ca-layer-row-actions", "ca-layer-row-entity-type"]
+            ["ca-channel-roots", "ca-channel-children", "ca-channel-leaf", "ca-channel-label",
+             "ca-channel-axes", "ca-channel-row-name", "ca-channel-row-group", "ca-channel-row-kind",
+             "ca-channel-row-actions", "ca-channel-row-entity-type"]
                 .forEach(function (fld) { expect(lbind(r, fld)).toBeUndefined(); });
         });
 
-        it("is read-only for a SHIPPED layer (summary + Structure-strip hint, no bind rows)", function () {
-            var wiki = wikiWith([{ title: LT, tags: [LAYER_TAG], type: "text/vnd.tiddlywiki",
-                "ca-layer-name": "L", "ca-layer-roots": "[tag[x]]" }], LT);
+        it("is read-only for a SHIPPED channel (summary + Structure-strip hint, no bind rows)", function () {
+            var wiki = wikiWith([{ title: LT, tags: [C.CHANNEL_TAG], type: "text/vnd.tiddlywiki",
+                "ca-channel-name": "L", "ca-channel-roots": "[tag[x]]" }], LT);
             var r = layerRows(LT, wiki);
             expect(r.filter(function (x) { return x["ca-bind-field"]; }).length).toBe(0);
             expect(r.filter(function (x) { return /Structure strip/.test(x["ca-name"]); }).length).toBe(1);

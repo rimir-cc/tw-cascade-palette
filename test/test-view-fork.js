@@ -19,13 +19,15 @@ describe("cascade-palette: cp-view-editor deep fork", function () {
 
     var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
     var VIEW_TAG = C.VIEW_TAG;
-    var LAYER_TAG = C.STRUCTURE_LAYER_TAG;
+    var LAYER_TAG = C.STRUCTURE_LAYER_TAG; // legacy source channels (dual-read)
+    var CHANNEL_TAG = C.CHANNEL_TAG;
     var AXIS_TAG = C.AXIS_TAG;
     var VIEWS_NS = C.VIEWS_NS;
-    var LAYERS_NS = C.LAYERS_NS;
+    var LAYERS_NS = C.LAYERS_NS;     // legacy source-channel namespace
+    var CHANNELS_NS = C.CHANNELS_NS; // forked channels land here
     var AXES_NS = C.AXES_NS;
     var BUILTIN_ENTRIES =
-        "$:/plugins/rimir/cascade-palette/structure-layers/entries";
+        "$:/plugins/rimir/cascade-palette/channels/entries";
 
     function makeWidget(tiddlers) {
         var proto = {};
@@ -90,7 +92,7 @@ describe("cascade-palette: cp-view-editor deep fork", function () {
 
     // ---- explicit-layer view: layers + axes deep-copied -------------------
 
-    it("deep-copies referenced explicit layers into private LAYERS_NS copies, rewriting ca-view-layers", function () {
+    it("deep-copies referenced explicit channels into private CHANNELS_NS copies, rewriting ca-view-channels", function () {
         var w = makeWidget([
             { title: VIEWS_NS + "v", tags: [VIEW_TAG], type: "text/vnd.tiddlywiki",
               "ca-view-name": "V", "ca-view-layers": LAYERS_NS + "a " + LAYERS_NS + "b" },
@@ -100,22 +102,22 @@ describe("cascade-palette: cp-view-editor deep fork", function () {
               "ca-layer-name": "Beta", "ca-layer-roots": "[tag[B]]" }
         ]);
         var t = w._forkView(VIEWS_NS + "v");
-        var refs = w.wiki.getTiddler(t).fields["ca-view-layers"].split(" ");
+        var refs = w.wiki.getTiddler(t).fields["ca-view-channels"].split(" ");
         expect(refs.length).toBe(2);
-        // New layer titles, distinct from the originals, under LAYERS_NS.
+        // New channel titles, distinct from the originals, under CHANNELS_NS.
         refs.forEach(function (r) {
-            expect(r.indexOf(LAYERS_NS)).toBe(0);
+            expect(r.indexOf(CHANNELS_NS)).toBe(0);
             expect(r).not.toBe(LAYERS_NS + "a");
             expect(r).not.toBe(LAYERS_NS + "b");
         });
-        // Field contents carried over; names suffixed (copy).
+        // Field contents carried over (normalized to ca-channel-*); names suffixed.
         var fa = w.wiki.getTiddler(refs[0]).fields;
-        expect(fa["ca-layer-roots"]).toBe("[tag[A]]");
-        expect(fa["ca-layer-name"]).toBe("Alpha (copy)");
-        expect((fa.tags || []).indexOf(LAYER_TAG)).toBeGreaterThan(-1);
+        expect(fa["ca-channel-roots"]).toBe("[tag[A]]");
+        expect(fa["ca-channel-name"]).toBe("Alpha (copy)");
+        expect((fa.tags || []).indexOf(CHANNEL_TAG)).toBeGreaterThan(-1);
     });
 
-    it("deep-copies a layer's axis chain (ca-layer-axes) into private AXES_NS copies", function () {
+    it("deep-copies a channel's axis chain (ca-channel-axes) into private AXES_NS copies", function () {
         var w = makeWidget([
             { title: VIEWS_NS + "v", tags: [VIEW_TAG], type: "text/vnd.tiddlywiki",
               "ca-view-name": "V", "ca-view-layers": LAYERS_NS + "tree" },
@@ -127,8 +129,8 @@ describe("cascade-palette: cp-view-editor deep fork", function () {
               "ca-axis-sort": "desc" }
         ]);
         var t = w._forkView(VIEWS_NS + "v");
-        var layerRef = w.wiki.getTiddler(t).fields["ca-view-layers"];
-        var axisRef = w.wiki.getTiddler(layerRef).fields["ca-layer-axes"];
+        var layerRef = w.wiki.getTiddler(t).fields["ca-view-channels"];
+        var axisRef = w.wiki.getTiddler(layerRef).fields["ca-channel-axes"];
         expect(axisRef.indexOf(AXES_NS)).toBe(0);
         expect(axisRef).not.toBe(AXES_NS + "year");
         var af = w.wiki.getTiddler(axisRef).fields;
@@ -175,7 +177,7 @@ describe("cascade-palette: cp-view-editor deep fork", function () {
         expect(parsed[0].title).not.toBe(AXES_NS + "field");
     });
 
-    it("references the built-in entries layer verbatim — never copies it", function () {
+    it("references the built-in entries channel verbatim — never copies it", function () {
         var w = makeWidget([
             { title: VIEWS_NS + "v", tags: [VIEW_TAG], type: "text/vnd.tiddlywiki",
               "ca-view-name": "V", "ca-view-layers": BUILTIN_ENTRIES + " " + LAYERS_NS + "real" },
@@ -183,18 +185,18 @@ describe("cascade-palette: cp-view-editor deep fork", function () {
               "ca-layer-name": "Real", "ca-layer-roots": "[tag[R]]" }
         ]);
         var t = w._forkView(VIEWS_NS + "v");
-        var refs = w.wiki.getTiddler(t).fields["ca-view-layers"].split(" ");
+        var refs = w.wiki.getTiddler(t).fields["ca-view-channels"].split(" ");
         expect(refs[0]).toBe(BUILTIN_ENTRIES);          // kept verbatim
-        expect(refs[1]).not.toBe(LAYERS_NS + "real");    // real layer copied
+        expect(refs[1]).not.toBe(LAYERS_NS + "real");    // real channel copied
     });
 
-    it("keeps an unresolvable layer reference verbatim", function () {
+    it("keeps an unresolvable channel reference verbatim", function () {
         var w = makeWidget([
             { title: VIEWS_NS + "v", tags: [VIEW_TAG], type: "text/vnd.tiddlywiki",
               "ca-view-name": "V", "ca-view-layers": LAYERS_NS + "ghost" }
         ]);
         var t = w._forkView(VIEWS_NS + "v");
-        expect(w.wiki.getTiddler(t).fields["ca-view-layers"]).toBe(LAYERS_NS + "ghost");
+        expect(w.wiki.getTiddler(t).fields["ca-view-channels"]).toBe(LAYERS_NS + "ghost");
     });
 
     // ---- isolation + collision --------------------------------------------

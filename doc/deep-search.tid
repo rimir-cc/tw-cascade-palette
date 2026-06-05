@@ -47,7 +47,7 @@ Pills tagged ''`$:/tags/rimir/cascade-palette/search-field`''. Each declares a `
 |!Pill |!`ca-tiddler-field` |!Source |
 |📄 Text |`text` |The backing tiddler's `text` field — the wikitext / content body. |
 
-Multiple Field pills can coexist; the matcher unions them. Synthetic rows (no backing tiddler) silently skip every Field pill. No Field pills active → the matcher skips the tiddler-field layer entirely (default keeps search fast).
+Multiple Field pills can coexist; the matcher unions them. Synthetic rows (no backing tiddler) silently skip every Field pill. No Field pills active → the matcher skips the tiddler-field channel entirely (default keeps search fast).
 
 ''Leader `a`'' pushes all six shipped search pills at once (five Meta + one Field) — equivalent to "match anywhere".
 

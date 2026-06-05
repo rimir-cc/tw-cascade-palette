@@ -33,9 +33,6 @@ describe("cascade-palette: keyboard dispatch table", function () {
             expect(keyboard.resolveSectionHandler("meta")).toBe("_handleKeydownMeta");
             expect(keyboard.resolveSectionHandler("field")).toBe("_handleKeydownField");
             expect(keyboard.resolveSectionHandler("view")).toBe("_handleKeydownView");
-            expect(keyboard.resolveSectionHandler("lens-name")).toBe("_handleKeydownLensSlot");
-            expect(keyboard.resolveSectionHandler("lens-icon")).toBe("_handleKeydownLensSlot");
-            expect(keyboard.resolveSectionHandler("lens-annotation")).toBe("_handleKeydownLensSlot");
             expect(keyboard.resolveSectionHandler("viewconfig")).toBe("_handleKeydownViewConfig");
             expect(keyboard.resolveSectionHandler("leader")).toBe("_handleKeydownLeader");
             expect(keyboard.resolveSectionHandler("preset")).toBe("_handleKeydownPreset");
@@ -79,8 +76,7 @@ describe("cascade-palette: keyboard dispatch table", function () {
         it("includes every key resolveSectionHandler accepts", function () {
             var snap = keyboard.dispatchTableSnapshot();
             ["input", "menu", "filter", "visibility", "reach", "meta", "field",
-             "view", "lens-name", "lens-icon", "lens-annotation",
-             "viewconfig", "leader", "preset", "details"
+             "view", "viewconfig", "leader", "preset", "details"
             ].forEach(function (focus) {
                 expect(snap[focus]).toBe(keyboard.resolveSectionHandler(focus));
             });
@@ -202,8 +198,7 @@ describe("cascade-palette: keyboard dispatch table", function () {
 
         it("delegates (does NOT fire) on the pill strips", function () {
             ["filter", "visibility", "view", "preset", "reach", "meta",
-             "field", "viewconfig",
-             "lens-name", "lens-icon", "lens-annotation"].forEach(function (focus) {
+             "field", "viewconfig"].forEach(function (focus) {
                 expect(keyboard.enterFiresSelection(focus)).toBe(false);
             });
         });
@@ -264,16 +259,11 @@ describe("cascade-palette: keyboard dispatch table", function () {
 
     describe("table contents", function () {
         it("covers exactly the dispatched sections", function () {
-            // NOTE: `preview` is a known PRE-EXISTING drift — the code added
-            // a `_handleKeydownPreview` dispatch entry but this expectation
-            // (and the two preview specs above) were never updated. Left
-            // intentionally failing on `preview` only; the lens-* sections
-            // below keep the rest accurate after the H4 lens-strip work.
             var keys = Object.keys(keyboard.dispatchTableSnapshot()).sort();
             expect(keys).toEqual([
                 "context", "details", "field", "filter", "input", "leader",
-                "lens-annotation", "lens-icon", "lens-name", "menu",
-                "meta", "preset", "reach", "view", "viewconfig", "visibility"
+                "menu", "meta", "preset", "reach", "view", "viewconfig",
+                "visibility"
             ]);
         });
 

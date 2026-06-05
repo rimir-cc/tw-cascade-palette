@@ -496,93 +496,9 @@ type: text/css
     vertical-align: middle;
 }
 
-/* Lens slot strips (H4) — one single-select chooser per row-decoration
-   slot (name / icon / annotation). Each sits below the view strip with a
-   cyan/teal accent and is hidden via `rcp-has-lens-<slot>` until a lens
-   projects that slot. A small non-interactive label at the head names the
-   slot the chooser controls. */
-.rcp-lens-strip {
-    display: none;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px;
-    padding: 5px 14px;
-    background: #f0fdfa;
-    border-bottom: 1px solid #e5e7eb;
-    outline: none;
-}
-
-.rcp-popup.rcp-has-lens-name .rcp-lens-strip-name,
-.rcp-popup.rcp-has-lens-icon .rcp-lens-strip-icon,
-.rcp-popup.rcp-has-lens-annotation .rcp-lens-strip-annotation {
-    display: flex;
-}
-
-.rcp-popup[data-focus="lens-name"] .rcp-lens-strip-name,
-.rcp-popup[data-focus="lens-icon"] .rcp-lens-strip-icon,
-.rcp-popup[data-focus="lens-annotation"] .rcp-lens-strip-annotation {
-    background: #ccfbf1;
-    box-shadow: inset 2px 0 0 0 #0d9488;
-}
-
-.rcp-lens-strip-label {
-    flex-shrink: 0;
-    font-size: 9px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #6b7280;
-    padding-right: 4px;
-    user-select: none;
-    pointer-events: none;
-}
-
-.rcp-lens-pill {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px 10px;
-    background: #f3f4f6;
-    color: #1f2937;
-    border-radius: 12px;
-    font-size: 11px;
-    line-height: 1.4;
-    cursor: pointer;
-    user-select: none;
-    white-space: nowrap;
-    border: 1px solid #e5e7eb;
-}
-
-.rcp-lens-pill:hover {
-    background: #e5e7eb;
-}
-
-.rcp-lens-pill-active {
-    background: #99f6e4;
-    color: #134e4a;
-    border-color: #0d9488;
-    font-weight: 600;
-}
-
-.rcp-lens-pill-focused {
-    background: #5eead4;
-    border-color: #0f766e;
-    color: #042f2e;
-    box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.35);
-}
-
-/* Trailing "+ New…" authoring pill — dashed, muted, set apart from the
-   selectable lens pills it follows. */
-.rcp-lens-pill-new {
-    background: transparent;
-    border-style: dashed;
-    border-color: #5eead4;
-    color: #0f766e;
-    font-weight: 600;
-}
-
-.rcp-lens-pill-new:hover {
-    background: #f0fdfa;
-}
+/* (The standalone lens slot strips were removed in 0.0.118 — the choosers
+   moved into the view→channel tree, styled as .rcp-view-config-pill-lens
+   below.) */
 
 /* View-config strip — read-only stacked layout depicting the active
    view's structure. The strip is a column of mini-rows, one per layer
@@ -686,6 +602,27 @@ type: text/css
 
 .rcp-view-config-row-builtin .rcp-view-config-row-label {
     color: #9ca3af;
+}
+
+/* Channel rows indent under the VIEW row so the view→channel tree reads as a
+   two-level hierarchy (the view header is the parent; each channel a child). */
+.rcp-view-config-row-layer {
+    padding-left: 14px;
+    border-left: 2px solid #e5e7eb;
+    margin-left: 4px;
+}
+
+/* Lens-slot choosers. An inherited (or off) channel slot is dimmed — its value
+   is not authored on the channel; a locked slot reads as fixed by the view. */
+.rcp-view-config-pill-lens .rcp-view-config-pill-label {
+    color: #7c3aed;
+}
+.rcp-view-config-pill-inherited {
+    opacity: 0.6;
+    font-style: italic;
+}
+.rcp-view-config-pill-locked {
+    border-style: dashed;
 }
 
 .rcp-view-config-pill {
@@ -977,39 +914,6 @@ type: text/css
         border-color: #fde68a;
         color: #fef3c7;
         box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.45);
-    }
-    .rcp-lens-strip {
-        background: #1c2624;
-        border-bottom-color: #374151;
-    }
-    .rcp-popup[data-focus="lens-name"] .rcp-lens-strip-name,
-    .rcp-popup[data-focus="lens-icon"] .rcp-lens-strip-icon,
-    .rcp-popup[data-focus="lens-annotation"] .rcp-lens-strip-annotation {
-        background: #134e4a;
-    }
-    .rcp-lens-pill {
-        background: #2a2f32;
-        color: #f3f4f6;
-        border-color: #134e4a;
-    }
-    .rcp-lens-pill:hover {
-        background: #374151;
-    }
-    .rcp-lens-pill-active {
-        background: #115e59;
-        color: #ccfbf1;
-        border-color: #5eead4;
-    }
-    .rcp-lens-pill-focused {
-        background: #0f766e;
-        border-color: #99f6e4;
-        color: #ccfbf1;
-        box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.45);
-    }
-    .rcp-lens-pill-new {
-        background: transparent;
-        border-color: #0f766e;
-        color: #5eead4;
     }
 }
 

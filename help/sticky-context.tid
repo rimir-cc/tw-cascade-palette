@@ -28,9 +28,9 @@ Two variables are bound in every filter eval routed through cp (0.0.97+):
 * ''`<<sticky-context-list>>`'' — the raw title-list string (TW parseStringArray format). Feed it into `[enlist<sticky-context-list>]` to iterate.
 * ''`<<sticky-context-count>>`'' — string-typed count ("0", "1", "5"…). For badge text and conditional UI.
 
-Ambient EVERYWHERE — `ca-view-roots`, `ca-layer-children`, `ca-view-row-icon`, `ca-view-sort-key`, `ca-view-row-actions`, `:filter` predicates inside any of those, etc. You don't have to thread the variable through layer parameters.
+Ambient EVERYWHERE — `ca-view-roots`, `ca-channel-children`, `ca-view-row-icon`, `ca-view-sort-key`, `ca-view-row-actions`, `:filter` predicates inside any of those, etc. You don't have to thread the variable through channel parameters.
 
-A view ''opts in'' to context-narrowing by referencing one of these in its layer filters AND declaring ''`ca-view-context-aware: yes`'' so the view pill paints a small indigo badge when context is non-empty. The flag is just a visual cue — the actual narrowing happens in your layer's filter expression.
+A view ''opts in'' to context-narrowing by referencing one of these in its channel filters AND declaring ''`ca-view-context-aware: yes`'' so the view pill paints a small indigo badge when context is non-empty. The flag is just a visual cue — the actual narrowing happens in your channel's filter expression.
 
 ! Multiselect views (toggle pattern)
 
@@ -53,7 +53,7 @@ ca-view-context-aware: yes
 ca-view-roots: [all[tiddlers]has[stakeholders]] :filter[<currentTiddler>get[stakeholders]enlist-input[] :intersection[enlist<sticky-context-list>]]
 ```
 
-This emits topics whose `stakeholders` field contains at least one pinned tiddler. Without `<<sticky-context-list>>` being referenced anywhere in the layer filters, the view simply lists all topics — opt-in is real.
+This emits topics whose `stakeholders` field contains at least one pinned tiddler. Without `<<sticky-context-list>>` being referenced anywhere in the channel filters, the view simply lists all topics — opt-in is real.
 
 ! Stale pins
 

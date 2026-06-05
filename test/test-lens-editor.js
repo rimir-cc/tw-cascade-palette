@@ -39,8 +39,6 @@ describe("cascade-palette: lens authoring (H4)", function () {
         w.topStage = function () { return null; };            // skip recompute path
         w.recomputeStage = function () {};
         w.renderStage = function () {};
-        w._renderLensStrip = function () {};
-        w._renderAllLensStrips = function () {};
         w.setFocus = function () {};
         w.hintEl = { textContent: "" };
         // Capture edit-mode invocations instead of opening the editor.
@@ -119,58 +117,6 @@ describe("cascade-palette: lens authoring (H4)", function () {
             expect(f["ca-lens-default"]).toBeUndefined();  // a fresh user lens isn't a default
             expect(w.wiki.tiddlerExists(scratch)).toBe(false); // scratch consumed
             expect(w._readActiveLensTitle("name")).toBe(newTitle);
-        });
-    });
-
-    describe("_beginLensEdit + _commitLensEdit", function () {
-
-        var USER_LENS = lens({
-            title: "$:/plugins/rimir/cascade-palette/lens/slug",
-            "ca-lens-name": "Slug",
-            "ca-lens-name-filter": "[<currentTiddler>split[/]last[]]"
-        });
-
-        it("clones an existing lens to scratch and opens its filter (original untouched)", function () {
-            var w = makeWidget([USER_LENS]);
-            var before = JSON.stringify(w.wiki.getTiddler(USER_LENS.title).fields);
-            var scratch = w._beginLensEdit(USER_LENS.title, "name");
-            var sf = w.wiki.getTiddler(scratch).fields;
-            expect(sf["cp-scratch-source"]).toBe(USER_LENS.title);
-            expect(sf["ca-lens-name-filter"]).toBe("[<currentTiddler>split[/]last[]]");
-            expect(w._edits[0].bindField).toBe("ca-lens-name-filter");
-            expect(JSON.stringify(w.wiki.getTiddler(USER_LENS.title).fields)).toBe(before);
-        });
-
-        it("overwrites the source IN PLACE on commit (user lens) and removes the scratch", function () {
-            var w = makeWidget([USER_LENS]);
-            var scratch = w._beginLensEdit(USER_LENS.title, "name");
-            w.wiki.addTiddler(new $tw.Tiddler(w.wiki.getTiddler(scratch).fields,
-                { "ca-lens-name-filter": "[<currentTiddler>]" }));
-            w._commitLensEdit("name", scratch);
-            expect(w.wiki.getTiddler(USER_LENS.title).fields["ca-lens-name-filter"])
-                .toBe("[<currentTiddler>]");
-            expect(w.wiki.getTiddler(USER_LENS.title).fields["ca-lens-name"]).toBe("Slug"); // ✎ stripped
-            expect(w.wiki.tiddlerExists(scratch)).toBe(false);
-        });
-
-        it("save-as-new instead of overwrite when the source isn't a real tiddler (shipped)", function () {
-            var w = makeWidget([]);
-            // simulate an edit-clone whose source has no real tiddler
-            var scratch = SCRATCH + "x/lens";
-            w.wiki.addTiddler(new $tw.Tiddler(lens({
-                title: scratch,
-                "ca-lens-name": "Kind ✎",
-                "ca-lens-icon-filter": "[<currentTiddler>get[icon]]",
-                "cp-scratch-kind": "lens",
-                "cp-scratch-source": "$:/shipped/kind",
-                "cp-scratch-slot": "icon"
-            })));
-            w._lensScratchTitle = scratch;
-            w._commitLensEdit("icon", scratch);
-            // No overwrite happened (source absent); the name prompt opened.
-            expect(w._edits.length).toBe(1);
-            expect(w._edits[0].bindField).toBe("ca-lens-name");
-            expect(w.wiki.tiddlerExists(scratch)).toBe(true); // still pending the name
         });
     });
 

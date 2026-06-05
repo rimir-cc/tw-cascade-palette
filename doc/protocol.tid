@@ -35,7 +35,7 @@ Each tiddler has a tag and a small set of `ca-*` fields. The engine reads them a
 ;`ca-order`
 :Numeric sort key. Default: `100`. Lower numbers appear higher in the list. Ties break by `ca-name` (alphabetical).
 ;`ca-entity-type` (actions only)
-:Catalogue-path binding. The action surfaces on rows whose emitting layer declared `ca-layer-row-entity-type` matching this value (e.g. an Entries-view drill into a typed picker). Use ''`*`'' to make the action global (appears for any entity type). Tree-view rows have no bound entityType — to reach them either (a) install a type-system plugin that sets `$:/config/rimir/cascade-palette/entity-type-field` (e.g. `rimir/kind` ≥ 0.1.50 sets it to `kind.type`, making `ca-entity-type: <X>` auto-match any tiddler with `kind.type: <X>` in any view), or (b) add a per-action `ca-applies` filter.
+:Catalogue-path binding. The action surfaces on rows whose emitting channel declared `ca-channel-row-entity-type` matching this value (e.g. an Entries-view drill into a typed picker). Use ''`*`'' to make the action global (appears for any entity type). Tree-view rows have no bound entityType — to reach them either (a) install a type-system plugin that sets `$:/config/rimir/cascade-palette/entity-type-field` (e.g. `rimir/kind` ≥ 0.1.50 sets it to `kind.type`, making `ca-entity-type: <X>` auto-match any tiddler with `kind.type: <X>` in any view), or (b) add a per-action `ca-applies` filter.
 ;`ca-applies` (actions only, optional)
 :Filter-path discovery. Filter evaluated with `<currentTiddler>` bound to the row's title. Non-empty result ⇒ the action surfaces on that row in ''any'' view — Entries, By Namespace, By parent, Hybrid, custom. Lets actions reach tree-view rows that have no bound entityType, and lets the same action register on multiple ad-hoc tiddler shapes without ceremony. Example: `ca-applies: [<currentTiddler>get[kind]match[person]]` surfaces wherever a tiddler's kind is `person`, regardless of how it was reached. Combines with `ca-entity-type` — both paths union, deduplicated by action title.
 ;`ca-default` (actions only)
@@ -552,39 +552,39 @@ ca-position-by-parent: SystemPalette
 ca-position-all-tiddlers: none
 ```
 
-! Multi-layer views
+! Multi-channel views
 
-A view can compose multiple structure layers via ''`ca-view-layers`''. Each layer is a tiddler tagged ''`$:/tags/rimir/cascade-palette/structure-layer`'' carrying its own `ca-layer-roots` / `ca-layer-children` / row decorations. The descent merges layers' rows at every node — root and tree-stage alike — and the result-list sort applies uniformly across layers. Tree-stage drills pin to the originating layer so descent doesn't bleed across layers.
+A view can compose multiple channels via ''`ca-view-channels`''. Each channel is a tiddler tagged ''`$:/tags/rimir/cascade-palette/channel`'' carrying its own `ca-channel-roots` / `ca-channel-children` / row decorations. The descent merges channels' rows at every node — root and tree-stage alike — and the result-list sort applies uniformly across channels. Tree-stage drills pin to the originating channel so descent doesn't bleed across channels.
 
 ```
 title: $:/plugins/example/views/work-overview
 tags: $:/tags/rimir/cascade-palette/view
 ca-view-name: Work overview
-ca-view-layers: $:/plugins/example/layers/projects $:/plugins/example/layers/inbox
+ca-view-channels: $:/plugins/example/channels/projects $:/plugins/example/channels/inbox
 ca-view-sort: by-field
 ca-view-sort-field: ca-order
 
-title: $:/plugins/example/layers/projects
-tags: $:/tags/rimir/cascade-palette/structure-layer
-ca-layer-name: Projects
-ca-layer-roots: [tag[project]]
-ca-layer-children: [tag<currentTiddler>tag[task]]
-ca-layer-row-actions: <$action-navigate $to=<<currentTiddler>>/>
-ca-layer-row-entity-type: [<currentTiddler>tag[task]then[task]] [<currentTiddler>tag[project]then[project]]
+title: $:/plugins/example/channels/projects
+tags: $:/tags/rimir/cascade-palette/channel
+ca-channel-name: Projects
+ca-channel-roots: [tag[project]]
+ca-channel-children: [tag<currentTiddler>tag[task]]
+ca-channel-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+ca-channel-row-entity-type: [<currentTiddler>tag[task]then[task]] [<currentTiddler>tag[project]then[project]]
 
-title: $:/plugins/example/layers/inbox
-tags: $:/tags/rimir/cascade-palette/structure-layer
-ca-layer-name: Inbox
-ca-layer-roots: [tag[inbox]!has[done]]
-ca-layer-row-actions: <$action-navigate $to=<<currentTiddler>>/>
-ca-layer-row-entity-type: [[inbox-item]]
+title: $:/plugins/example/channels/inbox
+tags: $:/tags/rimir/cascade-palette/channel
+ca-channel-name: Inbox
+ca-channel-roots: [tag[inbox]!has[done]]
+ca-channel-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+ca-channel-row-entity-type: [[inbox-item]]
 ```
 
 The view above shows projects (with their nested tasks under each) alongside an inbox list. ''Right-arrow'' on a task ''leaf'' opens the action-menu stage of type `task` — actions tagged `$:/tags/rimir/cascade-palette/action` with `ca-entity-type: task` populate it. ''Space'' opens the same menu on any typed row — including containers (Projects) where Right-arrow keeps its descend-into-children semantic. So a project ''container'' is reached for actions via Space; an inbox ''leaf'' via either Right-arrow or Space.
 
-Layer-name → default `ca-group` mapping kicks in automatically: with result-list grouping enabled, the menu shows section headers ''Projects'' and ''Inbox''. Per-row overrides (`ca-layer-row-group`) still take precedence when set.
+Channel-name → default `ca-group` mapping kicks in automatically: with result-list grouping enabled, the menu shows section headers ''Projects'' and ''Inbox''. Per-row overrides (`ca-channel-row-group`) still take precedence when set.
 
-''Built-in entries layer.'' Tree views (≥ 1 layer declaring `ca-layer-children`) automatically get a built-in synthetic ''entries'' layer appended last — that's how positioned entry tiddlers (`ca-position`) land in the result. Opt out per view via `ca-view-include-entries: no`. The Structure pill row shows this layer below the author-declared ones, rendered muted to flag its automatic origin.
+''Built-in entries channel.'' Tree views (≥ 1 channel declaring `ca-channel-children`) automatically get a built-in synthetic ''entries'' channel appended last — that's how positioned entry tiddlers (`ca-position`) land in the result. Opt out per view via `ca-view-include-entries: no`. The Structure pill row shows this channel below the author-declared ones, rendered muted to flag its automatic origin.
 
 ! Custom tree shapes via the children filter
 
@@ -605,11 +605,11 @@ The example above produces a two-level tree: roots are distinct author names; ch
 
 ''Performance note:'' tree views run the children filter once per drilled node and once per show-count badge (when enabled). The cost scales with the number of candidates the filter examines, not with the depth of the tree. Keep filters tight (lead with `!is[system]` / `[tag[...]]` / `[prefix[...]]` operators that benefit from TW's title index) for large stores.
 
-! Axes — grouping chains on top of a structure-layer
+! Axes — grouping chains on top of a channel
 
-A view's structure-layer can declare a chain of ''axes'' that bucket the layer's source set at the top of the descent. Each axis runs at one tree depth: depth 0 buckets `layer.roots` by the first axis, depth 1 buckets the parent-bucket-narrowed set by the second axis, and so on. Past the chain, the layer's normal `roots` / `children` filters take over — so axes ''compose'' with recursive trees rather than replacing them.
+A view's channel can declare a chain of ''axes'' that bucket the channel's source set at the top of the descent. Each axis runs at one tree depth: depth 0 buckets `channel.roots` by the first axis, depth 1 buckets the parent-bucket-narrowed set by the second axis, and so on. Past the chain, the channel's normal `roots` / `children` filters take over — so axes ''compose'' with recursive trees rather than replacing them.
 
-''Three useful configurations'' of a single layer:
+''Three useful configurations'' of a single channel:
 
 |!Axes |!Children |!Behaviour |
 |none |none |Flat list. Every row in `roots` is a leaf. |
@@ -617,7 +617,7 @@ A view's structure-layer can declare a chain of ''axes'' that bucket the layer's
 |set |none |Pure grouping. Chain runs all the way down; leaves under the deepest axis are tiddlers from the narrowed source. |
 |set |set |Bucket the source first, then under each leaf bucket each tiddler descends recursively via `children` as today. ''Mixed'' tree. |
 
-''Axis tag:'' `$:/tags/rimir/cascade-palette/axis`. ''Layer declaration:'' `ca-layer-axes` lists axis tiddler titles in chain order, space-separated. Implicit-layer views use `ca-view-axes` with the same semantics.
+''Axis tag:'' `$:/tags/rimir/cascade-palette/axis`. ''Channel declaration:'' `ca-channel-axes` lists axis tiddler titles in chain order, space-separated. Implicit-channel views use `ca-view-axes` with the same semantics.
 
 ! Axis tiddler fields
 
@@ -666,20 +666,20 @@ Open the palette, switch to ''By date'': year buckets at root, drill into a year
 ''By parent, sliced by year'' — TOC tiddlers grouped by year of creation, each TOC then expanding its tag-subtree:
 
 ```
-title: $:/plugins/example/structure-layers/by-parent-by-year
-tags: $:/tags/rimir/cascade-palette/structure-layer
-ca-layer-name: By parent + year
-ca-layer-roots: [tag[TableOfContents]]
-ca-layer-children: [tag<currentTiddler>]
-ca-layer-axes: $:/plugins/example/axes/by-year-created
-ca-layer-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+title: $:/plugins/example/channels/by-parent-by-year
+tags: $:/tags/rimir/cascade-palette/channel
+ca-channel-name: By parent + year
+ca-channel-roots: [tag[TableOfContents]]
+ca-channel-children: [tag<currentTiddler>]
+ca-channel-axes: $:/plugins/example/axes/by-year-created
+ca-channel-row-actions: <$action-navigate $to=<<currentTiddler>>/>
 ```
 
 Descent: root → year buckets containing TOC-tagged tiddlers. Drill ''2026'' → the TOC tiddlers created in 2026. Drill any TOC → its `tag<currentTiddler>` subtree, recursive — the axis chain is exhausted; from here on it's pure ''By parent''.
 
-''Caveat — `layer.roots` does double duty.'' It's both the universe to bucket (during the chain) AND the forest roots at the transition. Pick the right set: `[!is[system]]` buckets every non-system tiddler AND every non-system tiddler becomes a recursive root; `[tag[TOC]]` keeps both phases TOC-only.
+''Caveat — `channel.roots` does double duty.'' It's both the universe to bucket (during the chain) AND the forest roots at the transition. Pick the right set: `[!is[system]]` buckets every non-system tiddler AND every non-system tiddler becomes a recursive root; `[tag[TOC]]` keeps both phases TOC-only.
 
-''Caveat — cross-bucket children.'' Past the transition, `layer.children` runs with `<currentTiddler>` = the parent ''tiddler''; date stops following you down. A 2025-tagged child of a 2026 TOC tiddler will appear in the 2026 subtree. If you need date-coherent descent, intersect a date predicate into `ca-layer-children`.
+''Caveat — cross-bucket children.'' Past the transition, `channel.children` runs with `<currentTiddler>` = the parent ''tiddler''; date stops following you down. A 2025-tagged child of a 2026 TOC tiddler will appear in the 2026 subtree. If you need date-coherent descent, intersect a date predicate into `ca-channel-children`.
 
 ! Parametric axes
 
@@ -697,25 +697,25 @@ When the user picks `by-field` from the axis picker, `_defaultParamsForAxis` sca
 
 ! Pill UX for axes
 
-The active chain renders in the Structure pill row, in each layer's mini-row: yellow ''by'' / ''→'' chain pills + a dashed ''+'' pill at the end. In expanded mode:
+The active chain renders in the Structure pill row, in each channel's mini-row: yellow ''by'' / ''→'' chain pills + a dashed ''+'' pill at the end. In expanded mode:
 
 * ''Backspace / Delete'' removes the focused axis.
 * ''Shift-← / Shift-→'' reorders within the chain.
 * ''Enter'' on a chain pill opens the axis picker in ''replace'' mode.
 * ''Enter / Space'' on the ''+'' pill opens the picker in ''append'' mode.
 
-The picker is itself a cascade stage listing every tiddler tagged `$:/tags/rimir/cascade-palette/axis`. Esc cancels. On commit, the chain spec is written to `$:/state/rimir/cascade-palette/layer-axes/<slug>` and the strip is re-rendered with focus restored.
+The picker is itself a cascade stage listing every tiddler tagged `$:/tags/rimir/cascade-palette/axis`. Esc cancels. On commit, the chain spec is written to `$:/state/rimir/cascade-palette/channel-axes/<slug>` and the strip is re-rendered with focus restored.
 
 ! Axis state — session override vs. declared default
 
-Each layer's active chain is read in this order:
+Each channel's active chain is read in this order:
 
-# Session state: `$:/state/rimir/cascade-palette/layer-axes/<slug>` (JSON `{"axes":[…]}`).
-# Declared default: `ca-layer-axes` / `ca-view-axes` on the layer / view tiddler.
+# Session state: `$:/state/rimir/cascade-palette/channel-axes/<slug>` (JSON `{"axes":[…]}`).
+# Declared default: `ca-channel-axes` / `ca-view-axes` on the channel / view tiddler.
 
-`<slug>` is the layer title's last `/`-segment (for explicit structure-layers) or the view title's last segment (for implicit layers). Deleting the state tiddler reverts the layer to its declared default — that's the ''reset'' affordance.
+`<slug>` is the channel title's last `/`-segment (for explicit channels) or the view title's last segment (for implicit channels). Deleting the state tiddler reverts the channel to its declared default — that's the ''reset'' affordance.
 
-The `$:/state/...` namespace is NOT filesystem-synced — chain edits survive a reload but don't pollute the wiki on disk. Use the declared `ca-layer-axes` on a layer / view tiddler when you want the chain to ship with the plugin / wiki.
+The `$:/state/...` namespace is NOT filesystem-synced — chain edits survive a reload but don't pollute the wiki on disk. Use the declared `ca-channel-axes` on a channel / view tiddler when you want the chain to ship with the plugin / wiki.
 
 ! Leader keys
 
@@ -1060,7 +1060,7 @@ Search-field pills configure WHICH literal tiddler fields the matcher reads on t
 
 Array-typed fields (like `tags`) are flattened to a space-separated string before substring matching.
 
-When at least one Search-field pill is active, the matcher unions the tiddler-field layer with the meta layer. No field pills active → the tiddler-field layer is skipped entirely (keeps the default search cheap).
+When at least one Search-field pill is active, the matcher unions the tiddler-field channel with the meta channel. No field pills active → the tiddler-field channel is skipped entirely (keeps the default search cheap).
 
 ''Push via:'' ''`rimir-cascade-palette-add-field`'' with param ''`field: <tiddler-title>`''.
 

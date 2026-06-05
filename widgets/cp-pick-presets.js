@@ -147,9 +147,16 @@ module.exports = function (proto) {
     //
     // Persisted shape (in `ca-preset-constraints`):
     //   {
+    //     "v": 2,
     //     "filters":    [{title, arg}, …],
-    //     "visibility": [{title, arg}, …]
+    //     "visibility": [{title, arg}, …],
+    //     "reach":      [{title, arg}, …],   (≤1 — mutually exclusive)
+    //     "meta":       [{title, arg}, …],
+    //     "field":      [{title, arg}, …],
+    //     "context":    [title, …]            (sticky-context pins)
     //   }
+    // Lenses are NOT captured — they live on the view/channel and travel
+    // with the view, not as a transient flavor.
     proto._capturePreset = function (name) {
         var sanitised = String(name)
             .replace(/[\r\n\t]/g, " ")
@@ -167,10 +174,7 @@ module.exports = function (proto) {
             finalTitle = baseTitle + "-" + n;
             n++;
         }
-        var bundle = {
-            filters: this._currentFiltersSnapshot(),
-            visibility: this._currentVisibilitySnapshot()
-        };
+        var bundle = this._currentPresetBundle();
         this.wiki.addTiddler(new $tw.Tiddler({
             title: finalTitle,
             tags: PRESET_TAG,
@@ -184,11 +188,7 @@ module.exports = function (proto) {
         // The just-saved preset becomes the active one; baseline = the
         // state we just persisted.
         this.activePresetTitle = finalTitle;
-        this.activePresetBaseline = {
-            view: this.activeView || "",
-            filters: bundle.filters,
-            visibility: bundle.visibility
-        };
+        this.activePresetBaseline = this._presetBaselineSnapshot();
     };
 
     // Snapshot helpers — used by capture, apply baseline, and dirty check.
@@ -211,12 +211,69 @@ module.exports = function (proto) {
         });
     };
 
+    // Reach / search-meta / search-field pills are title-keyed (no per-
+    // instance arg), captured as [{title, arg:""}] so they reuse
+    // _constraintListsEqual. Context is captured as a plain title array.
+    proto._currentReachSnapshot = function () {
+        return (this.reachPills || []).map(function (s) {
+            return { title: s.constraintTiddler, arg: s.arg || "" };
+        });
+    };
+    proto._currentMetaSnapshot = function () {
+        return (this.metaPills || []).map(function (s) {
+            return { title: s.constraintTiddler, arg: s.arg || "" };
+        });
+    };
+    proto._currentFieldSnapshot = function () {
+        return (this.fieldPills || []).map(function (s) {
+            return { title: s.constraintTiddler, arg: s.arg || "" };
+        });
+    };
+    proto._currentContextSnapshot = function () {
+        return (this._readStickyContextList ? this._readStickyContextList() : [])
+            .slice();
+    };
+
+    // The full transient-state bundle a preset captures. Lenses are
+    // deliberately EXCLUDED — under the view→channel model they are
+    // view/channel config that travels with the view, not a transient
+    // flavor. Tagged v:2 so _applyPreset can tell a new bundle from a v1
+    // (filters + visibility only) one.
+    proto._currentPresetBundle = function () {
+        return {
+            v: 2,
+            filters: this._currentFiltersSnapshot(),
+            visibility: this._currentVisibilitySnapshot(),
+            reach: this._currentReachSnapshot(),
+            meta: this._currentMetaSnapshot(),
+            field: this._currentFieldSnapshot(),
+            context: this._currentContextSnapshot()
+        };
+    };
+
+    // Baseline for dirty detection — the full bundle plus the active view.
+    proto._presetBaselineSnapshot = function () {
+        var b = this._currentPresetBundle();
+        b.view = this.activeView || "";
+        return b;
+    };
+
     proto._constraintListsEqual = function (a, b) {
         a = a || []; b = b || [];
         if (a.length !== b.length) return false;
         for (var i = 0; i < a.length; i++) {
             if ((a[i].title || "") !== (b[i].title || "")) return false;
             if ((a[i].arg || "") !== (b[i].arg || "")) return false;
+        }
+        return true;
+    };
+
+    // Equality for plain string arrays (sticky-context title lists).
+    proto._stringListsEqual = function (a, b) {
+        a = a || []; b = b || [];
+        if (a.length !== b.length) return false;
+        for (var i = 0; i < a.length; i++) {
+            if (String(a[i]) !== String(b[i])) return false;
         }
         return true;
     };
@@ -246,6 +303,18 @@ module.exports = function (proto) {
         if (!this._constraintListsEqual(base.visibility, this._currentVisibilitySnapshot())) {
             return true;
         }
+        if (!this._constraintListsEqual(base.reach, this._currentReachSnapshot())) {
+            return true;
+        }
+        if (!this._constraintListsEqual(base.meta, this._currentMetaSnapshot())) {
+            return true;
+        }
+        if (!this._constraintListsEqual(base.field, this._currentFieldSnapshot())) {
+            return true;
+        }
+        if (!this._stringListsEqual(base.context, this._currentContextSnapshot())) {
+            return true;
+        }
         return false;
     };
 
@@ -255,10 +324,7 @@ module.exports = function (proto) {
         if (!this.activePresetTitle) return false;
         var t = this.wiki.getTiddler(this.activePresetTitle);
         if (!t || !t.fields) return false;
-        var bundle = {
-            filters: this._currentFiltersSnapshot(),
-            visibility: this._currentVisibilitySnapshot()
-        };
+        var bundle = this._currentPresetBundle();
         // Preserve preset metadata (name, hint, order); only the state-
         // bearing fields change.
         var newFields = $tw.utils.extend({}, t.fields, {
@@ -266,11 +332,7 @@ module.exports = function (proto) {
             "ca-preset-constraints": JSON.stringify(bundle)
         });
         this.wiki.addTiddler(new $tw.Tiddler(newFields));
-        this.activePresetBaseline = {
-            view: this.activeView || "",
-            filters: bundle.filters,
-            visibility: bundle.visibility
-        };
+        this.activePresetBaseline = this._presetBaselineSnapshot();
         this._invalidatePresetPills();
         this._renderPresetStrip();
         return true;
@@ -307,8 +369,15 @@ module.exports = function (proto) {
         try { bundle = JSON.parse(bundleJson); }
         catch (err) { bundle = {}; }
         if (!bundle || typeof bundle !== "object") bundle = {};
+        // Array.isArray guards make a v1 preset (filters + visibility only, no
+        // `v`) restore the new subsystems to EMPTY — deterministic full-
+        // snapshot semantics, matching how filters/visibility already replace.
         var filtersList = Array.isArray(bundle.filters) ? bundle.filters : [];
         var visList = Array.isArray(bundle.visibility) ? bundle.visibility : [];
+        var reachList = Array.isArray(bundle.reach) ? bundle.reach : [];
+        var metaList = Array.isArray(bundle.meta) ? bundle.meta : [];
+        var fieldList = Array.isArray(bundle.field) ? bundle.field : [];
+        var contextList = Array.isArray(bundle.context) ? bundle.context : [];
 
         var self = this;
         var fmetas = this._loadFilterTiddlers();
@@ -363,11 +432,57 @@ module.exports = function (proto) {
             self.visibilities.push(self._visibilityInstanceFor(meta, s.arg || argFromTitle));
         });
 
-        // Re-render the constraint strips after replacing both lists —
+        // Reach / meta / field — title-keyed, missing-tiddler tolerant
+        // (skip + warn, same as filters). Build the arrays directly and
+        // render once (not via _push*, which recompute the stage per pill).
+        function rebuildTitleKeyed(list, metas, build, warnKind) {
+            var out = [];
+            list.forEach(function (s) {
+                if (!s || !s.title) return;
+                var meta = null;
+                for (var i = 0; i < metas.length; i++) {
+                    if (metas[i].title === s.title) { meta = metas[i]; break; }
+                }
+                if (!meta) {
+                    if (console && console.warn) {
+                        console.warn(
+                            "[cascade-palette] preset references missing " +
+                            warnKind + ":", s.title
+                        );
+                    }
+                    return;
+                }
+                out.push(build.call(self, meta));
+            });
+            return out;
+        }
+        this.reachPills = rebuildTitleKeyed(
+            reachList, this._loadReachTiddlers(), this._buildReachInstance, "reach");
+        this.reachFocusIdx = 0;
+        this.metaPills = rebuildTitleKeyed(
+            metaList, this._loadMetaTiddlers(), this._buildMetaInstance, "search-meta");
+        this.metaFocusIdx = 0;
+        this.fieldPills = rebuildTitleKeyed(
+            fieldList, this._loadFieldTiddlers(), this._buildFieldInstance, "search-field");
+        this.fieldFocusIdx = 0;
+
+        // Sticky context — write the list (the change hook refreshes the
+        // pills + variables; the explicit refresh below covers the no-hook
+        // path and keeps the strip in sync immediately).
+        if (this._writeStickyContextList) {
+            this._writeStickyContextList(contextList);
+            if (this._refreshContextPills) this._refreshContextPills();
+        }
+
+        // Re-render every constraint strip after replacing the lists —
         // _setActiveView only refreshes the view strip and results, not
         // these. Do it before the view branch so it's done either way.
         this._renderFilterStrip();
         this._renderVisibilityStrip();
+        if (this._renderReachStrip) this._renderReachStrip();
+        if (this._renderMetaStrip) this._renderMetaStrip();
+        if (this._renderFieldStrip) this._renderFieldStrip();
+        if (this._renderContextStrip) this._renderContextStrip();
 
         // Mark this preset as active. The baseline is captured after the
         // view-switch below so it reflects the effective state (in case
@@ -389,11 +504,7 @@ module.exports = function (proto) {
 
         // Capture baseline AFTER the view-switch so it matches the now-
         // effective state. Dirty detection compares against this.
-        this.activePresetBaseline = {
-            view: this.activeView || "",
-            filters: this._currentFiltersSnapshot(),
-            visibility: this._currentVisibilitySnapshot()
-        };
+        this.activePresetBaseline = this._presetBaselineSnapshot();
     };
 
 };

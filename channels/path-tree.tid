@@ -1,0 +1,7 @@
+title: $:/plugins/rimir/cascade-palette/channels/path-tree
+tags: $:/tags/rimir/cascade-palette/channel
+ca-channel-name: Path tree
+ca-channel-roots: [!is[system]cp-child-of[]]
+ca-channel-children: [!is[system]cp-child-of<currentTiddler>]
+ca-channel-row-actions: <$action-navigate $to=<<currentTiddler>>/>
+type: text/vnd.tiddlywiki

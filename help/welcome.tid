@@ -26,15 +26,15 @@ Everything else — pills, leaders, search reach, side preview, action menus —
 
 ! How sections compose
 
-The palette has //layers// you can stack independently:
+The palette has //facets// you can stack independently:
 
 * ''Filters'' narrow the data set you're walking
 * ''Reach'' widens search scope (current stage / whole tree)
 * ''Search-in'' picks which fields the matcher reads
 * ''Views'' switch between alternate trees of the same data
-* ''Presets'' snapshot a layered configuration for one-keystroke recall
+* ''Presets'' snapshot a whole configuration for one-keystroke recall
 
-Each layer is a pill strip. Pills can be added (via leaders) and removed (DEL on a focused pill). No modal dialogs, no checkbox lists — just navigable pills.
+Each facet is a pill strip. Pills can be added (via leaders) and removed (DEL on a focused pill). No modal dialogs, no checkbox lists — just navigable pills.
 
 ! Where to learn more
 

@@ -1,8 +1,0 @@
-title: $:/plugins/rimir/cascade-palette/structure-layers/tag-tree
-tags: $:/tags/rimir/cascade-palette/structure-layer
-ca-layer-name: Tag tree
-ca-layer-roots: [tag[TableOfContents]]
-ca-layer-children: [tag<currentTiddler>]
-ca-layer-row-actions: <$action-navigate $to=<<currentTiddler>>/>
-ca-layer-row-entity-type: [[tag-tree-node]]
-type: text/vnd.tiddlywiki

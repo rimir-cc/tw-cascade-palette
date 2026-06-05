@@ -96,6 +96,14 @@ exports.REACH_TAG = "$:/tags/rimir/cascade-palette/reach";
 exports.SEARCH_META_TAG = "$:/tags/rimir/cascade-palette/search-meta";
 exports.SEARCH_FIELD_TAG = "$:/tags/rimir/cascade-palette/search-field";
 exports.VIEW_TAG = "$:/tags/rimir/cascade-palette/view";
+// A CHANNEL is a named, reusable description of one visually demarcated
+// GROUP of palette rows (roots/children/leaf/label/axes + per-row
+// overrides + per-slot lens overrides). Views compose channels by
+// reference via `ca-view-channels`. This is the 0.0.9x rename of the
+// former "structure-layer" vocabulary. STRUCTURE_LAYER_TAG is kept as a
+// transitional alias so un-migrated user tiddlers (tagged with the old
+// tag) keep loading until the one-time startup migration retags them.
+exports.CHANNEL_TAG = "$:/tags/rimir/cascade-palette/channel";
 exports.STRUCTURE_LAYER_TAG = "$:/tags/rimir/cascade-palette/structure-layer";
 exports.AXIS_TAG = "$:/tags/rimir/cascade-palette/axis";
 exports.LEADER_TAG = "$:/tags/rimir/cascade-palette/leader";
@@ -152,6 +160,11 @@ exports.LENS_TAG = "$:/tags/rimir/cascade-palette/lens";
 //   icon       — AUGMENT-LEAD a glyph before the name
 //   annotation — AUGMENT-TRAIL a chip/badge after the name (H4 slice 4)
 exports.LENS_SLOTS = ["name", "icon", "annotation"];
+// Settings that cascade VIEW default → CHANNEL (overridable unless the view
+// LOCKS the slot via `ca-view-locked`). Today only the three lens slots are
+// wired (they ARE the LENS_SLOTS); the default+lock machinery is written
+// generically so sort / grouping / show-count can join later.
+exports.INHERITABLE_SLOTS = exports.LENS_SLOTS;
 // Active lens per slot — body = lens tiddler title (empty = none/off).
 // Slug is the slot name. Lives under $:/state/ so the choice survives
 // reload but isn't filesystem-synced.
@@ -242,6 +255,12 @@ exports.SCRATCH_PREVIEW_ONLY_FIELD = "cp-scratch-preview-only";
 // appended). User definitions share the shadow namespace — a real tiddler
 // at a fresh slug simply doesn't collide; the slug loop guards the rest.
 exports.VIEWS_NS = "$:/plugins/rimir/cascade-palette/views/";
+// New channels are written under CHANNELS_NS. LAYERS_NS is the old
+// structure-layers/ namespace, kept as a transitional alias: shipped
+// channels move to channels/ (Phase A4) and new channels are created
+// there, but user tiddlers created under structure-layers/ keep their
+// titles (migration rewrites fields/tag in place, not the title).
+exports.CHANNELS_NS = "$:/plugins/rimir/cascade-palette/channels/";
 exports.LAYERS_NS = "$:/plugins/rimir/cascade-palette/structure-layers/";
 exports.AXES_NS = "$:/plugins/rimir/cascade-palette/axes/";
 exports.ENTRIES_NS = "$:/plugins/rimir/cascade-palette/entries/";
@@ -306,10 +325,9 @@ exports.HINT_REACH      = "Tab section · ←→ select · DEL remove · Esc inp
 exports.HINT_META       = "Tab section · ←→ select · DEL remove · Esc input";
 exports.HINT_FIELD      = "Tab section · ←→ select · DEL remove · Esc input";
 exports.HINT_VIEW       = "Tab section · ←→ select · ↵ activate · Esc input";
-exports.HINT_LENS       = "Tab section · ←→ select (← (off) to disable) · ↵ activate / + New · e edit · DEL delete · ↑↓ slot · Esc input";
 exports.HINT_LEADER     = "Tab section · ←→ select · ↵/Space fire · Esc input";
 exports.HINT_VIEWCONFIG_COMPACT  = "Tab section · ↵/Space/→ expand · Esc input";
-exports.HINT_VIEWCONFIG_EXPANDED = "Tab section · ↑↓←→ navigate pills · hold Ctrl preview · Esc collapse";
+exports.HINT_VIEWCONFIG_EXPANDED = "Tab section · ↑↓←→ navigate · ↵/Space edit · l lock lens · DEL clear · hold Ctrl preview · Esc collapse";
 exports.HINT_PRESET             = "Tab section · ←→ select · ↵ apply · DEL delete · Esc input";
 exports.HINT_PRESET_ACTIVE      = "Tab section · ←→ select · ↵ apply · DEL delete · Esc input · (active preset)";
 exports.HINT_PRESET_ACTIVE_DIRTY = "preset modified · Ctrl-↵ overwrite · ↵ re-apply · DEL delete · Esc input";
