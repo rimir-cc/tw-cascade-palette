@@ -22,7 +22,10 @@ Both are listed below — UI-surfaced settings are marked ''Settings row availab
 ! Behaviour
 
 ;<code>$:/config/rimir/cascade-palette/max-results</code>
-:Caps the number of items rendered per stage. Default 30. ''Settings row available''.
+:Size of the visible result window per stage. Default 30. When more rows match, the list ends with ''Show N more'' (pages the window forward) and ''Show all N'' (reveals every match); the window resets to one page when you change the query. ''Settings row available''.
+
+;<code>$:/config/rimir/cascade-palette/max-results-step</code>
+:Page increment for the ''Show N more'' row. Leave unset to match the <code>max-results</code> page size.
 
 ;<code>$:/config/rimir/cascade-palette/popup-width</code>
 :CSS width of the popup container (e.g. ''`820px`''). Default 820. ''Settings row available''.

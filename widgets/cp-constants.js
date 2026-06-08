@@ -185,6 +185,9 @@ exports.SOFT_DEPTH_CONFIG = "$:/config/rimir/cascade-palette/soft-depth-warning"
 exports.LARGE_ROOT_SET_CONFIG = "$:/config/rimir/cascade-palette/large-root-set-warning";
 exports.POPUP_WIDTH_CONFIG = "$:/config/rimir/cascade-palette/popup-width";
 exports.MAX_RESULTS_CONFIG = "$:/config/rimir/cascade-palette/max-results";
+// Page increment for the "Show more" result-window sentinel. Absent/invalid
+// → falls back to MAX_RESULTS_CONFIG (so step == page size out of the box).
+exports.MAX_RESULTS_STEP_CONFIG = "$:/config/rimir/cascade-palette/max-results-step";
 exports.DETAILS_ALWAYS_ON_CONFIG = "$:/config/rimir/cascade-palette/details-always-on";
 exports.PIN_PILL_ROWS_CONFIG = "$:/config/rimir/cascade-palette/pin-pill-rows";
 exports.PERF_FOOTER_CONFIG = "$:/config/rimir/cascade-palette/show-perf-footer";

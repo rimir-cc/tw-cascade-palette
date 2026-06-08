@@ -187,7 +187,6 @@ module.exports = function (proto) {
     };
 
     proto._appendResultRow = function (item, i, stage) {
-        var self = this;
         var rowEl = this.document.createElement("li");
         rowEl.className =
             "rcp-row" + (i === stage.selectedIndex ? " rcp-row-selected" : "");
@@ -205,6 +204,23 @@ module.exports = function (proto) {
         // settings rows (which use the right slot for the bound value) get
         // discoverable help text.
         if (item.hint) rowEl.title = item.hint;
+
+        // Window sentinel ("Show N more" / "Show all N", appended by
+        // cp-stack.js#_applyResultWindow). Render a muted, actionable row —
+        // just the label (count is baked into the name) — and skip all
+        // data-row machinery (icon / decoration / annotation / action badge /
+        // snippets). Enter or click grows the window (cp-firing.js).
+        if (item._windowSentinel) {
+            rowEl.classList.add(item._windowGrow === "all"
+                ? "rcp-row-load-all" : "rcp-row-show-more");
+            var sName = this.document.createElement("span");
+            sName.className = "rcp-row-name";
+            sName.textContent = item.name || "";
+            rowEl.appendChild(sName);
+            this._attachRowActivate(rowEl, i, stage);
+            this._commitRowEl(rowEl, i, stage);
+            return;
+        }
 
         this._renderRowIcon(rowEl, item);
 
@@ -309,16 +325,24 @@ module.exports = function (proto) {
         // list without recomputing.
         this._renderRowIcons(rowEl, item);
 
+        this._attachRowActivate(rowEl, i, stage);
+        this._commitRowEl(rowEl, i, stage);
+    };
+
+    // Wire Enter-equivalent click activation onto a result row.
+    proto._attachRowActivate = function (rowEl, i, stage) {
+        var self = this;
         rowEl.addEventListener("mousedown", function (e) {
             e.preventDefault();
             stage.selectedIndex = i;
             self.setFocus("menu");
             self.fireSelected(e.shiftKey);
         });
+    };
 
-        if (i === stage.selectedIndex) {
-            this._selectedRowEl = rowEl;
-        }
+    // Track the selected-row element + row-index map, then mount the row.
+    proto._commitRowEl = function (rowEl, i, stage) {
+        if (i === stage.selectedIndex) this._selectedRowEl = rowEl;
         if (this._rowEls) this._rowEls[i] = rowEl;
         this.resultsEl.appendChild(rowEl);
     };

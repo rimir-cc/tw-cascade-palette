@@ -1712,6 +1712,31 @@ type: text/css
     color: #9ca3af;
 }
 
+/* Result-window sentinels — "Show N more" / "Show all N" rows appended
+   when the result set exceeds the visible window. Muted + dashed top
+   separator so they read as a footer affordance, but actionable (pointer
+   cursor) unlike the deep-search truncation cue. */
+.rcp-row-show-more,
+.rcp-row-load-all {
+    color: #6b7280;
+    font-size: 0.85em;
+    font-style: italic;
+    border-top: 1px dashed #d1d5db;
+    cursor: pointer;
+}
+
+.rcp-row-show-more .rcp-row-name,
+.rcp-row-load-all .rcp-row-name {
+    color: #6b7280;
+}
+
+.rcp-popup[data-focus="menu"] .rcp-row-selected.rcp-row-show-more,
+.rcp-popup[data-focus="menu"] .rcp-row-selected.rcp-row-load-all,
+.rcp-popup[data-focus="menu"] .rcp-row-selected.rcp-row-show-more .rcp-row-name,
+.rcp-popup[data-focus="menu"] .rcp-row-selected.rcp-row-load-all .rcp-row-name {
+    color: inherit;
+}
+
 /* Ancestor-only marker — in tree-container views, parents revealed
    purely because a descendant matched the active filter pills render
    dimmed. Tells the user "drill in to find the real hit" without
@@ -1752,6 +1777,16 @@ type: text/css
     .rcp-row-deep-truncated,
     .rcp-row-deep-truncated .rcp-row-name {
         color: #6b7280;
+    }
+    .rcp-row-show-more,
+    .rcp-row-load-all,
+    .rcp-row-show-more .rcp-row-name,
+    .rcp-row-load-all .rcp-row-name {
+        color: #9ca3af;
+    }
+    .rcp-row-show-more,
+    .rcp-row-load-all {
+        border-top-color: #374151;
     }
     .rcp-row-ancestor-only .rcp-row-name {
         opacity: 0.5;

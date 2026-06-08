@@ -34,6 +34,25 @@ module.exports = function (proto) {
         if (!stage || stage.results.length === 0) return;
         var picked = stage.results[stage.selectedIndex];
 
+        // Result-window sentinel ("Show N more" / "Show all N", appended by
+        // cp-stack.js#_applyResultWindow). Grow the window and re-slice in
+        // place — stage.items is unchanged, so applyQueryToStage (not the full
+        // recomputeStage) is enough. Selection lands on the first newly-revealed
+        // row so repeated Enter pages down. Checked before every stage-kind
+        // branch below so it works in root / tree / filter / actions alike.
+        if (picked && picked._windowSentinel) {
+            var firstNew = (stage.windowSize === Infinity) ? 0 : stage.windowSize;
+            stage.windowSize = picked._windowGrow === "all"
+                ? Infinity
+                : (stage.windowSize || this.getMaxResults()) + this.getMaxResultsStep();
+            this.applyQueryToStage(stage);
+            stage.selectedIndex = Math.min(
+                firstNew, Math.max(0, stage.results.length - 1)
+            );
+            this.renderResults();
+            return;
+        }
+
         // Deep-search result — replay the drill chain to the picked
         // row's natural parent, then act. `_path` is stamped by
         // cp-deep-search.js's deepWalk; its presence (even when empty,

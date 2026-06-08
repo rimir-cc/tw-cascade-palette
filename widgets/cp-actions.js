@@ -21,6 +21,7 @@ Splits into three concerns:
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
 var DEFAULT_ORDER = C.DEFAULT_ORDER;
 var MAX_RESULTS_CONFIG = C.MAX_RESULTS_CONFIG;
+var MAX_RESULTS_STEP_CONFIG = C.MAX_RESULTS_STEP_CONFIG;
 var DEFAULT_MAX_RESULTS = C.DEFAULT_MAX_RESULTS;
 var STICKY_CONTEXT_TITLE = C.STICKY_CONTEXT_TITLE;
 
@@ -534,6 +535,14 @@ module.exports = function (proto) {
         var raw = this.wiki.getTiddlerText(MAX_RESULTS_CONFIG, String(DEFAULT_MAX_RESULTS));
         var n = parseInt(raw, 10);
         return isNaN(n) || n < 1 ? DEFAULT_MAX_RESULTS : n;
+    };
+
+    // Page increment for the "Show more" result-window sentinel. Absent or
+    // invalid → the page size (getMaxResults), so step == window out of the box.
+    proto.getMaxResultsStep = function () {
+        var raw = this.wiki.getTiddlerText(MAX_RESULTS_STEP_CONFIG, "");
+        var n = parseInt(raw, 10);
+        return isNaN(n) || n < 1 ? this.getMaxResults() : n;
     };
 
 };

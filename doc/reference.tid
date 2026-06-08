@@ -394,7 +394,8 @@ The plugin ships five axes for the common cases. All live under `$:/plugins/rimi
 
 |!Tiddler |!Default |!Effect |
 |`$:/config/shortcuts/rimir-cascade-palette-open` |`ctrl+space` |Hotkey to open the palette |
-|`$:/config/rimir/cascade-palette/max-results` |`30` |Cap on items shown per stage |
+|`$:/config/rimir/cascade-palette/max-results` |`30` |Size of the visible result window per stage. When more rows match, two sentinel rows are appended — ''Show N more'' (grows the window by one page) and ''Show all N'' (shows every match). The window resets to one page whenever the query text changes. |
+|`$:/config/rimir/cascade-palette/max-results-step` |(page size) |Page increment for the ''Show N more'' sentinel. Absent or invalid → the `max-results` page size, so the step matches the window out of the box. |
 |`$:/config/rimir/cascade-palette/soft-depth-warning` |`10` |Stage-stack depth that triggers a console warning. Adjust live via Settings → Soft depth warning. |
 |`$:/config/rimir/cascade-palette/large-root-set-warning` |`2000` |Row count above which a view's root set triggers a one-time console warning (it is rebuilt + decorated every keystroke — narrow `ca-view-roots` or add a filter). `0` disables. Adjust live via Settings → Large root-set warning. |
 |`$:/config/rimir/cascade-palette/details-always-on` |`no` |Keep the detail drawer visible without holding Ctrl. Toggle live via Settings → Details always on. |

@@ -605,13 +605,12 @@ module.exports = function (proto) {
         var mode = this._activeReachMode
             ? this._activeReachMode()
             : "local";
-        var maxResults = this.getMaxResults();
         var filtered;
         if ((mode === "deep-here" || mode === "deep-root") && stage.query) {
             filtered = this.deepWalk({ mode: mode, query: stage.query });
             // Deep results are always rendered flat — the breadcrumb IS
             // the group cue. Skip the regroup pass entirely.
-            stage.results = filtered.slice(0, maxResults);
+            stage.results = this._applyResultWindow(stage, filtered);
         } else {
             filtered = this.filterByQuery(stage.items, stage.query);
             // Reorder into visual (grouped) sequence when grouping is
@@ -623,11 +622,57 @@ module.exports = function (proto) {
             var ordered = this._isGroupingEnabledForStage(stage)
                 ? this.reorderByGroup(filtered)
                 : filtered;
-            stage.results = ordered.slice(0, maxResults);
+            stage.results = this._applyResultWindow(stage, ordered);
         }
         if (stage.selectedIndex >= stage.results.length) {
             stage.selectedIndex = Math.max(0, stage.results.length - 1);
         }
+    };
+
+    // Apply the visible-row window to an ordered/filtered result list and,
+    // when more rows exist than the window shows, append two synthetic
+    // sentinel rows ("Show N more" + "Show all N") at the bottom. The window
+    // resets to one page (getMaxResults) whenever the query text changes, so
+    // an expansion is scoped to the current query, not sticky. fireSelected
+    // (cp-firing.js) grows `stage.windowSize` when a sentinel is activated.
+    proto._applyResultWindow = function (stage, ordered) {
+        var max = this.getMaxResults();
+        // New query → reset the window. (Stage re-entry keeps _windowQuery
+        // undefined on a fresh stage object, so this also resets there.)
+        if (stage._windowQuery !== stage.query) {
+            stage._windowQuery = stage.query;
+            stage.windowSize = max;
+        }
+        if (!stage.windowSize) stage.windowSize = max;
+        var total = ordered.length;
+        var shown = stage.windowSize === Infinity
+            ? ordered.slice()
+            : ordered.slice(0, stage.windowSize);
+        var remaining = total - shown.length;
+        if (remaining > 0) {
+            var step = Math.min(this.getMaxResultsStep(), remaining);
+            shown.push(this._windowSentinelRow(
+                "page", "Show " + step + " more",
+                remaining + " more below — Enter to show " + step
+            ));
+            shown.push(this._windowSentinelRow(
+                "all", "Show all " + total,
+                "Show all " + total + " matches — Enter to load every row"
+            ));
+        }
+        return shown;
+    };
+
+    // Build one window sentinel row. No `title` (so the row-decoration gate
+    // in cp-row-decorations.js no-ops) and no `group` (so it never gets a
+    // section header — always appended last). `_windowGrow` is "page" or
+    // "all"; cp-firing.js reads it to grow the window.
+    proto._windowSentinelRow = function (grow, name, hint) {
+        return {
+            name: name, hint: hint, kind: "leaf",
+            dataRow: false, isSynthetic: true,
+            _windowSentinel: true, _windowGrow: grow
+        };
     };
 
     // Per-stage grouping is now a view-scoped property — each view
