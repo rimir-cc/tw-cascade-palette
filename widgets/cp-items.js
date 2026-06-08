@@ -124,6 +124,20 @@ module.exports = function (proto) {
             icon: f["ca-icon"] || "",
             kind: f["ca-kind"] || "leaf",
             order: order,
+            // Generic "this row is the current selection" flag. Toggle rows
+            // derive on-state from their bound field (isToggleOn), but leaf
+            // pickers (single-select ref/enum) have no bind state — the
+            // builder marks the row matching the current value with
+            // `ca-selected: yes` so the data-row sort can float it to the top
+            // alongside on-toggles (see _selectedTier in cp-stack.js).
+            selected: (f["ca-selected"] || "").toLowerCase() === "yes",
+            // Opt-in for data-row sorting on an items-from picker stage.
+            // Plain-filter (tiddler-title) stages sort unconditionally; a
+            // synthetic items-from stage only sorts when its parent drill
+            // sets `ca-sort-rows` (so structured menus — field editors, etc.
+            // — keep their emission/ca-order layout). Value is carried onto
+            // the stage in buildFilterStage.
+            sortRows: (f["ca-sort-rows"] || "").toLowerCase(),
             group: title ? this.resolveGroup(title, f) : (f["ca-group"] || ""),
             actions: f["ca-actions"] || "",
             nextScope: f["ca-next-scope"] || "",
@@ -496,6 +510,22 @@ module.exports = function (proto) {
         var s = String(v).toLowerCase();
         return s === String(item.trueValue).toLowerCase() ||
             s === "yes" || s === "true" || s === "on" || s === "1";
+    };
+
+    // The name a row actually shows: the active name-lens / row-label override
+    // when one fired (data rows only), else the row's intrinsic name. Used as
+    // the alphabetic sort key by cp-views (_sortRowsForView) and cp-stack
+    // (_sortDataRowItems) so the order matches what the user reads — a caption
+    // lens would otherwise leave a list sorted by raw title looking unsorted.
+    // _resolveRowDecorations is cache-backed and DOM-free; guarded so a
+    // minimal item-only widget (no row-decoration module) falls back to name.
+    proto._displayNameForItem = function (item) {
+        var deco = this._resolveRowDecorations
+            ? this._resolveRowDecorations(item) : null;
+        if (deco && deco.name !== null && deco.name !== undefined) {
+            return String(deco.name);
+        }
+        return String(item.name || "");
     };
 
 };

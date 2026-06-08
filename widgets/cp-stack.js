@@ -256,6 +256,11 @@ module.exports = function (proto) {
             // results are forced into plain-item rendering — cascade-aware
             // detection in evaluateFilterStage is suppressed.
             asLink: !!entry.nextAsLink,
+            // Carried from the drill's `ca-sort-rows`: when truthy, the
+            // synthetic items-from rows of this stage are alphabetised by
+            // displayed (lensed) name with selected rows floated to the top
+            // (see refreshStage / _sortDataRowItems).
+            sortRows: entry.sortRows || "",
             items: [],
             results: [],
             parentPicked: parentPicked || null,
@@ -413,7 +418,16 @@ module.exports = function (proto) {
                 treeView
             );
         } else if (stage.kind === "filter") {
-            stage.items = this.evaluateFilterStage(stage);
+            var filterItems = this.evaluateFilterStage(stage);
+            // Data-row sorting: alphabetise by displayed (lensed) name,
+            // selected rows first. Plain-filter (tiddler-title) stages are
+            // always pure data lists → sort unconditionally. Synthetic
+            // items-from stages opt in via the parent drill's ca-sort-rows
+            // so structured menus (field editors etc.) keep their layout.
+            var sortData = stage.itemsFromFilter ? !!stage.sortRows : true;
+            stage.items = sortData
+                ? this._sortDataRowItems(filterItems, stage)
+                : filterItems;
         } else if (stage.kind === "actions") {
             stage.items = this.sortEntries(
                 this.loadActionsForType(stage.entityType, stage.parentPicked)
@@ -697,6 +711,73 @@ module.exports = function (proto) {
         if (stage.kind === "root") return true;
         if (stage.kind === "tree" && view && view.isTree) return false;
         return true;
+    };
+
+    // Sort tier for data-row lists: 0 = currently selected (floats to top),
+    // 1 = everything else. A toggle row is "selected" when its bound field
+    // currently holds its true-value (isToggleOn); a leaf/other row opts in
+    // via `ca-selected: yes` (item.selected), which single-select pickers set
+    // on the row matching the current value.
+    proto._selectedTier = function (item) {
+        if (item.kind === "toggle" && this.isToggleOn(item)) return 0;
+        if (item.selected) return 0;
+        return 1;
+    };
+
+    // Identity key for a data row, stable across recomputes. Toggle rows are
+    // keyed by their true-value (the candidate), synthetic leaves by name,
+    // tiddler rows by title.
+    proto._dataRowKey = function (item) {
+        return item.title || item.trueValue || item.name || "";
+    };
+
+    // Order data-row stage items by (ca-order, selected-tier, displayed name).
+    // ca-order stays primary so any curated layout is preserved; within one
+    // order group selected rows float up, then the rest are alphabetised by
+    // the lensed display name (numeric-aware, case-insensitive). Display name
+    // is resolved once per item, not per comparison.
+    //
+    // The order is frozen per stage VISIT (cached on stage._dataRowOrder): a
+    // keepOpen recompute — e.g. Space-toggling a member on/off — must not make
+    // the just-toggled row jump, which would strand the index-based selection
+    // highlight. Re-entering the stage builds a fresh stage object, so the
+    // selected-on-top ordering re-applies then. New rows that appear mid-visit
+    // are sorted in and appended after the known rows.
+    proto._sortDataRowItems = function (items, stage) {
+        var self = this;
+        var decorated = items.map(function (it) {
+            return {
+                it: it,
+                key: self._dataRowKey(it),
+                tier: self._selectedTier(it),
+                dn: self._displayNameForItem(it)
+            };
+        });
+        var canonical = function (a, b) {
+            if (a.it.order !== b.it.order) return a.it.order - b.it.order;
+            if (a.tier !== b.tier) return a.tier - b.tier;
+            return a.dn.localeCompare(b.dn, undefined,
+                { numeric: true, sensitivity: "base" });
+        };
+        var frozen = stage && stage._dataRowOrder;
+        if (frozen) {
+            decorated.sort(function (a, b) {
+                var ai = frozen[a.key], bi = frozen[b.key];
+                var aKnown = ai !== undefined, bKnown = bi !== undefined;
+                if (aKnown && bKnown) return ai - bi;
+                if (aKnown !== bKnown) return aKnown ? -1 : 1;
+                return canonical(a, b);
+            });
+        } else {
+            decorated.sort(canonical);
+        }
+        var ordered = decorated.map(function (d) { return d.it; });
+        if (stage) {
+            var pos = {};
+            ordered.forEach(function (it, i) { pos[self._dataRowKey(it)] = i; });
+            stage._dataRowOrder = pos;
+        }
+        return ordered;
     };
 
     proto.reorderByGroup = function (items) {

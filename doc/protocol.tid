@@ -360,6 +360,16 @@ ca-after-fire: pop
 ca-actions: <$action-setfield $tiddler="$:/state/example/draft" $field="parent" $value="My First Node"/>
 ```
 
+! Data-row sorting (`ca-sort-rows`)
+
+''Plain'' filter stages (`ca-next-scope`, returning tiddler titles) always sort their rows: currently-selected first, then alphanumerically by the displayed (lensed) name. ''Synthetic'' `ca-items-from` stages do NOT sort by default — many are structured menus (field editors, etc.) whose authored emission / `ca-order` layout must be preserved. A picker stage opts in by setting ''`ca-sort-rows: name`'' on the parent drill:
+
+* a `toggle` row counts as selected when its bound field currently holds its `ca-true-value` (the engine reads the bind state directly — no per-row flag needed);
+* a non-toggle row (e.g. a single-select `leaf`, which carries no bind state) declares itself the current one with ''`ca-selected: yes`'';
+* selected rows float to the top of their `ca-order` group, then the rest sort alphanumerically by displayed name.
+
+The order is frozen per stage VISIT, so toggling a row on/off mid-list doesn't make it jump out from under the keyboard cursor; re-entering the picker re-applies selected-on-top. `rimir/kind`'s ref / enum field pickers set `ca-sort-rows` on the picker drill and mark the current single-select value with `ca-selected`.
+
 ! Bound drills (right-aligned current value)
 
 When a drill row carries `ca-bind-tiddler` + `ca-bind-field`, the palette renders the currently-bound value on the right of the row — like a text/number/date row — so the user sees their pick without re-entering the drill. References are resolved via the target tiddler's `caption` field (falling back to the raw title). Multi-select string-array binds are comma-joined for compactness. Empty binds render `(unset)`.
@@ -509,7 +519,7 @@ Active view persists ''session-only'' — page reload returns to the `ca-view-de
 ;`ca-view-label`
 :Optional display-name filter, evaluated with `<currentTiddler>` bound to the node. Default precedence: `caption` field → last `/`-segment of title → bare title.
 ;`ca-view-sort`
-:`alphabetical` (default) \| `natural` (numeric-aware) \| `by-field` \| `custom`.
+:`alphabetical` (default) \| `natural` (numeric-aware) \| `by-field` \| `custom`. `alphabetical` / `natural` sort by the ''displayed (lensed) name'' — the active name-lens / row-label result (e.g. `caption`), not the raw title — so the on-screen order matches what the user reads. (`by-field` / `custom` use the field / key you supply; to sort those by the displayed name, key on `[<currentTiddler>get[caption]else<currentTiddler>]`.)
 ;`ca-view-sort-field`
 :Field name used by `sort: by-field`. Numeric values sort numerically; otherwise locale-compared.
 ;`ca-view-sort-key`

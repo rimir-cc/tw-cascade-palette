@@ -156,6 +156,8 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-action-when` |filter |action |Refinement filter — narrows whichever path matched (entity-type or `ca-applies`) by per-row state. Evaluated with `<currentTiddler>` bound to the picked entity. Non-empty result ⇒ action is applicable; empty/missing filter ⇒ always applicable. Used to hide actions that don't make sense for a specific tiddler (e.g. "Mark done" only when `done` field is empty). |
 |`ca-next-scope` |filter |drill items |Filter expression for the new stage's items (mutually exclusive with `ca-items-from`) |
 |`ca-items-from` |filter |drill items |Filter that returns one JSON-encoded item shape per result. The palette parses each as a synthetic cascade item (no backing tiddler). Use for stages populated from configuration data rather than tiddlers. Mutually exclusive with `ca-next-scope`. |
+|`ca-sort-rows` |`name`\|empty |drill (items-from) |Opt the synthetic `ca-items-from` rows into data-row sorting: currently-selected rows float to the top (a `toggle` whose bound field holds its `ca-true-value`, or any row marked `ca-selected: yes`), then the rest sort alphanumerically by their displayed (lensed) name, within each `ca-order` group. Plain `ca-next-scope` (tiddler-title) stages sort unconditionally; structured items-from menus omit this to keep their authored layout. Used by `rimir/kind`'s ref / enum pickers. |
+|`ca-selected` |`yes`\|empty |items-from row |Marks a non-toggle row (e.g. a single-select `leaf`) as the current selection so `ca-sort-rows` floats it to the top — the engine can read a toggle's on-state from its binding, but a leaf carries no bind state. |
 |`ca-next-title` |string |drill items |Title shown in breadcrumb for the new stage |
 |`ca-next-entity-type` |string |drill items |Sets the next stage's entity type (enables action-menu drilling on Right/Space) |
 |`ca-next-default-action` |wikitext |drill items |Fired on Enter in the next stage when no entity default exists |
@@ -260,7 +262,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-row-icon-alt-hint` |string |row-icon |Tooltip text for the secondary gesture. Shown on hover beneath the primary hint, suffixed with `· Ctrl-Alt-↵`. |
 |`ca-row-icon-primary` |`yes`\|empty |row-icon |When `yes`, this icon is the Alt-↵ target on rows where multiple icons apply. First-seen wins ties; if no icon is `primary`, the first applicable icon (by `ca-row-icon-order`) wins. |
 |`ca-row-icon-order` |number |row-icon |Display order in the strip (lower first, default `100`). |
-|`ca-view-sort` |`alphabetical`\|`natural`\|`by-field`\|`custom` |view |Row sort policy; default `alphabetical` |
+|`ca-view-sort` |`alphabetical`\|`natural`\|`by-field`\|`custom` |view |Row sort policy; default `alphabetical`. `alphabetical` / `natural` sort by each row's ''displayed (lensed) name'' — the active name-lens / row-label result (e.g. the `caption`), not the raw title — so the visible order matches what the user reads. `natural` adds numeric-aware, case-insensitive collation. |
 |`ca-view-sort-field` |string |view (by-field) |Field name read off each row |
 |`ca-view-sort-key` |filter |view (custom) |Per-row filter returning a sortable key |
 |`ca-view-containers-first` |`yes`\|`no` |view |Containers float above leaves at each tree level. Default `yes` for tree views |

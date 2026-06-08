@@ -991,13 +991,6 @@ function setup(proto) {
                 }
                 return String(av || "").localeCompare(String(bv || ""));
             };
-        } else if (view.sort === "natural") {
-            sortFn = function (a, b) {
-                return String(a.name || "").localeCompare(
-                    String(b.name || ""), undefined,
-                    { numeric: true, sensitivity: "base" }
-                );
-            };
         } else if (view.sort === "custom" && view.sortKey) {
             sortFn = function (a, b) {
                 var ak = self._evalSortKey(view.sortKey, a);
@@ -1005,8 +998,19 @@ function setup(proto) {
                 return String(ak).localeCompare(String(bk));
             };
         } else {
+            // Name-based sort (default / "alphabetical" / "natural"). Sort by
+            // the DISPLAYED (lensed) name — _displayNameForItem returns the
+            // active name-lens / row-label override on data rows, else the
+            // row's intrinsic name — so the visible order matches what the
+            // user reads (a caption lens would otherwise leave the list
+            // sorted by raw title and looking unsorted). "natural" keeps the
+            // numeric-aware, case-insensitive collation.
+            var opts = (view.sort === "natural")
+                ? { numeric: true, sensitivity: "base" }
+                : undefined;
             sortFn = function (a, b) {
-                return String(a.name || "").localeCompare(String(b.name || ""));
+                return self._displayNameForItem(a).localeCompare(
+                    self._displayNameForItem(b), undefined, opts);
             };
         }
         var sorted = rows.slice().sort(sortFn);
