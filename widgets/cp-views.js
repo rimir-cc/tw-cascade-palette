@@ -715,12 +715,18 @@ function setup(proto) {
             var item = self._buildCascadeItem(fieldsObj, title);
             item._layerIdx = layerIdx;
             // Mark as a data row so the row-decoration lenses (name / icon /
-            // annotation — cp-lenses.js#_resolveSlot) apply. EXCEPT rows from
-            // the entries layer: those are palette COMMANDS (entry tiddlers
-            // with an authored ca-name like "Find entity"), not user content,
-            // so a name lens must not relabel them to their tiddler title and
-            // an icon lens must not stamp a kind glyph on them.
-            item.dataRow = (layer.source !== "entries");
+            // annotation — cp-lenses.js#_resolveSlot) apply. EXCEPT palette
+            // COMMANDS (entry tiddlers with an authored ca-name like "Find
+            // entity"), not user content, so a name lens must not relabel them
+            // to their tiddler title and an icon lens must not stamp a kind
+            // glyph on them. Two ways a row is a command: it came from the
+            // built-in entries channel (source "entries"), OR a view surfaced
+            // an entry tiddler through its own roots filter — the "Entries"
+            // view's `ca-view-roots: [...tag[entry]]` does exactly this, and
+            // without the tag check those rows would render as raw $:/… titles.
+            var isEntryCommand = $tw.utils
+                .parseStringArray(srcFields.tags || "").indexOf(ENTRY_TAG) !== -1;
+            item.dataRow = (layer.source !== "entries") && !isEntryCommand;
             // Ancestor-only marker — set when filter pills are active
             // and this row is in the revealed set but didn't itself
             // match the filter (i.e. it's shown only because a

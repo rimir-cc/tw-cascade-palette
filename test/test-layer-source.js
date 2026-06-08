@@ -152,4 +152,76 @@ describe("cascade-palette: ca-layer-source (H1)", function () {
             expect(entriesCount(view)).toBe(0);
         });
     });
+
+    // dataRow gates the row-decoration lenses (name / icon). An entry tiddler
+    // is a palette COMMAND with an authored ca-name — never user data — so it
+    // must stay dataRow:false even when a view surfaces it through its OWN
+    // roots filter (the shipped "Entries" view does: ca-view-roots
+    // [...tag[entry]]). Without the tag check the default Caption→Title name
+    // lens relabelled every command to its raw $:/… title.
+    describe("data-row exemption for entry COMMAND tiddlers", function () {
+
+        var setupItems =
+            require("$:/plugins/rimir/cascade-palette/widgets/cp-items");
+
+        // Widget carrying the row-building (cp-views) + item (cp-items)
+        // methods; filters/visibility neutralised so _evaluateLayer takes the
+        // plain roots path.
+        function rowWidget(tiddlers) {
+            var proto = {};
+            setup(proto);
+            setupItems(proto);
+            var w = Object.create(proto);
+            w.wiki = new $tw.Wiki();
+            w.filters = [];
+            (tiddlers || []).forEach(function (f) {
+                w.wiki.addTiddler(new $tw.Tiddler(f));
+            });
+            w._composeFilterSuffix = function () { return ""; }; // no active filters
+            w.isEntryVisible = function () { return true; };      // isolate visibility
+            w.resolveGroup = function (t, f) {                    // cp-actions dep
+                return (f && f["ca-group"]) || "";
+            };
+            return w;
+        }
+
+        // A bare implicit "filter" channel mimicking the Entries view's
+        // ca-view-roots — surfaces the candidate as a data source, NOT via the
+        // built-in entries channel.
+        function filterLayer() {
+            return {
+                title: "$:/v/x", source: "filter", isImplicit: true,
+                roots: "[tag[" + ENTRY_TAG + "]]", children: "", leaf: "",
+                axes: "", includePosition: true, name: "Entries",
+                rowName: "", rowHint: "", rowIcon: "", rowKind: "",
+                rowGroup: "", rowOrder: "", rowActions: "",
+                rowEntityType: "", rowNextScope: "", rowItemsFrom: ""
+            };
+        }
+        var view = {
+            title: "$:/v/x", name: "Entries", layers: [],
+            showCount: false, pickMode: false
+        };
+
+        it("an entry surfaced via a roots filter is NOT a data row (keeps ca-name)", function () {
+            var w = rowWidget([{
+                title: "$:/cp/entries/find-entity",
+                tags: [ENTRY_TAG],
+                "ca-name": "Find entity"
+            }]);
+            w._applyFilterSuffix = function () { return ["$:/cp/entries/find-entity"]; };
+            var rows = w._evaluateLayer(view, filterLayer(), 0, "", []);
+            expect(rows.length).toBe(1);
+            expect(rows[0].dataRow).toBe(false);      // command → name lens skipped
+            expect(rows[0].name).toBe("Find entity"); // ca-name preserved, not title
+        });
+
+        it("a non-entry tiddler surfaced the same way IS a data row", function () {
+            var w = rowWidget([{ title: "PlainNote", text: "hi" }]);
+            w._applyFilterSuffix = function () { return ["PlainNote"]; };
+            var rows = w._evaluateLayer(view, filterLayer(), 0, "", []);
+            expect(rows.length).toBe(1);
+            expect(rows[0].dataRow).toBe(true);
+        });
+    });
 });
