@@ -94,6 +94,10 @@ Creating prompts for a name then saves a fresh definition under the plugin names
 |''←'' |menu |Pop one stage (back). No-op at root depth. Same effect as Esc-in-menu; Esc additionally refocuses input at root. |
 |''Space'' on toggle |menu |Flip the bound value (palette stays open) |
 |''Space'' on text/number/date |menu |Enter edit mode — bound value pushed into input, Enter commits, Esc cancels |
+|''← / →'' on daterange |menu |Switch the active sub-date (start ↔ end). The active side is boxed/accented. |
+|''+ / -'' on daterange |menu |Adjust the active sub-date by ±1 day. Shift = ±month, Ctrl = ±year. Fires the row's `ca-on-commit` after each change. |
+|''Space / Enter'' on daterange |menu |Type the active sub-date via the smart parser (Enter commits, Esc cancels). |
+|''↑ / ↓'' on daterange |menu |Normal menu navigation — ↑/↓ are NOT trapped, so you arrow straight down to the Save row. |
 |''Space'' on any tiddler row |menu |If no kind-specific Space handler applies, scans applicable actions for the row's tiddler. Two paths run in parallel: catalogue (action `ca-entity-type` matches the row's bound type) and filter (action `ca-applies` filter non-empty with `<currentTiddler>` = row title). Union of matches opens the action-menu stage. Empty match → silent no-op. Works in catalogue and tree views, leaf and container rows. |
 |''+ / -'' on number |menu |Adjust by `ca-step` (default 1). Shift = `ca-step-medium` (5). Ctrl = `ca-step-large` (20). Matched on physical key (Equal/NumpadAdd/Minus/NumpadSubtract) so layout is irrelevant. |
 |''DEL / Backspace'' |menu |On an overridden setting → confirm drill to restore default. On a non-shadow tiddler in a diagnostic list → confirm drill to delete. On a synthetic row declaring `ca-on-delete` → fires that action (confirm-wrapped iff `ca-on-delete-consequence` is set). Otherwise no-op. |
@@ -121,6 +125,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |!Tag |!Purpose |
 |`$:/tags/rimir/cascade-palette/entry` |Root-stage menu item |
 |`$:/tags/rimir/cascade-palette/action` |Per-entity-type action menu item |
+|`$:/tags/rimir/cascade-palette/action-provider` |Dynamic-action provider — contributes computed actions to a row's action menu. Fields: `ca-applies` (gating filter, `<currentTiddler>` = focused row) + `ca-provider-items` (filter returning one JSON action spec per result, same shape as `ca-items-from` rows). Lets one tiddler emit N actions derived from the focused entity (e.g. `rimir/kind`'s "Manage <ref>…" per reference field). Evaluated as a fifth path in `loadActionsForType`. |
 |`$:/tags/rimir/cascade-palette/setting` |Setting toggle exposed under the engine's "Settings" entry |
 |`$:/tags/rimir/cascade-palette/diagnostic` |Diagnostic item exposed under the engine's "Diagnostics" entry |
 |`$:/tags/rimir/cascade-palette/configuration` |Aggregated under the engine's "Configuration" root entry (Settings, Diagnostics, etc.) |
@@ -144,7 +149,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-hint` |string |entry, action |Subtitle / right-aligned hint |
 |`ca-icon` |string |entry, action |Single character or emoji prefix |
 |`ca-order` |number |entry, action |Sort key (lower = higher in list, default 100) |
-|`ca-kind` |`leaf`\|`drill`\|`toggle`\|`number`\|`text`\|`date` |entry, action, setting |Leaf fires actions, drill pushes next stage, toggle flips a bound boolean, number adjusts via `+/-` (Space to type-set), text edits a string via Space → type → Enter, date adjusts via `+/-` ±day (Shift ±month, Ctrl ±year), Space → typed-edit with smart parser |
+|`ca-kind` |`leaf`\|`drill`\|`toggle`\|`number`\|`text`\|`date`\|`daterange` |entry, action, setting |Leaf fires actions, drill pushes next stage, toggle flips a bound boolean, number adjusts via `+/-` (Space to type-set), text edits a string via Space → type → Enter, date adjusts via `+/-` ±day (Shift ±month, Ctrl ±year), Space → typed-edit with smart parser. `daterange` binds ''two'' date fields (`ca-bind-field` + `ca-bind-field-end`) in one row: ←/→ switch the active sub-date, +/- adjust it (Shift ±month, Ctrl ±year), Space/Enter type it; ↑/↓ are left for normal menu navigation (arrow down to Save). A fresh range is seeded from `ca-default-start` / `-end`. |
 |`ca-actions` |wikitext |leaf items |Fired on Enter |
 |`ca-confirm` |`yes`\|empty |leaf items |When `yes`, the leaf's actions are wrapped in a confirm-drill stage rather than fired directly. The consequence text shows the cost of confirming (e.g. "Delete tiddler X"). |
 |`ca-confirm-consequence` |string |leaf with `ca-confirm:yes` |Text shown as the ''hint'' of the synthetic Confirm row (inline, always visible) AND in the detail drawer banner (Ctrl-hold or details-always-on). Supports `<<picked>>` / `<<parent-picked>>` / `<<stage-N-picked>>` substitution. |
@@ -165,7 +170,9 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-group` |string |entry, action |Override the visual cluster label. Defaults to the contributing plugin's `name`. Headers are suppressed when only one cluster is present in a stage. |
 |`ca-visibility-filter` |filter |entry |If present and returns no results, the entry is hidden from the root menu |
 |`ca-bind-tiddler` |string |toggle, number, text, date, drill |Target tiddler holding the bound value. On a `drill` (e.g. a single/multi-select picker sub-drill) this is purely informational — the palette renders the current bound value on the right of the row so the user sees their pick. |
-|`ca-bind-field` |string |toggle, number, text, date, drill |Target field (default `text`). Same dual role as `ca-bind-tiddler` on drills. |
+|`ca-bind-field` |string |toggle, number, text, date, daterange, drill |Target field (default `text`). Same dual role as `ca-bind-tiddler` on drills. On a `daterange` this is the ''start'' date field. |
+|`ca-bind-field-end` |string |daterange |The ''end'' date field of a range row (on the same `ca-bind-tiddler`). Falls back to `ca-bind-field` if unset. |
+|`ca-default-start` / `ca-default-end` |smart-date expr |daterange |Seed values for a ''fresh'' range (both fields empty) on stage entry — never overwrite existing values. Accepts the smart-date forms (`+2w`, `today`, `tomorrow`, `2026-07-01`, `01.07.2026`). |
 |`ca-bind-path` |string |toggle, number, text, date |Optional comma-separated walk inside the JSON-decoded field text (e.g. `prefs,layout`). Omit to bind the whole field. |
 |`ca-bind-type` |scribetype name |toggle, number, text, date |Scribetype handler used for value round-trip (default `text/plain`). `application/x-string-array` enables list-membership semantics on toggle; a whole-field bind stores a TW titlelist (entries with spaces wrapped in `[[…]]`), while a sub-path bind (`ca-bind-path`) stores the array inside the host JSON document. `application/x-tw-date` / `application/x-tw-datetime` round-trip date kinds (the latter is the default for date kinds when unset). Requires `rimir/scribe`. |
 |`ca-true-value` |string |toggle |Value written for "on" state (default `yes`). For `string-array` binds, this is the list element added/removed by the toggle. |
@@ -175,14 +182,14 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-step` |number |number |Step for bare `+/-` (default 1) |
 |`ca-step-medium` |number |number |Step for Shift-`+/-` (default 5) |
 |`ca-step-large` |number |number |Step for Ctrl-`+/-` (default 20) |
-|`ca-step-day` / `-month` / `-year` |number |date |Step for bare/Shift/Ctrl `+/-` respectively on a date row (each defaults to 1) |
-|`ca-date-format` |TW format-date string |date |Display format for the row value. Default `DD.MM.YYYY`. Examples: `YYYY-0MM-0DD` (ISO), `DDth MMM YYYY` (long). |
+|`ca-step-day` / `-month` / `-year` |number |date, daterange |Step for bare/Shift/Ctrl `+/-` (and ↑/↓) respectively on a date row (each defaults to 1) |
+|`ca-date-format` |TW format-date string |date, daterange |Display format for the row value. Default `DD.MM.YYYY`. Examples: `YYYY-0MM-0DD` (ISO), `DDth MMM YYYY` (long). |
 |`ca-default-value` |number |number |Value used when the bound field is empty / unparseable |
 |`ca-help` |string (multiline) |entry, action, setting |Longer-form help text shown in the detail drawer. Falls back to `ca-hint` when absent. |
 |`ca-on-delete` |wikitext |any row |Fired on DEL / Backspace. Receives `<<picked>>` + standard stage substitution. Takes priority over the built-in restore-default / delete-tiddler paths. Used by synthetic JSON-array rows whose "delete" means mutating the parent tiddler. |
 |`ca-on-delete-consequence` |string |row with `ca-on-delete` |Optional. If set, DEL pushes a confirm-stage with this consequence text instead of firing immediately. |
 |`ca-on-move-up` / `ca-on-move-down` |wikitext |any row |Fired on Ctrl-↑ / Ctrl-↓. Symmetric with `ca-on-delete` for reorder semantics on synthetic JSON-array rows. cp pre-bumps `stage.selectedIndex` by ±1 so the selection follows the row through the change-hook's stage recompute. The action is responsible for boundary no-ops. |
-|`ca-on-commit` |wikitext |text, number, date |Fired after a successful edit-mode commit with `<<picked>>` bound to the committed value. Works with or without `ca-bind-tiddler` (bind-less rows are pure value captures). |
+|`ca-on-commit` |wikitext |text, number, date, daterange |Fired after a successful edit-mode commit with `<<picked>>` bound to the committed value. On a `daterange`, fired after every nudge / type-commit with `<<picked>>` = the current ''start'' date (read the end field off the bound tiddler). Works with or without `ca-bind-tiddler` (bind-less rows are pure value captures). |
 |`ca-preview-template` |tiddler-title |entry, action |Title of a wikitext tiddler whose body renders in the right-pane ''preview'' when the user drills into this row. Pane stays visible while the registering stage (or any deeper one) is on the stack. Optional — omit to use ''tag-only opt-in'': set `ca-preview-per-row: yes` or `ca-preview-context` to enable the pane and let tagged side-preview tiddlers ([[side-preview tag|$:/tags/rimir/cascade-palette/side-preview]]) auto-attach the candidates. |
 |`ca-preview-context` |filter |entry, action |Evaluated at drill-time in the parent stage's substitution scope (`<<picked>>`, `<<parent-picked>>`, etc.). First result becomes `<<currentTiddler>>` inside the preview template AND is exposed to deeper stages as `<<stage-preview-context>>`. Defaults to `<<picked>>` (the row being drilled into). |
 |`ca-preview-title` |string |entry, action |Optional caption shown in the colored title strip above the preview body. Empty value hides the strip. |
@@ -207,7 +214,7 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-chip` |string |search-meta, search-field |Plain-text pill label. Defaults to the key/field name. |
 |`ca-hint` / `ca-help` |string |search-meta, search-field |Hover tooltip / details-pane help. |
 |`ca-search-fields` |space-separated meta keys |entry, action, item |Which cascade-item meta keys the matcher walks for THIS row when no Meta pill is pushed. Default per global config `$:/config/rimir/cascade-palette/search-fields-default` (ships `name hint`). |
-|`ca-search-skip` |`yes` |entry, action, item |When `yes`, the deep walker excludes this row from results AND does not descend its subtree. Default auto-skip for `text` / `number` / `date` / `toggle` / `confirm` row kinds. |
+|`ca-search-skip` |`yes` |entry, action, item |When `yes`, the deep walker excludes this row from results AND does not descend its subtree. Default auto-skip for `text` / `number` / `date` / `daterange` / `toggle` / `confirm` row kinds. |
 |`ca-visibility-name` |string |visibility |Display name. Required. |
 |`ca-visibility-prefix` |string |visibility |Input-prefix (e.g. `hide:`). Optional. |
 |`ca-visibility-arg` |`text`\|`tag`\|`tiddler`\|`none` |visibility |How the trailing input is interpreted. Default `text`. |

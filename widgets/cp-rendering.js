@@ -635,6 +635,7 @@ module.exports = function (proto) {
             case "text":   this._renderTextValue(rowEl, item); return;
             case "number": this._renderNumberValue(rowEl, item); return;
             case "date":   this._renderDateValue(rowEl, item); return;
+            case "daterange": this._renderDateRangeValue(rowEl, item); return;
         }
         // Drill carrying a binding (e.g. ref/enum picker sub-drill in a
         // field-edit flow): surface the currently-bound value on the right
@@ -724,17 +725,12 @@ module.exports = function (proto) {
         rowEl.appendChild(valueEl);
     };
 
-    proto._renderDateValue = function (rowEl, item) {
-        var raw = this._readBoundRaw(item);
-        var valueEl = this.document.createElement("span");
-        valueEl.className = "rcp-row-value rcp-row-value-date";
-        if (raw === undefined || raw === null || raw === "") {
-            valueEl.textContent = "(unset)";
-            rowEl.appendChild(valueEl);
-            return;
-        }
-        // Format the stored TW date string via the item's ca-date-format.
-        // Falls back to whatever fromField produces if formatting fails.
+    // Format a raw stored TW-date string for display via the item's
+    // ca-date-format. Empty → "(unset)". Falls back to the scribetype's
+    // fromField output (then the raw value) if format-date can't parse it.
+    // Shared by the date and daterange renderers.
+    proto._formatDateRaw = function (item, raw) {
+        if (raw === undefined || raw === null || raw === "") return "(unset)";
         var formatted = "";
         try {
             var d = $tw.utils.parseDate(String(raw));
@@ -742,12 +738,44 @@ module.exports = function (proto) {
                 formatted = $tw.utils.formatDateString(d, item.dateFormat || "DD.MM.YYYY");
             }
         } catch (err) { /* fall through */ }
-        if (!formatted) {
-            formatted = this.readBoundValue(item) || String(raw);
-        }
+        return formatted || this.readBoundValue(item) || String(raw);
+    };
+
+    proto._renderDateValue = function (rowEl, item) {
+        var formatted = this._formatDateRaw(item, this._readBoundRaw(item));
+        var valueEl = this.document.createElement("span");
+        valueEl.className = "rcp-row-value rcp-row-value-date";
         valueEl.textContent = formatted;
         valueEl.title = formatted;
         rowEl.appendChild(valueEl);
+    };
+
+    // daterange: two dates side-by-side ("start → end") with the active
+    // sub-date highlighted. The active side lives on the stage
+    // (`stage.rangeSide`, default "start") so it survives the destructive
+    // per-keystroke re-render; ←/→ flip it (see cp-keyboard).
+    proto._renderDateRangeValue = function (rowEl, item) {
+        var stage = this.topStage();
+        var side = (stage && stage.rangeSide) || "start";
+        var startItem = this._rangeSubItem(item, "start");
+        var endItem = this._rangeSubItem(item, "end");
+        var wrap = this.document.createElement("span");
+        wrap.className = "rcp-row-value rcp-row-range";
+        var startEl = this.document.createElement("span");
+        startEl.className = "rcp-range-part" +
+            (side === "start" ? " rcp-range-active" : "");
+        startEl.textContent = this._formatDateRaw(startItem, this._readBoundRaw(startItem));
+        var sepEl = this.document.createElement("span");
+        sepEl.className = "rcp-range-sep";
+        sepEl.textContent = "→";
+        var endEl = this.document.createElement("span");
+        endEl.className = "rcp-range-part" +
+            (side === "end" ? " rcp-range-active" : "");
+        endEl.textContent = this._formatDateRaw(endItem, this._readBoundRaw(endItem));
+        wrap.appendChild(startEl);
+        wrap.appendChild(sepEl);
+        wrap.appendChild(endEl);
+        rowEl.appendChild(wrap);
     };
 
     proto._renderNumberValue = function (rowEl, item) {

@@ -165,7 +165,18 @@ module.exports = function (proto) {
             bindField: this._resolveBindKey(f, "field", "text"),
             bindPath: this._resolveBindKey(f, "path", ""),
             bindType: this._resolveBindKey(f, "type",
-                ((f["ca-kind"] === "date") ? "application/x-tw-date" : DEFAULT_BIND_TYPE)),
+                ((f["ca-kind"] === "date" || f["ca-kind"] === "daterange")
+                    ? "application/x-tw-date" : DEFAULT_BIND_TYPE)),
+            // `daterange` kind: a single row binding TWO date fields on the
+            // same tiddler — `ca-bind-field` (start) + `ca-bind-field-end`
+            // (end). ←/→ switch the active sub-date, ↑/↓ (and +/-) nudge it
+            // (Shift = month, Ctrl = year). `ca-default-start` / `-end` are
+            // smart-date expressions (e.g. `+2w`, `today`, `2026-07-01`) used
+            // to seed a FRESH (both-empty) range on stage entry — existing
+            // values are never overwritten (edit-duration use case).
+            bindFieldEnd: f["ca-bind-field-end"] || "",
+            defaultStart: f["ca-default-start"] || "",
+            defaultEnd: f["ca-default-end"] || "",
             trueValue: f["ca-true-value"] || DEFAULT_TRUE_VALUE,
             falseValue: f["ca-false-value"] || DEFAULT_FALSE_VALUE,
             // Numeric edit-kind config. `min`/`max` are nullable so callers
@@ -280,6 +291,21 @@ module.exports = function (proto) {
     };
     proto._parseNumOrDefault = function (raw, fallback) {
         return utils.parseNumOrDefault(raw, fallback);
+    };
+
+    // Project a `daterange` item onto one of its two date sub-fields,
+    // yielding a throwaway `date`-kind item that every existing date helper
+    // (readDateValue / fireDate / _renderDateValue / _readBoundRaw / the date
+    // scribetype) consumes unchanged. side === "end" binds `bindFieldEnd`
+    // (falling back to the start field if unset); anything else binds the
+    // start field. The clone shares title / bindTiddler / bindType /
+    // dateFormat / onCommit so steps, storage format and commit hooks behave
+    // identically to a standalone date row.
+    proto._rangeSubItem = function (item, side) {
+        var field = (side === "end")
+            ? (item.bindFieldEnd || item.bindField)
+            : item.bindField;
+        return $tw.utils.extend({}, item, { kind: "date", bindField: field });
     };
 
     /* ---------- bound-value read/write ---------- */

@@ -85,11 +85,11 @@ module.exports = function (proto) {
                 // ca-search-skip: yes — exclude from results AND don't
                 // descend. Default auto-skip for items whose only purpose
                 // is to capture input or confirm: text / number / date /
-                // toggle / confirm-stage rows aren't meaningful matches and
-                // their "children" are never real cascade rows.
+                // daterange / toggle / confirm-stage rows aren't meaningful
+                // matches and their "children" are never real cascade rows.
                 var autoSkipKind = (item.kind === "text" || item.kind === "number" ||
-                    item.kind === "date" || item.kind === "toggle" ||
-                    item.kind === "confirm");
+                    item.kind === "date" || item.kind === "daterange" ||
+                    item.kind === "toggle" || item.kind === "confirm");
                 if (item.searchSkip || autoSkipKind) continue;
 
                 // Match check — same predicate as filterByQuery so local-

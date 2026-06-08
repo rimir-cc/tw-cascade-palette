@@ -75,6 +75,16 @@ exports.DELETE_ACTION_MESSAGE = "rimir-cascade-palette-delete-action";
 // ---- Tags consumed by the engine ----
 exports.ENTRY_TAG = "$:/tags/rimir/cascade-palette/entry";
 exports.ACTION_TAG = "$:/tags/rimir/cascade-palette/action";
+// Action-provider registration. Tiddlers tagged with this contribute
+// DYNAMICALLY-COMPUTED actions to a row's action menu — a fifth discovery
+// path alongside catalogue / configured-field / ca-applies / lens (all of
+// which surface STATIC action tiddlers). A provider has `ca-applies` (a
+// filter gating it for the focused row, `<currentTiddler>` = row title) and
+// `ca-provider-items` (a filter returning JSON-encoded action specs, one per
+// result — same spec shape as `ca-items-from` rows). Used by e.g. rimir/kind
+// to emit one "Manage <ref>…" action per reference field of the focused
+// entity. See `loadActionsForType` in cp-stack.js.
+exports.ACTION_PROVIDER_TAG = "$:/tags/rimir/cascade-palette/action-provider";
 exports.SETTING_TAG = "$:/tags/rimir/cascade-palette/setting";
 exports.DIAGNOSTIC_TAG = "$:/tags/rimir/cascade-palette/diagnostic";
 exports.TEMPLATE_TAG = "$:/tags/rimir/cascade-palette/template";

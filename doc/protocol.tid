@@ -20,6 +20,7 @@ Each tiddler has a tag and a small set of `ca-*` fields. The engine reads them a
 
 * ''`$:/tags/rimir/cascade-palette/entry`'' — root-stage menu item
 * ''`$:/tags/rimir/cascade-palette/action`'' — appears in the action menu for one entity type
+* ''`$:/tags/rimir/cascade-palette/action-provider`'' — contributes ''dynamically-computed'' actions to a row's action menu (one provider can emit N actions derived from the focused row — see ''Action providers'' below)
 * ''`$:/tags/rimir/cascade-palette/lens`'' — row-decoration lens projecting a name / icon / annotation slot onto every data row across views (per-slot single-select; authored in-palette)
 
 ! Fields
@@ -52,6 +53,21 @@ Each tiddler has a tag and a small set of `ca-*` fields. The engine reads them a
 :Sets the next stage's entity type. The engine uses this to discover action tiddlers when the user opens the action menu on a result (Right-arrow or Space). Omit when the picker shouldn't have its own action menu (e.g. an enum picker that should just fire a setfield).
 ;`ca-next-default-action` (drill only)
 :Wikitext fired when the user picks an item in the new stage if no entity-type default action exists. Typical use: an enum picker where the items are bare strings and you want Enter to act on the parent.
+
+! Action providers (dynamic actions)
+
+The four discovery paths above (`ca-entity-type` catalogue, configured-field bridge, `ca-applies` filter, and lens-contributed actions) all surface ''static'' action tiddlers — one tiddler, one action. When you need ''N actions computed from the focused row'' — e.g. one "Manage <ref>…" action per reference field of whatever entity is selected — use an ''action provider''.
+
+A provider is a tiddler tagged ''`$:/tags/rimir/cascade-palette/action-provider`'' with two fields:
+
+;`ca-applies`
+:Applicability filter, evaluated with `<currentTiddler>` bound to the focused row's title. Non-empty ⇒ this provider runs for that row. (Same semantics as an action's `ca-applies`.)
+;`ca-provider-items`
+:Filter returning ''one JSON-encoded action spec per result'' — exactly the same spec shape as a drill's `ca-items-from` rows (`{"ca-name":…,"ca-kind":"drill","ca-items-from":…}` etc.). Evaluated with `<currentTiddler>` bound to the focused row. Each spec becomes a synthetic action row in the menu.
+
+Because the emitted specs are computed at menu-open time, bake any row-specific values (the entity title, a field key) into the spec as literal operands — `<currentTiddler>` changes once a drill from the spec is pushed.
+
+''Example'' (`rimir/kind` ships this): a provider with `ca-applies: [<currentTiddler>has[kind.type]!has[kind.fields]]` and `ca-provider-items: [function[kind.manage-ref-actions],<currentTiddler>]` emits one "Manage Members…" / "Manage Parent…" drill per reference field of the focused entity, each drilling straight into that field's add/remove picker.
 
 ! Substitution variables
 
@@ -228,6 +244,25 @@ ca-bind-field: text
 ```
 
 Numbers also support this edit gesture — Space on a number row enters the same edit mode, letting you type a value directly instead of nudging with +/-. (Both gestures coexist.)
+
+! Worked example 8b — A date-range row (`ca-kind: daterange`)
+
+A single row that edits a ''pair'' of date fields on the same tiddler — a start (`ca-bind-field`) and an end (`ca-bind-field-end`). It renders both side-by-side (`01.07.2026 → 15.07.2026`) with the active side boxed. Keys: ''←/→'' switch the active sub-date, ''+/-'' adjust it (bare = day, ''Shift'' = month, ''Ctrl'' = year), ''Space'' or ''Enter'' type it with the smart parser. ''↑/↓'' are left as normal menu navigation, so the user just arrows down to the Save row (no escape gesture needed). A ''fresh'' range — both fields empty — is seeded once on entry from `ca-default-start` / `ca-default-end` (smart-date expressions); a range that already has values (editing an existing record) is left untouched, so the same row serves both "create with defaults" and "edit existing duration". `ca-on-commit` fires after every adjustment with `<<picked>>` = the start date, so a derived caption/title can track the range live.
+
+```
+{
+  "ca-kind": "daterange",
+  "ca-name": "Duration",
+  "ca-bind-tiddler": "<<draft>>",
+  "ca-bind-field": "when",
+  "ca-bind-field-end": "until",
+  "ca-default-start": "+2w",
+  "ca-default-end": "+4w",
+  "ca-date-format": "0DD.0MM.YYYY"
+}
+```
+
+(Shown as an `ca-items-from` JSON spec, the usual way edit rows are synthesised inside a quick-create / edit drill.)
 
 ! Worked example 9 — A global action (applies to any entity type)
 

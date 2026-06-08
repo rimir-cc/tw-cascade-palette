@@ -20,6 +20,7 @@ Stages live in `this.stack`. Each stage carries:
 
 var C = require("$:/plugins/rimir/cascade-palette/widgets/cp-constants");
 var ACTION_TAG = C.ACTION_TAG;
+var ACTION_PROVIDER_TAG = C.ACTION_PROVIDER_TAG;
 var ENTRY_TAG = C.ENTRY_TAG;
 var SOFT_DEPTH_CONFIG = C.SOFT_DEPTH_CONFIG;
 var DEFAULT_SOFT_DEPTH = C.DEFAULT_SOFT_DEPTH;
@@ -46,6 +47,9 @@ module.exports = function (proto) {
             );
         }
         this.recomputeStage(stage);
+        // Seed any fresh daterange rows from their defaults before the first
+        // paint, so the row opens pre-filled (e.g. today+2w → today+4w).
+        if (this._seedDateRanges) this._seedDateRanges(stage);
         this.renderStage();
     };
 
@@ -507,11 +511,66 @@ module.exports = function (proto) {
                 matched.push(title);
             });
         }
-        return matched
+        var staticItems = matched
             .filter(function (title) {
                 return self.isActionApplicable(title, contextTitle);
             })
             .map(function (title) { return self.readCascadeFields(title); });
+        // Provider path (5th mechanism): tiddlers tagged ACTION_PROVIDER_TAG
+        // emit DYNAMICALLY-COMPUTED action specs for the focused row. Each
+        // result is a JSON object of ca-* props (same shape as ca-items-from
+        // rows) → readCascadeFromObject builds a synthetic (title-less) item.
+        return staticItems.concat(this.loadProviderActions(contextTitle));
+    };
+
+    // Evaluate action-provider tiddlers for the focused row. Returns an array
+    // of synthetic cascade items (no backing tiddler). A provider applies when
+    // its `ca-applies` filter is non-empty for the row; its `ca-provider-items`
+    // filter then yields one JSON action spec per result.
+    proto.loadProviderActions = function (contextTitle) {
+        var self = this;
+        var out = [];
+        var providers = this.wiki.filterTiddlers(
+            "[all[shadows+tiddlers]tag[" + ACTION_PROVIDER_TAG + "]] +[!is[draft]]"
+        );
+        providers.forEach(function (title) {
+            // Reuse the ca-applies gate semantics from the static path.
+            if (!self.actionAppliesViaFilter(title, contextTitle)) return;
+            var t = self.wiki.getTiddler(title);
+            var f = (t && t.fields) || {};
+            var itemsFilter = f["ca-provider-items"];
+            if (!itemsFilter || !String(itemsFilter).trim()) return;
+            var specs;
+            try {
+                specs = self._filterInScope(
+                    String(itemsFilter),
+                    { currentTiddler: contextTitle || "" }
+                );
+            } catch (err) {
+                if (console && console.warn) {
+                    console.warn(
+                        "[cascade-palette] ca-provider-items filter error on",
+                        title, "—", err && err.message
+                    );
+                }
+                return;
+            }
+            (specs || []).forEach(function (raw) {
+                var obj;
+                try { obj = JSON.parse(raw); }
+                catch (err) {
+                    if (console && console.warn) {
+                        console.warn(
+                            "[cascade-palette] action-provider spec JSON parse error on",
+                            title, "—", err && err.message, "—", raw
+                        );
+                    }
+                    return;
+                }
+                out.push(self.readCascadeFromObject(obj));
+            });
+        });
+        return out;
     };
 
     proto._entityTypeField = function () {

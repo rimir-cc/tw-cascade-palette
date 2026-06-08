@@ -1959,6 +1959,39 @@ type: text/css
     font-variant-numeric: tabular-nums;
 }
 
+/* daterange: two dates "start → end" in one value slot. The active side
+   (←/→ to switch) is boxed and accented so the user always knows which date
+   ↑/↓ and +/- will move. */
+.rcp-row-range {
+    font-variant-numeric: tabular-nums;
+    max-width: 70%;
+}
+
+.rcp-range-part {
+    padding: 0 4px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+}
+
+.rcp-range-active {
+    color: #1d4ed8;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+.rcp-range-sep {
+    margin: 0 2px;
+    color: #9ca3af;
+}
+
+.rcp-row-selected .rcp-range-active {
+    /* On the highlighted row, lift the active chip enough to read against the
+       selection background. */
+    color: #1d4ed8;
+    background: #ffffff;
+    border-color: #93c5fd;
+}
+
 /* Edit-mode visual: dim the result list so attention is on the input.
    Save-mode (preset naming) uses the same treatment. */
 .rcp-popup.rcp-editing .rcp-results,

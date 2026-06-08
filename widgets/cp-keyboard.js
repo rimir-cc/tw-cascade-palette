@@ -351,6 +351,21 @@ module.exports = function (proto) {
             this.setFocus("input");
             return;
         }
+        // daterange row, while selected: ←/→ switch the active sub-date
+        // (start ↔ end); +/- nudge it (shared block below). ↑/↓ are NOT
+        // trapped — they stay as normal menu navigation, so the user simply
+        // arrows down to the Save row (no Enter/Tab escape needed). Space /
+        // Enter type the active sub-date (handled in the Space block /
+        // fireSelected). Each +/- fires the row's ca-on-commit so a derived
+        // caption/title tracks the dates live.
+        var pickedDR = stage.results[stage.selectedIndex];
+        if (pickedDR && pickedDR.kind === "daterange" &&
+            (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+            e.preventDefault();
+            stage.rangeSide = (e.key === "ArrowRight") ? "end" : "start";
+            this.renderResults();
+            return;
+        }
         // Ctrl-↑ / Ctrl-↓ on a row declaring `ca-on-move-up` / `ca-on-
         // move-down` fires the move action. Selection is pre-bumped so it
         // follows the row through the cp change-hook's stage recompute.
@@ -438,6 +453,17 @@ module.exports = function (proto) {
                     this.enterEditMode(picked);
                     return;
                 }
+                // daterange — Space types the ACTIVE sub-date (smart parser);
+                // commit writes through that side's field and fires the
+                // inherited ca-on-commit, so the caption refreshes as for a
+                // plain typed date.
+                if (picked.kind === "daterange") {
+                    e.preventDefault();
+                    this.enterEditMode(
+                        this._rangeSubItem(picked, stage.rangeSide || "start")
+                    );
+                    return;
+                }
                 // Action menu — surfaces in three modes:
                 //   1. Catalogue (row-bound): the row carries an
                 //      entityType (set by `ca-layer-row-entity-type`
@@ -493,12 +519,18 @@ module.exports = function (proto) {
             }
             if (pickedN && pickedN.kind === "date") {
                 e.preventDefault();
-                // Modifier layering matches number kind:
-                //   bare = day, Shift = month, Ctrl = year.
-                // (Ctrl-shift is treated as Ctrl — year wins; ergonomics.)
-                var unit = e.ctrlKey ? "year" : (e.shiftKey ? "month" : "day");
-                var sign = isPlusKey ? 1 : -1;
-                this.fireDate(stage, pickedN, unit, sign);
+                // Modifier→unit mapping is shared with daterange and the
+                // ↑/↓ paths via _dateUnitForEvent (single source of truth).
+                this.fireDate(stage, pickedN, this._dateUnitForEvent(e),
+                    isPlusKey ? 1 : -1);
+                return;
+            }
+            if (pickedN && pickedN.kind === "daterange") {
+                e.preventDefault();
+                this.fireDateRange(
+                    stage, pickedN, stage.rangeSide || "start",
+                    this._dateUnitForEvent(e), isPlusKey ? 1 : -1
+                );
                 return;
             }
         }

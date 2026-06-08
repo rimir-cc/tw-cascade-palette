@@ -192,6 +192,14 @@ module.exports = function (proto) {
             this.enterEditMode(picked);
             return;
         }
+        // 2c′. Date-range row — Enter types the active sub-date (mirrors the
+        //      date kind, where Enter and Space both enter edit mode). The
+        //      user adjusts with +/- and switches sides with ←/→; ↑/↓ move
+        //      the menu selection normally (so they arrow down to Save).
+        if (picked.kind === "daterange") {
+            this.enterEditMode(this._rangeSubItem(picked, stage.rangeSide || "start"));
+            return;
+        }
         // 3. Dynamic filter-stage item (an entity result OR enum value).
         if (picked.isItem) {
             var vars = this.buildStageVariables(stage, picked.title);
@@ -354,6 +362,15 @@ module.exports = function (proto) {
         return helpers.fromTwDate(raw);
     };
 
+    // Map a keyboard event's modifiers to a date-arithmetic unit. SINGLE
+    // source of truth for both the date and daterange kinds, on both the
+    // +/- and ↑/↓ paths — re-binding the modifier→unit mapping here changes
+    // every date control at once. bare = day, Shift = month, Ctrl = year
+    // (Ctrl wins over Shift; matches the number kind's step layering).
+    proto._dateUnitForEvent = function (e) {
+        return e.ctrlKey ? "year" : (e.shiftKey ? "month" : "day");
+    };
+
     proto.fireDate = function (stage, item, unit, sign) {
         var helpers = this._dateHelpers();
         if (!helpers) return;
@@ -423,6 +440,81 @@ module.exports = function (proto) {
             (t && t.fields) || {},
             newFields
         ));
+    };
+
+    /* ---------- date-range editing ----------
+
+    A `daterange` row binds two date fields (bindField = start, bindFieldEnd
+    = end). All arithmetic delegates to fireDate via a per-side sub-item
+    (cp-items._rangeSubItem), so the storage format / step config / scribetype
+    round-trip stay identical to a standalone date row. The only extra over a
+    plain date is: (a) the row fires its own `ca-on-commit` after each nudge —
+    fireDate alone does not — so a reactive caption/title preview tracks the
+    dates live; and (b) a fresh (both-empty) range is seeded from
+    ca-default-start / -end on stage entry.
+
+    \-------------------------------------------- */
+
+    // Nudge one side of a range by ±unit, then fire the row's commit hook so
+    // dependent fields (e.g. a derived caption) refresh immediately.
+    proto.fireDateRange = function (stage, item, side, unit, sign) {
+        this.fireDate(stage, this._rangeSubItem(item, side), unit, sign);
+        this._fireRangeCommit(item);
+    };
+
+    // Fire a daterange row's ca-on-commit. <<picked>> = the current START
+    // date's stored value (the conventional "primary" value of the pair);
+    // the action can read both fields off the bound tiddler directly.
+    proto._fireRangeCommit = function (item) {
+        if (!item.onCommit) return;
+        var startRaw = this._readBoundRaw(this._rangeSubItem(item, "start"));
+        var commitVars = this.buildStageVariables(
+            this.topStage(),
+            startRaw === undefined || startRaw === null ? "" : String(startRaw)
+        );
+        this.invokeViaNavigator(item.onCommit, commitVars);
+    };
+
+    // Seed one sub-field from a smart-date expression (e.g. "+2w"). Returns
+    // true iff it wrote. No-op on empty expression / parse failure.
+    proto._seedRangeField = function (subItem, expr, helpers) {
+        if (!expr) return false;
+        var d;
+        try { d = helpers.parseSmartDate(String(expr)); } catch (e) { return false; }
+        if (!d) return false;
+        var storage = (subItem.bindType === "application/x-tw-date")
+            ? helpers.toTwDateOnly(d)
+            : helpers.toTwDate(d);
+        if (storage === undefined) return false;
+        this._writeRawAtField(subItem, storage);
+        return true;
+    };
+
+    // Seed every FRESH daterange row in a freshly-pushed stage from its
+    // ca-default-start / -end. "Fresh" = BOTH bound fields empty — a range
+    // with either side already set (editing an existing record) is left
+    // untouched. Runs once per stage push (guarded by stage._rangeSeeded);
+    // the change-hook re-renders that follow writes go through
+    // recomputeStage, not pushStage, so there is no re-seed loop.
+    proto._seedDateRanges = function (stage) {
+        if (!stage || !stage.results || stage._rangeSeeded) return;
+        stage._rangeSeeded = true;
+        var helpers = this._dateHelpers();
+        if (!helpers) return;
+        for (var i = 0; i < stage.results.length; i++) {
+            var item = stage.results[i];
+            if (!item || item.kind !== "daterange" || !item.bindTiddler) continue;
+            var startItem = this._rangeSubItem(item, "start");
+            var endItem = this._rangeSubItem(item, "end");
+            var s = this._readBoundRaw(startItem);
+            var en = this._readBoundRaw(endItem);
+            if ((s !== undefined && s !== "") || (en !== undefined && en !== "")) {
+                continue;  // existing values — never overwrite
+            }
+            var did = this._seedRangeField(startItem, item.defaultStart, helpers);
+            if (this._seedRangeField(endItem, item.defaultEnd, helpers)) did = true;
+            if (did) this._fireRangeCommit(item);
+        }
     };
 
     /* ---------- edit mode (text + direct-set numbers) ---------- */
