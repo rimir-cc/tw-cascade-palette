@@ -150,7 +150,11 @@ module.exports = function (proto) {
                 s.selectedIndex >= 0 && s.selectedIndex < s.results.length) {
                 var topRow = s.results[s.selectedIndex];
                 var topTitle = (topRow && topRow.title) || "";
-                if (topTitle) {
+                // A selected row carrying its own preview template anchors the
+                // pane even with an empty title (synthetic "Overview" rows have
+                // no title) — there the explicit template, not the context,
+                // drives the render.
+                if (topTitle || (topRow && topRow.previewTemplate)) {
                     return { context: topTitle, depth: i, stage: s };
                 }
             }
@@ -271,6 +275,43 @@ module.exports = function (proto) {
     // are tag-matched candidates. Dedup by template title (so a tag
     // candidate that names the same template as the menu doesn't show
     // a duplicate pill).
+    // Preview candidate contributed by a stage's CURRENTLY-SELECTED row when
+    // that row carries its own `ca-preview-template` (item.previewTemplate).
+    // Surfaces on mere selection (↑/↓), not only on drill — so synthetic
+    // "Overview" rows (and any row with an authored preview) render in the
+    // pane the moment they're focused. Returns null when the selected row has
+    // no template. Context defaults to the row title; `ca-preview-context`,
+    // when set, is resolved as a filter (first result) just like the
+    // drill-time path.
+    proto._selectedRowPreview = function (stage) {
+        if (!stage || !stage.results || !stage.results.length) return null;
+        var idx = stage.selectedIndex;
+        if (idx < 0 || idx >= stage.results.length) return null;
+        var row = stage.results[idx];
+        if (!row || !row.previewTemplate) return null;
+        var context = row.title || "";
+        if (row.previewContext) {
+            try {
+                var res = this._filterInScope(row.previewContext,
+                    { currentTiddler: row.title || "" });
+                if (res && res.length) context = res[0];
+            } catch (err) {
+                if (console && console.warn) {
+                    console.warn(
+                        "[cascade-palette] row ca-preview-context filter error on",
+                        row.title, "—", err && err.message
+                    );
+                }
+            }
+        }
+        return {
+            template: row.previewTemplate,
+            context: context,
+            title: row.previewTitle || "",
+            name: row.previewName || this._defaultPreviewName(row.previewTemplate)
+        };
+    };
+
     proto._resolvePreviewCandidates = function () {
         var active = this._activePreviewContext();
         if (active.depth < 0) {
@@ -279,7 +320,20 @@ module.exports = function (proto) {
         var candidates = [];
         var seen = {};
         var s = active.stage;
-        if (s._previewTemplate) {
+        // Selected-row template (e.g. a synthetic Overview row) leads the list.
+        var rowPrev = this._selectedRowPreview(s);
+        if (rowPrev) {
+            candidates.push({
+                template: rowPrev.template,
+                context: rowPrev.context,
+                title: rowPrev.title,
+                name: rowPrev.name,
+                fromTag: false,
+                source: ""
+            });
+            seen[rowPrev.template] = true;
+        }
+        if (s._previewTemplate && !seen[s._previewTemplate]) {
             var menuName = s._previewMenuName || s._previewTitle ||
                 this._defaultPreviewName(s._previewTemplate);
             candidates.push({

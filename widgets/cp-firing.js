@@ -92,6 +92,15 @@ module.exports = function (proto) {
             return;
         }
 
+        // 0. Overview row — selection already renders its summary in the side
+        //    preview; Enter jumps focus INTO that pane so the user can scroll /
+        //    interact with it. Falls through to the no-op leaf guard below when
+        //    the pane isn't visible (e.g. the view opted out of side preview).
+        if (picked._overviewRow && this._isSidePreviewVisible &&
+            this._isSidePreviewVisible()) {
+            this.setFocus("preview");
+            return;
+        }
         // 1. Pure-display leaf — no `ca-actions`, but `ca-after-fire: keep`
         //    signals "this row exists to show a message; Enter should be a
         //    no-op". Used by warning rows (kind's title-collision / constraint-

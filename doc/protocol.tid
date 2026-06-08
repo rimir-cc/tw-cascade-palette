@@ -900,6 +900,19 @@ Any tiddler tagged ''`$:/tags/rimir/cascade-palette/side-preview`'' is a candida
 
 When per-menu and tag-based mechanisms BOTH contribute candidates against the same context, all candidates show as pills in a horizontal row at the top of the pane (per-menu first, then tag candidates by `ca-preview-order`). The active pill is highlighted. ←/→ when focus is on the preview cycles between them (also click). With a single candidate the pill row is suppressed entirely.
 
+! ! (c) Channel / view "Overview" rows — a summary you focus
+
+A channel or view can declare a ''summary'' template that the cascade surfaces as a dedicated, focusable row rather than a tag match:
+
+;`ca-channel-preview` / `ca-view-preview`
+:Title of a wikitext tiddler. When set, the ''root stage'' emits one synthetic ''Overview'' row — for a channel it leads that channel's group; for a view it leads the whole result list, grouped under the view name.
+;`ca-channel-preview-name` / `ca-view-preview-name`
+:Label for the Overview row and its preview pill. Default `Overview`.
+;`ca-channel-preview-title` / `ca-view-preview-title`
+:Caption shown in the title strip above the preview body.
+
+The Overview row is a ''non-drill no-op leaf'', excluded from search, pinned to the top of its group. ''Focusing'' it (↑/↓) renders the template in the side preview — this works because a selected row's own `ca-preview-template` now drives the pane (not only a drilled one). ''Enter'' on the row moves focus into the preview pane so you can scroll / interact. Overview rows appear only at the root stage, never in drilled sub-stages, and are suppressed when the view sets `ca-view-show-side-preview: no`. The template renders with no particular `<<currentTiddler>>` context (it's a fixed summary), so author it against global filters.
+
 ! Worked example — Edit kind's fields with a live form preview
 
 ```

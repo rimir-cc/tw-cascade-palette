@@ -272,6 +272,22 @@ The plugin ships four filter operators (`cp-child-of`, `cp-actions-for`, `cp-act
 <$list filter="[tag[$:/tags/rimir/cascade-palette/entry]] :filter[cp-position-of[default]match<parentTitle>]" />
 ```
 
+! 17. Channel "Overview" row — a summary you focus
+
+Give a channel a summary pane that opens when its group is reached. The channel emits a synthetic ''Overview'' row leading its group; focusing it renders the named template in the side preview, and Enter moves focus into the pane.
+
+```
+title: $:/config/example/cascade-palette/channels/agenda
+tags: $:/tags/rimir/cascade-palette/channel
+ca-channel-name: Agenda
+ca-channel-preview: Agenda
+ca-channel-preview-name: ⏰ Agenda overview
+ca-channel-preview-title: Upcoming — next 60 days
+ca-channel-roots: [agenda-subjects[60]]
+```
+
+`Agenda` is an ordinary wikitext tiddler rendering the full summary (here via a custom `[agenda[60]]` filter operator) — it ignores `<<currentTiddler>>` because it's a fixed overview. Use `ca-view-preview` on a view instead to put one Overview row at the top of the whole result list rather than per-channel.
+
 ! What's NOT recommended
 
 * ''Heavy filters in `ca-next-scope`'' — re-runs on every keystroke. If you can't avoid an expensive filter, cache the result in a state tiddler at palette-open time and have the scope read from the cache.

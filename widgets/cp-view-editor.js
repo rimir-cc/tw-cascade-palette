@@ -369,6 +369,24 @@ module.exports = function (proto) {
                 name: "Grouping"
             };
         }
+        // Channel/view "summary" — the Overview-row template title. View-scoped
+        // (layer null) binds `ca-view-preview` on the view; an implicit channel
+        // IS the view (same field); an explicit channel binds `ca-channel-preview`
+        // and edits via a layer scratchpad. The entries channel has none.
+        if (k === "summary") {
+            if (!layer || layer.isImplicit) {
+                return {
+                    bindTiddler: (layer && layer.title) || this.activeView,
+                    bindField: "ca-view-preview",
+                    editKind: "text", name: "Summary (view overview)"
+                };
+            }
+            if (layer.isBuiltIn) return null;
+            return {
+                bindTiddler: layer.title, bindField: "ca-channel-preview",
+                editKind: "text", name: "Summary (channel overview)", scope: "layer"
+            };
+        }
         // Layer-scoped structural facets. Two cases:
         //  - implicit layer: structure lives on the view tiddler, so the
         //    field is `ca-view-*` and binds to the view (Phase 1).

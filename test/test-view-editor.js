@@ -362,6 +362,34 @@ describe("cascade-palette: cp-view-editor", function () {
             expect(grouping.editKind).toBe("toggle");
             expect(w._pillEditDescriptor({ kind: "axis" }, null)).toBeNull();
         });
+
+        it("maps the view-scoped summary pill to ca-view-preview (text)", function () {
+            var d = w._pillEditDescriptor({ kind: "summary" }, null);
+            expect(d).toEqual(jasmine.objectContaining({
+                bindTiddler: "V", bindField: "ca-view-preview", editKind: "text"
+            }));
+        });
+
+        it("maps an implicit-channel summary pill to ca-view-preview", function () {
+            var d = w._pillEditDescriptor({ kind: "summary" }, { isImplicit: true, title: "V" });
+            expect(d.bindField).toBe("ca-view-preview");
+            expect(d.bindTiddler).toBe("V");
+        });
+
+        it("maps an explicit-channel summary pill to ca-channel-preview (scope:layer)", function () {
+            var d = w._pillEditDescriptor({ kind: "summary" },
+                { isImplicit: false, isBuiltIn: false, title: "$:/some/layer" });
+            expect(d).toEqual(jasmine.objectContaining({
+                bindTiddler: "$:/some/layer",
+                bindField: "ca-channel-preview",
+                editKind: "text", scope: "layer"
+            }));
+        });
+
+        it("refuses a summary pill on the built-in entries channel", function () {
+            expect(w._pillEditDescriptor({ kind: "summary" },
+                { isImplicit: false, isBuiltIn: true, title: "$:/.../entries" })).toBeNull();
+        });
     });
 
     describe("_slugTitle", function () {

@@ -187,6 +187,13 @@ function setup(proto) {
             // Space-separated slot list the view LOCKS: a locked slot forces the
             // view's default lens onto every channel (channel overrides ignored).
             lockedSlots: $tw.utils.parseStringArray(f["ca-view-locked"] || "") || [],
+            // View-level "Overview" summary: when `ca-view-preview` names a
+            // template tiddler, the root stage emits one synthetic Overview row
+            // (grouped under the view name) whose selection renders the template
+            // in the side preview. See _buildOverviewRows.
+            preview: f["ca-view-preview"] || "",
+            previewName: f["ca-view-preview-name"] || "Overview",
+            previewTitle: f["ca-view-preview-title"] || "",
             order: order,
             layers: []
         };
@@ -303,6 +310,11 @@ function setup(proto) {
             rowNextScope: f["ca-view-row-next-scope"] || "",
             rowItemsFrom: f["ca-view-row-items-from"] || "",
             includePosition: true,
+            // Implicit channel == the view itself; the view-level Overview row
+            // (if any) already covers it, so this channel emits no own Overview.
+            preview: "",
+            previewName: "Overview",
+            previewTitle: "",
             // Implicit channel == the view itself, so it has no own override:
             // it inherits the view's default lens per slot.
             lensOwn: { name: "", icon: "", annotation: "" }
@@ -346,6 +358,13 @@ function setup(proto) {
             rowEntityType: channelField(f, "row-entity-type") || "",
             rowNextScope: channelField(f, "row-next-scope") || "",
             rowItemsFrom: channelField(f, "row-items-from") || "",
+            // Channel-level "Overview" summary: when `ca-channel-preview` names
+            // a template tiddler, the root stage emits one synthetic Overview
+            // row into this channel's group whose selection renders the template
+            // in the side preview. See _buildOverviewRows.
+            preview: channelField(f, "preview") || "",
+            previewName: channelField(f, "preview-name") || "Overview",
+            previewTitle: channelField(f, "preview-title") || "",
             includePosition:
                 (channelField(f, "include-position") || "yes").toLowerCase() !== "no",
             // Per-channel lens OVERRIDE per slot (own lens title or "" = inherit
@@ -440,7 +459,55 @@ function setup(proto) {
         // stage evaluates every layer.
         var layerIdx = (parentContext && parentContext.layerIdx !== undefined)
             ? parentContext.layerIdx : null;
-        return this._buildNodeForView(view, parentTitle, layerIdx, parentPath);
+        var rows = this._buildNodeForView(view, parentTitle, layerIdx, parentPath);
+        // Synthetic "Overview" rows live only at the root stage (not in drilled
+        // sub-stages). Prepended here; _sortRowsForView floats them to the top
+        // of their group via _pinTop.
+        if (parentContext && parentContext.kind === "root") {
+            var overview = this._buildOverviewRows(view);
+            if (overview.length) rows = overview.concat(rows);
+        }
+        return rows;
+    };
+
+    // Synthetic "Overview" rows for a view's root stage. One per declared
+    // summary: the view-level `ca-view-preview` (grouped under the view name)
+    // plus each channel's `ca-channel-preview` (grouped under that channel's
+    // name). Each row is a non-drill no-op leaf, excluded from deep search,
+    // pinned to the top of its group, carrying the preview template so that
+    // FOCUSING it renders the summary in the side preview (see cp-side-preview
+    // _selectedRowPreview). Enter focuses the preview pane (see cp-firing).
+    proto._buildOverviewRows = function (view) {
+        var rows = [];
+        var self = this;
+        function make(template, name, title, group, layerIdx) {
+            var item = self._buildCascadeItem({
+                "ca-name": name || "Overview",
+                "ca-kind": "leaf",
+                "ca-icon": "🪟",
+                "ca-after-fire": "keep",
+                "ca-search-skip": "yes",
+                "ca-group": group || "",
+                "ca-preview-template": template,
+                "ca-preview-name": name || "Overview",
+                "ca-preview-title": title || ""
+            }, "");
+            item.isSynthetic = true;
+            item._pinTop = true;
+            item._overviewRow = true;
+            if (layerIdx !== undefined) item._layerIdx = layerIdx;
+            rows.push(item);
+        }
+        if (view.preview) {
+            make(view.preview, view.previewName, view.previewTitle, view.name, undefined);
+        }
+        for (var i = 0; i < view.layers.length; i++) {
+            var layer = view.layers[i];
+            if (layer && layer.preview) {
+                make(layer.preview, layer.previewName, layer.previewTitle, layer.name, i);
+            }
+        }
+        return rows;
     };
 
     proto._buildNodeForView = function (view, parentTitle, pinnedLayerIdx, parentPath) {
@@ -943,6 +1010,18 @@ function setup(proto) {
                 var ac = a._treeContainer ? 0 : 1;
                 var bc = b._treeContainer ? 0 : 1;
                 if (ac !== bc) return ac - bc;
+                return a._sortIdx - b._sortIdx;
+            });
+        }
+        // Pin "Overview" (and any _pinTop) rows ahead of the rest. Runs in flat
+        // views too (Overview rows aren't tree containers). reorderByGroup later
+        // preserves this lead order within each group.
+        if (sorted.some(function (r) { return r._pinTop; })) {
+            sorted.forEach(function (r, i) { r._sortIdx = i; });
+            sorted.sort(function (a, b) {
+                var ap = a._pinTop ? 0 : 1;
+                var bp = b._pinTop ? 0 : 1;
+                if (ap !== bp) return ap - bp;
                 return a._sortIdx - b._sortIdx;
             });
         }
@@ -1527,6 +1606,14 @@ function setup(proto) {
                 value: "off"
             });
         }
+        // View "summary" — the Overview-row template for the whole view.
+        // Always shown so the user can see (and set/clear) what summarises this
+        // view right in the strip; "—" when none.
+        pills.push({
+            kind: "summary",
+            label: "summary",
+            value: view.preview ? view.preview.split("/").pop() : "—"
+        });
         // (The view-default lens choosers are pushed at the top of this
         // function via _lensChooserPills — they ARE view-scoped now. Per-
         // channel overrides ride each channel row in _layerPills.)
@@ -1588,6 +1675,16 @@ function setup(proto) {
         if (layer.rowName)       pills.push({ kind: "row-name",     label: "name",     value: layer.rowName });
         if (layer.rowGroup)      pills.push({ kind: "row-group",    label: "group",    value: layer.rowGroup });
         if (layer.rowKind)       pills.push({ kind: "row-kind",     label: "kind",     value: layer.rowKind });
+        // Channel "summary" — the Overview-row template for this channel's
+        // group. Always shown on explicit channels (implicit ones are the view
+        // itself — covered by the view-row summary pill; the entries channel
+        // has none); "—" when none.
+        if (!layer.isImplicit && !layer.isBuiltIn) {
+            pills.push({
+                kind: "summary", label: "summary",
+                value: layer.preview ? layer.preview.split("/").pop() : "—"
+            });
+        }
         // Axis chain (post-edit-by-user OR declared default). Each axis
         // gets its own pill; the trailing "+" pill lets the user append.
         if (!layer.isBuiltIn) {

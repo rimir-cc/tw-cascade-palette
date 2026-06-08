@@ -182,6 +182,16 @@ exports["cp-view-edit-rows"] = function (source, operator, options) {
     rows.push(textRow("ca-view-row-items-from", "row-items-from", "🧩", 78, "row defaults",
         "Filter emitting synthetic child items (JSON cascade-items) per row."));
 
+    // preview (view-level "Overview" summary)
+    rows.push(textRow("ca-view-preview", "preview", "🪟", 79, "preview",
+        "Title of a wikitext tiddler shown as this view's \"Overview\" summary in the side " +
+        "preview. Emits a synthetic Overview row leading the result list; focusing it " +
+        "renders the template."));
+    rows.push(textRow("ca-view-preview-name", "preview-name", "🏷", 79.3, "preview",
+        "Label for the Overview row (and its preview pill). Default: \"Overview\"."));
+    rows.push(textRow("ca-view-preview-title", "preview-title", "🔖", 79.6, "preview",
+        "Caption shown above the preview body."));
+
     // channels — drill each explicit (non-built-in) channel into its own
     // field editor (cp-channel-edit-rows). Implicit views carry no
     // ca-view-channels, so this group is empty for them (their row-* defaults

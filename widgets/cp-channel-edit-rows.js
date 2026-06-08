@@ -121,5 +121,14 @@ exports["cp-channel-edit-rows"] = function (source, operator, options) {
     rows.push(textRow("ca-channel-row-items-from", "row-items-from", "🧩", 78, "row defaults",
         "Filter emitting synthetic child items (JSON cascade-items) per row."));
 
+    rows.push(textRow("ca-channel-preview", "preview", "🪟", 90, "preview",
+        "Title of a wikitext tiddler shown as this channel's \"Overview\" summary in the " +
+        "side preview. Emits a synthetic Overview row leading the channel's group; " +
+        "focusing it renders the template."));
+    rows.push(textRow("ca-channel-preview-name", "preview-name", "🏷", 92, "preview",
+        "Label for the Overview row (and its preview pill). Default: \"Overview\"."));
+    rows.push(textRow("ca-channel-preview-title", "preview-title", "🔖", 94, "preview",
+        "Caption shown above the preview body."));
+
     return rows;
 };
