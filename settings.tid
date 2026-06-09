@@ -73,7 +73,7 @@ These tune the BFS walker fired by the ''reach'' pills (`R here` / `R everywhere
 :Time budget per keystroke. The walker bails out when wall-clock exceeds this. Default 80ms.
 
 ;<code>$:/config/rimir/cascade-palette/search-fields-default</code>
-:Space-separated cascade-item meta keys the matcher scans on each row when no Meta pill is pushed. Default ''`name hint`''. Tiddler-field defaults are not provided — the matcher skips the tiddler-field channel entirely when no Field pill is pushed (keeps the default search cheap).
+:Space-separated cascade-item meta keys the matcher scans on each row when no Meta pill is pushed. Default ''`name`'' — and `name` resolves to the row's ''displayed label'' (the active name-lens / row-label projection, e.g. the caption), so an unconfigured match always lands inside what the user sees and highlights in place. Add `hint` (or push the Hint Meta pill) to also scan the hint. Tiddler-field defaults are not provided — the matcher skips the tiddler-field channel entirely when no Field pill is pushed (keeps the default search cheap).
 
 ! Diagnostics
 

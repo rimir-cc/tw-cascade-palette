@@ -2,6 +2,6 @@ title: $:/plugins/rimir/cascade-palette/search-meta/name
 tags: $:/tags/rimir/cascade-palette/search-meta
 ca-meta-key: name
 ca-chip: 🏷 Name
-ca-hint: Match against the row's display name.
-ca-help: When pushed, the matcher reads each row's `name` slot (the row's visible title — for entries sourced from `ca-name`, for tiddler-backed rows synthesised from `caption` → path-segment → title). One of the two default search slots when no Meta pill is pushed at all. Combine with other Meta pills to widen the slot set per row.
+ca-hint: Match against the row's displayed label.
+ca-help: When pushed, the matcher reads each row's DISPLAYED label — the active name-lens / row-label projection (e.g. the `caption` from the shipped "Caption → Title" lens), exactly what you see in the list — so the match always highlights in place on the label. This is the default search slot when no Meta pill is pushed at all. Combine with other Meta pills (e.g. Hint) to widen the slot set per row. To match the raw tiddler title instead of the displayed label, push the Title field pill.
 ca-order: 100

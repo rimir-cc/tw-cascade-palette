@@ -209,11 +209,11 @@ The hotkey is configured at `$:/config/shortcuts/rimir-cascade-palette-open`.
 |`ca-reach-mode` |`here`\|`everywhere` |reach |Search scope when this pill is active. `here` walks the subtree under the current stage; `everywhere` walks from the active view's root. Reach pills are mutually exclusive — pushing one evicts the other. |
 |`ca-reach-chip` |string |reach |Plain-text pill label. Defaults to `ca-reach-name`. |
 |`ca-reach-hint` / `-help` |string |reach |Hover tooltip / details-pane help. |
-|`ca-meta-key` |meta key |search-meta |The cascade-item property this Meta pill exposes (`name`, `hint`, or any author-defined key). Matcher reads `item[<key>]` only. |
+|`ca-meta-key` |meta key |search-meta |The cascade-item property this Meta pill exposes (`name`, `hint`, or any author-defined key). Matcher reads `item[<key>]` — except the special key `name`, which resolves to the row's ''displayed label'' (the active name-lens / row-label projection, e.g. caption) so the match highlights in place on the label, not the raw title. |
 |`ca-tiddler-field` |tiddler field name |search-field |The tiddler field this Field pill exposes (`text`, `caption`, `tags`, or any field of the row's backing tiddler). Matcher reads `wiki.getTiddler(item.title).fields[<name>]` only. |
 |`ca-chip` |string |search-meta, search-field |Plain-text pill label. Defaults to the key/field name. |
 |`ca-hint` / `ca-help` |string |search-meta, search-field |Hover tooltip / details-pane help. |
-|`ca-search-fields` |space-separated meta keys |entry, action, item |Which cascade-item meta keys the matcher walks for THIS row when no Meta pill is pushed. Default per global config `$:/config/rimir/cascade-palette/search-fields-default` (ships `name hint`). |
+|`ca-search-fields` |space-separated meta keys |entry, action, item |Which cascade-item meta keys the matcher walks for THIS row when no Meta pill is pushed. Default per global config `$:/config/rimir/cascade-palette/search-fields-default` (ships `name` — i.e. the displayed label only). |
 |`ca-search-skip` |`yes` |entry, action, item |When `yes`, the deep walker excludes this row from results AND does not descend its subtree. Default auto-skip for `text` / `number` / `date` / `daterange` / `toggle` / `confirm` row kinds. |
 |`ca-visibility-name` |string |visibility |Display name. Required. |
 |`ca-visibility-prefix` |string |visibility |Input-prefix (e.g. `hide:`). Optional. |
@@ -410,7 +410,7 @@ The plugin ships five axes for the common cases. All live under `$:/plugins/rimi
 |`$:/config/rimir/cascade-palette/details-always-on` |`no` |Keep the detail drawer visible without holding Ctrl. Toggle live via Settings → Details always on. |
 |`$:/config/rimir/cascade-palette/pin-pill-rows` |`no` |Render every pill strip (Visibility, Reach, Meta, Field, Filter) even when no pills are pushed. Dev / discoverability aid — lets you see where each strip sits before populating it. Toggle live via Settings → Pin all pill rows. |
 |`$:/config/rimir/cascade-palette/popup-width` |`50` |Popup width in `vw` (clamped to [20, 95]). |
-|`$:/config/rimir/cascade-palette/search-fields-default` |`name hint` |Per-item `ca-search-fields` fallback. Space-separated field names. |
+|`$:/config/rimir/cascade-palette/search-fields-default` |`name` |Per-item `ca-search-fields` fallback. Space-separated meta keys; `name` = the displayed label. |
 |`$:/config/rimir/cascade-palette/url-fields` |`url` |Space-separated list of fields scanned by the built-in `url` row-icon. First field on a row's tiddler whose value matches an http/https/ftp/mailto/tel URL prefix wins. |
 |`$:/config/rimir/cascade-palette/entity-type-field` |//(empty)// |Bridge from catalogue `ca-entity-type` to filter-based discovery. When set to a field name (e.g. `kind.type` — `rimir/kind` ≥ 0.1.50 ships this), an action's `ca-entity-type: <X>` ALSO matches any row whose tiddler carries `<configured-field>: <X>`. Lets catalogue actions surface in tree / flat views (''All tiddlers'', ''By namespace'', etc.) without per-action `ca-applies` filters. Engine ships no default — opt-in by a type-system plugin. |
 |`$:/config/rimir/cascade-palette/deep-search-max-depth` |`4` |Maximum drill depth a deep-search walk follows from the search anchor. |

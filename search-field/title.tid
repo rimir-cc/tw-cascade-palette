@@ -1,0 +1,7 @@
+title: $:/plugins/rimir/cascade-palette/search-field/title
+tags: $:/tags/rimir/cascade-palette/search-field
+ca-tiddler-field: title
+ca-chip: 🆔 Title
+ca-hint: Match against the tiddler's raw title.
+ca-help: When pushed, the matcher reads each row's backing-tiddler ''`title`'' field — the canonical identifier, regardless of any caption / name lens. Useful when the displayed label is a caption (the default search slot) but you want to find a row by its title. Matches surface a snippet line below the row showing context around the match. Synthetic rows (no backing tiddler) skip silently.
+ca-order: 90

@@ -491,11 +491,15 @@ module.exports = function (proto) {
     };
 
     proto._defaultSearchFields = function () {
+        // Default scope = the displayed label only (`name` now resolves to the
+        // lensed label via _resolveMetaField). Nothing else is searched until
+        // the user pushes Search-META / Search-FIELD pills, so an unconfigured
+        // match is always inside what the user sees. `hint` is opt-in.
         var raw = this.wiki.getTiddlerText(
             "$:/config/rimir/cascade-palette/search-fields-default",
-            "name hint"
+            "name"
         );
-        return (raw && raw.match(/\S+/g)) || ["name", "hint"];
+        return (raw && raw.match(/\S+/g)) || ["name"];
     };
 
     // Resolve a cascade-item meta value for matching. Reads item[key]
@@ -503,6 +507,18 @@ module.exports = function (proto) {
     // backed rows both go through here for meta pills. Used by the
     // meta layer of `_highlightMatches`.
     proto._resolveMetaField = function (item, key) {
+        // `name` resolves to the DISPLAYED label — the active name-lens /
+        // row-label projection (caption etc.), exactly what the user reads —
+        // NOT the raw item.name (which for data rows is the tiddler title).
+        // This makes the match coordinates index into the shown string so the
+        // renderer can highlight in place. _displayNameForItem is cache-backed
+        // and falls back to item.name for entry / synthetic / title-less rows,
+        // so the resolution is also correct (and unchanged) for those.
+        if (key === "name") {
+            return this._displayNameForItem
+                ? this._displayNameForItem(item)
+                : String(item.name || "");
+        }
         var v = item[key];
         if (v === undefined || v === null) return "";
         if (Array.isArray(v)) return v.join(" ");

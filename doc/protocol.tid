@@ -1099,11 +1099,11 @@ Reach pills configure WHERE the search input walks. Same push / remove / DEL gra
 Search-meta pills configure WHICH cascade-item author meta keys the matcher reads (the row's `name`, `hint`, and any author-defined slots populated by cp-items.js or a custom row-builder). Same grammar as reach pills, separate strip, violet accent. A pill-tagged tiddler declares:
 
 ;`ca-meta-key`
-:The cascade-item property the pill represents (e.g. `name`, `hint`, or any author-defined key the cascade-item builder populates).
+:The cascade-item property the pill represents (e.g. `name`, `hint`, or any author-defined key the cascade-item builder populates). The special key ''`name`'' resolves to the row's DISPLAYED label — the active name-lens / row-label projection (e.g. the `caption`), exactly what the user reads — not the raw `item.name`, so its match always highlights in place on the label.
 ;`ca-chip` / `ca-hint` / `ca-help`
 :Display chip / tooltip / details-pane help.
 
-When at least one Search-meta pill is active, the matcher walks the UNION of those meta keys, ignoring per-row `ca-search-fields` and global default. No meta pills active → matcher uses each row's `ca-search-fields` declaration, falling back to global default at `$:/config/rimir/cascade-palette/search-fields-default`.
+When at least one Search-meta pill is active, the matcher walks the UNION of those meta keys, ignoring per-row `ca-search-fields` and global default. No meta pills active → matcher uses each row's `ca-search-fields` declaration, falling back to global default at `$:/config/rimir/cascade-palette/search-fields-default` (ships ''`name`'' — i.e. the displayed label only, so an unconfigured match is always inside what the user sees).
 
 ''Push via:'' ''`rimir-cascade-palette-add-meta`'' with param ''`meta: <tiddler-title>`''.
 
@@ -1118,9 +1118,11 @@ Search-field pills configure WHICH literal tiddler fields the matcher reads on t
 
 Array-typed fields (like `tags`) are flattened to a space-separated string before substring matching.
 
-When at least one Search-field pill is active, the matcher unions the tiddler-field channel with the meta channel. No field pills active → the tiddler-field channel is skipped entirely (keeps the default search cheap).
+When at least one Search-field pill is active, the matcher unions the tiddler-field channel with the meta channel. No field pills active → the tiddler-field channel is skipped entirely (keeps the default search cheap). Ships a ''Text'' (body) and a ''Title'' (raw tiddler title) pill — the latter lets you find a row by title even when the displayed label is a caption.
 
 ''Push via:'' ''`rimir-cascade-palette-add-field`'' with param ''`field: <tiddler-title>`''.
+
+''Match visibility (guaranteed).'' Every match the user typed is shown: a match in the displayed label (or in the hint) highlights inline; any other matched field — a Search-field, or the label under a rich-markup template lens that can't carry an inline highlight — surfaces a highlighted snippet line beneath the row. The highlight is never invisible, so the user always sees WHY a row is listed.
 
 ! Item-level search authoring (`ca-search-*` on cascade items)
 

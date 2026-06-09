@@ -109,7 +109,9 @@ describe("cascade-palette: _highlightMatches", function () {
 
     describe("meta layer — multi-slot matches", function () {
         it("collects matches across multiple slots", function () {
-            var s = buildStub();
+            // Explicit "name hint" default — the shipped default is now
+            // "name" only, so pass both keys to exercise multi-slot collection.
+            var s = buildStub("name hint");
             var m = s._highlightMatches(
                 { name: "alpha", hint: "alphabet" }, "alph"
             );
@@ -200,6 +202,62 @@ describe("cascade-palette: _highlightMatches", function () {
             );
             expect(m.length).toBe(1);
             expect(m[0].field).toBe("hint");
+        });
+    });
+
+    describe("name key resolves to the displayed label", function () {
+        // The matcher resolves the `name` key to _displayNameForItem(item)
+        // (the lensed label — e.g. caption) so the match indexes into what
+        // the user sees and the renderer can highlight in place. Falls back
+        // to item.name when _displayNameForItem is absent.
+        function withDisplay(searchDefault) {
+            var s = buildStub(searchDefault);
+            s._displayNameForItem = function (item) {
+                return item.caption || item.name || "";
+            };
+            return s;
+        }
+
+        it("_resolveMetaField('name') returns the displayed label", function () {
+            var s = withDisplay();
+            expect(s._resolveMetaField({ name: "z-tid", caption: "Alpha" }, "name"))
+                .toBe("Alpha");
+        });
+
+        it("falls back to item.name when _displayNameForItem is absent", function () {
+            var s = buildStub();   // no _displayNameForItem
+            expect(s._resolveMetaField({ name: "z-tid" }, "name")).toBe("z-tid");
+        });
+
+        it("matches inside the caption, not the raw title", function () {
+            var s = withDisplay();
+            var m = s._highlightMatches({ name: "z-tid", caption: "Alpha" }, "alph");
+            expect(m.length).toBe(1);
+            expect(m[0].field).toBe("name");
+            expect(m[0].value).toBe("Alpha");
+            expect(m[0].start).toBe(0);
+            expect(m[0].len).toBe(4);
+        });
+
+        it("does NOT match a title-only substring by default (label scope)", function () {
+            var s = withDisplay();
+            var m = s._highlightMatches({ name: "z-tid", caption: "Alpha" }, "z-ti");
+            expect(m).toEqual([]);
+        });
+
+        it("other meta keys are unaffected (still read item[key])", function () {
+            var s = withDisplay("hint");
+            var m = s._highlightMatches({ name: "z", caption: "Alpha", hint: "note" }, "not");
+            expect(m.length).toBe(1);
+            expect(m[0].field).toBe("hint");
+            expect(m[0].value).toBe("note");
+        });
+    });
+
+    describe("default search scope", function () {
+        it("ships the displayed label only (`name`)", function () {
+            var s = buildStub();   // config returns the hard-coded fallback
+            expect(s._defaultSearchFields()).toEqual(["name"]);
         });
     });
 

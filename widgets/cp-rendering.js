@@ -295,17 +295,18 @@ module.exports = function (proto) {
             rowEl.appendChild(chevronEl);
         }
 
-        // Match snippets — one line per matched field that isn't
-        // rendered inline. Name / hint matches show inline (handled
-        // above) so we skip them in the snippet pass; tiddler-field
-        // matches (e.g. text) and any author-declared meta keys get a
-        // muted snippet beneath the row. Multiple matches across
-        // multiple fields each render their own line so the user
-        // can see WHY this row is in the result list.
+        // Match snippets — one line per matched field NOT already drawn
+        // inline. The label match (and an inline-highlighted hint) were
+        // pushed to item._inlineDrawn during row assembly; everything else
+        // (tiddler-field matches like text/title, author-declared meta keys,
+        // and a label match that couldn't be inlined under a template lens)
+        // gets a muted snippet beneath the row, so the user always sees WHY
+        // this row is in the result list — the highlight is never invisible.
         if (item._matches && item._matches.length) {
+            var inlineDrawn = item._inlineDrawn || [];
             var hiddenMatches = [];
             for (var mi = 0; mi < item._matches.length; mi++) {
-                if (this._isHiddenMatchField(item._matches[mi].field)) {
+                if (inlineDrawn.indexOf(item._matches[mi]) === -1) {
                     hiddenMatches.push(item._matches[mi]);
                 }
             }
@@ -412,8 +413,16 @@ module.exports = function (proto) {
     // in `<span class="rcp-match">`. Fields not rendered inline get a
     // snippet line below the row instead.
 
-    proto._isHiddenMatchField = function (field) {
-        return field !== "name" && field !== "hint";
+    // First match in item._matches for a given field, or null. Used so the
+    // label / hint highlight can fire even when another field led the match
+    // list (item._match is only the first match).
+    proto._findMatch = function (item, field) {
+        var ms = item && item._matches;
+        if (!ms) return null;
+        for (var i = 0; i < ms.length; i++) {
+            if (ms[i] && ms[i].field === field) return ms[i];
+        }
+        return null;
     };
 
     // Render text into `el` with an optional highlight on substring
@@ -437,30 +446,37 @@ module.exports = function (proto) {
     };
 
     proto._renderRowNameContent = function (nameEl, item) {
-        // Active name-slot decoration (cp-row-decorations.js → row-label
-        // pill) replaces the displayed name on data rows. Skip the name-
-        // match highlight when the override fired — the match coordinates
-        // were computed against item.name, not the new text, so overlaying
-        // them would mis-align.
+        // Track which matches get drawn inline (label here, hint in
+        // _renderRowValue) so the snippet pass doesn't re-render them. Reset
+        // per render — this runs first in the row-assembly order.
+        item._inlineDrawn = [];
+        // Displayed label = the active name-slot decoration (lens / row-label
+        // projection — caption etc.) when present, else item.name. This equals
+        // _displayNameForItem(item), and the matcher computed the `name` match
+        // coordinates against that same string, so the highlight overlays in
+        // place — the caption/label, not the raw title, gets highlighted.
         var deco = this._resolveRowDecorations && this._resolveRowDecorations(item);
         var override = deco ? deco.name : null;
-        if (override !== null && override !== undefined) {
-            nameEl.textContent = override;
-            return;
-        }
+        var displayed = (override !== null && override !== undefined)
+            ? String(override) : (item.name || "");
         // Template-based name projection (rich markup) — used when the active
         // name lens projects via `ca-lens-name-template` instead of a filter.
+        // Arbitrary HTML can't carry a substring highlight, so render the
+        // template and leave any name match for the snippet pass to surface.
         if (this._activeSlotTemplate) {
             var nameTpl = this._activeSlotTemplate("name", item);
             if (nameTpl && this._renderSlotTemplateInto(nameEl, "name", item, nameTpl)) {
                 return;
             }
         }
-        if (item._match && item._match.field === "name") {
-            this._renderHighlighted(nameEl, item.name || "",
-                item._match.start, item._match.len);
+        var m = (item._match && item._match.field === "name")
+            ? item._match
+            : this._findMatch(item, "name");
+        if (m) {
+            this._renderHighlighted(nameEl, displayed, m.start, m.len);
+            item._inlineDrawn.push(m);
         } else {
-            nameEl.textContent = item.name || "";
+            nameEl.textContent = displayed;
         }
     };
 
@@ -656,9 +672,13 @@ module.exports = function (proto) {
         if (item.hint) {
             var hintEl = this.document.createElement("span");
             hintEl.className = "rcp-row-hint";
-            if (item._match && item._match.field === "hint") {
-                this._renderHighlighted(hintEl, item.hint,
-                    item._match.start, item._match.len);
+            // Scan _matches for a hint match (not just _match) so the hint
+            // highlights even when another field led; mark it inline-drawn so
+            // the snippet pass doesn't duplicate it.
+            var hm = this._findMatch(item, "hint");
+            if (hm) {
+                this._renderHighlighted(hintEl, item.hint, hm.start, hm.len);
+                if (item._inlineDrawn) item._inlineDrawn.push(hm);
             } else {
                 hintEl.textContent = item.hint;
             }
