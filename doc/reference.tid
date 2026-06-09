@@ -421,6 +421,7 @@ The plugin ships five axes for the common cases. All live under `$:/plugins/rimi
 
 |!Message |!Dispatched from |!Handled by |
 |`rimir-cascade-palette-open` |Keyboard shortcut binding or any wikitext via `$action-sendmessage` |The widget's listener on `$tw.rootWidget` |
+|`rimir-cascade-palette-drill-sequence` |Action wikitext (e.g. a "create X then land on X in context" verb) |Pushes an intermediate `items-from` stage and, on top of it, an action-menu stage for a target entity — onto the ''live'' stack (opens fresh only if closed), palette kept open. Popping returns to the list, then to the pre-existing drill chain. Parameters: `items-from` (filter for the list stage; sees `<<parent-picked>>` = `host`), `host`, `title`, `entity-type`, `entity` (the target whose action menu opens on top), `entity-title`, `select` (title to pre-highlight in the list). At least one of `items-from` / `entity` required. |
 |`rimir-cascade-palette-add-filter` |Leaders / external triggers |The widget; pushes the named filter (no-arg) or pre-fills the input with its prefix for `text`/`tag`/`tiddler` args. Parameter: `filter` = filter tiddler title. |
 |`rimir-cascade-palette-set-filter` |Leaders |Push the named filter with an explicit literal arg (no interactive prefill). Parameters: `filter`, `arg`. |
 |`rimir-cascade-palette-add-visibility` |Leaders / external triggers |Same shape as add-filter but pushes onto the visibility strip. Parameter: `visibility`. |

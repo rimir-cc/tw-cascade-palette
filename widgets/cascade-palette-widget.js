@@ -843,6 +843,26 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 if (entry) self.openPaletteAtEntry(entry);
                 return false;
             });
+            // Programmatic drill: push an items-from stage (e.g. an entity's
+            // reverse-reference list) and, on top of it, an action-menu stage
+            // for a specific entity — onto the LIVE stack, palette kept open.
+            // Lets a "create X then take me to X in context" action land the
+            // user on X's action menu with the list as the pop-target and the
+            // original drill chain preserved underneath. Generic: the caller
+            // supplies the list filter + target entity.
+            registerRootMessage(C.DRILL_SEQUENCE_MESSAGE, function (event) {
+                var p = (event && event.paramObject) || {};
+                self.openDrillSequence({
+                    itemsFrom: p["items-from"] || "",
+                    host: p.host || "",
+                    title: p.title || "",
+                    entity: p.entity || "",
+                    entityType: p["entity-type"] || "",
+                    entityTitle: p["entity-title"] || "",
+                    select: p.select || ""
+                });
+                return false;
+            });
             // Reset-constraints wipes both strips; bound to Ctrl-DEL
             // globally and to the `Reset constraints` leader.
             registerRootMessage(C.RESET_CONSTRAINTS_MESSAGE, function () {
@@ -1165,6 +1185,44 @@ See doc/protocol.tid for the full authoring guide and worked examples.
                 return;
             }
         }
+    };
+
+    // Push an intermediate items-from stage (e.g. an entity's reverse-reference
+    // list) and then an action-menu stage for `entity`, onto the CURRENT stack
+    // (opening fresh only if the palette is closed). The palette is left open
+    // with the action menu on top; popping returns to the list, then to the
+    // pre-existing drill chain. `host` becomes the intermediate stage's
+    // parentPicked, so its `itemsFrom` filter can reference <<parent-picked>>.
+    CascadePaletteWidget.prototype.openDrillSequence = function (opts) {
+        opts = opts || {};
+        if (!opts.itemsFrom && !opts.entity) return;
+        // Keep the live stack if already open (preserves how-I-got-here);
+        // otherwise open fresh at root so there's a base to pop back to.
+        if (!this.open) this.openPalette({ fresh: true });
+        if (opts.itemsFrom) {
+            var midStage = this.buildFilterStage({
+                itemsFrom: opts.itemsFrom,
+                nextTitle: opts.title || opts.host || "",
+                nextEntityType: opts.entityType || ""
+            }, opts.host || null);
+            this.pushStage(midStage);
+            if (opts.select && midStage.results) {
+                for (var i = 0; i < midStage.results.length; i++) {
+                    if (midStage.results[i] && midStage.results[i].title === opts.select) {
+                        midStage.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
+        if (opts.entity) {
+            var actStage = this.buildActionMenuStage(
+                opts.entity, opts.entityType || "", opts.entityTitle || opts.entity
+            );
+            this.pushStage(actStage);
+        }
+        this.focus = "input";
+        if (this._applyFocusAttr) this._applyFocusAttr();
     };
 
     // Best-effort discovery of the tiddler the user was looking at when

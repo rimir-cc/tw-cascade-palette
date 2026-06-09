@@ -12,6 +12,7 @@ sibling files require these — keep this file free of imports.
 // ---- TW messages ----
 exports.OPEN_MESSAGE = "rimir-cascade-palette-open";
 exports.OPEN_ENTRY_MESSAGE = "rimir-cascade-palette-open-entry";
+exports.DRILL_SEQUENCE_MESSAGE = "rimir-cascade-palette-drill-sequence";
 exports.PIN_CONTEXT_MESSAGE = "rimir-cascade-palette-pin-context";
 exports.UNPIN_CONTEXT_MESSAGE = "rimir-cascade-palette-unpin-context";
 exports.CLEAR_CONTEXT_MESSAGE = "rimir-cascade-palette-clear-context";
