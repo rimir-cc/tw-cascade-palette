@@ -2090,6 +2090,27 @@ type: text/css
     font-style: italic;
 }
 
+/* Prominent per-stage heading line (cp-rendering renderHeading), sitting
+   directly above the input. Indigo accent so it reads as "what this step is",
+   distinct from the breadcrumb and never dimmed by edit-mode. */
+.rcp-heading {
+    padding: 8px 14px;
+    background: #eef2ff;
+    border-bottom: 1px solid #c7d2fe;
+    color: #3730a3;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    user-select: none;
+}
+@media (prefers-color-scheme: dark) {
+    .rcp-heading {
+        background: #312e81;
+        color: #c7d2fe;
+        border-bottom-color: #4338ca;
+    }
+}
+
 .rcp-group-header {
     padding: 6px 14px 2px;
     font-size: 10px;

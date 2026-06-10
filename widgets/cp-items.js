@@ -154,6 +154,28 @@ module.exports = function (proto) {
             // result tiddlers carry `ca-kind`. Diagnostic listings use
             // this so loaded entries/actions don't look drillable.
             nextAsLink: (f["ca-next-as-link"] || "").toLowerCase() === "yes",
+            // Force group headers on the pushed stage even when all rows fall
+            // in a single group (normally suppressed — see cp-rendering
+            // renderResults). Lets a drill present a single labelled section as
+            // a dimmed heading above its rows (e.g. a wizard step: "Name it"
+            // over the one caption input). Carried onto the stage as
+            // stage.forceHeaders in buildFilterStage.
+            nextForceHeaders: (f["ca-next-force-headers"] || "").toLowerCase() === "yes",
+            // Tree-node behavior on a drill row: Enter fires ca-actions,
+            // Right-arrow drills into children (ca-items-from). See cp-firing
+            // fireSelected. Lets a recursive items-from picker (e.g. kind's
+            // namespace parent picker) be both navigable and selectable.
+            enterFires: (f["ca-enter-fires"] || "").toLowerCase() === "yes",
+            // Prominent heading shown above the input on the PUSHED stage
+            // (cp-rendering renderHeading). e.g. a ref-picker drill labelling
+            // itself "File it under". For a stage that relabels itself over
+            // time, a row carries `ca-stage-heading` instead (below).
+            nextHeading: f["ca-next-heading"] || "",
+            // Re-label THIS stage's heading on each recompute (cp-stack
+            // _applyDynamicStageMeta). Lets one stage that means different
+            // things over time (a wizard step) keep its above-input heading in
+            // sync with the current step. First row with a value wins.
+            stageHeading: f["ca-stage-heading"] || "",
             // Scribe-style binding used by `ca-kind: toggle` (and future
             // edit kinds). `bindPath` is a comma-separated walk into the
             // field text when it's JSON. `bindType` selects a scribetype
@@ -236,6 +258,26 @@ module.exports = function (proto) {
             // capture (no field is written; the value lives only in
             // <<picked>> for the action's lifetime).
             onCommit: f["ca-on-commit"] || "",
+            // Auto-open directive (generic). When set, the core opens this
+            // row's editor / picker — or fires its actions — automatically as
+            // soon as the stage renders, so the user lands directly in the one
+            // relevant input instead of on a row they must Enter first. Modes:
+            //   "edit"  → enterEditMode (text / number / date / value rows)
+            //   "drill" → drillSelected (drill rows / single-select pickers)
+            //   "fire"  → fireSelected  (leaf rows — runs ca-actions, honours
+            //             ca-after-fire keep/close)
+            // Fires at most once per `ca-auto-token` value PER STAGE: a
+            // re-render carrying the same token does NOT re-fire (so a user who
+            // Esc's out of an auto-opened editor is left on the row, not
+            // re-grabbed), but a row appearing with a NEW token re-arms it. A
+            // stage may surface several auto rows over its lifetime (e.g. a
+            // wizard's "land in the field" row and, once the field validates,
+            // a transient "advance to next step" fire row): the engine fires
+            // the first row whose token has not yet fired. See
+            // cp-rendering._maybeAutoOpen. Generic — any ca-items-from row
+            // (not just kind wizards) may opt in.
+            auto: (f["ca-auto"] || "").toLowerCase(),
+            autoToken: f["ca-auto-token"] || "",
             // Side preview registration. When set on an entry/action,
             // drilling into the row pushes a new stage AND attaches a
             // right-pane preview to it: the engine renders the named

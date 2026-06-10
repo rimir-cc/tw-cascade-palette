@@ -260,6 +260,12 @@ module.exports = function (proto) {
             // results are forced into plain-item rendering — cascade-aware
             // detection in evaluateFilterStage is suppressed.
             asLink: !!entry.nextAsLink,
+            // Show group headers even with a single group (cp-rendering).
+            forceHeaders: !!entry.nextForceHeaders,
+            // Prominent above-input heading for this stage (cp-rendering
+            // renderHeading). May be refreshed per recompute from a row's
+            // ca-stage-heading (_applyDynamicStageMeta).
+            heading: entry.nextHeading || "",
             // Carried from the drill's `ca-sort-rows`: when truthy, the
             // synthetic items-from rows of this stage are alphabetised by
             // displayed (lensed) name with selected rows floated to the top
@@ -344,12 +350,26 @@ module.exports = function (proto) {
             ? performance : Date;
         var t0 = perfNow.now();
         this._recomputeStageBody(stage);
+        this._applyDynamicStageMeta(stage);
         this._lastPerf = this._lastPerf || {};
         this._lastPerf.recomputeMs = perfNow.now() - t0;
         this._lastPerf.stageKind = stage ? stage.kind : "";
         this._lastPerf.itemCount = stage && stage.items ? stage.items.length : 0;
         this._lastPerf.resultCount = stage && stage.results ? stage.results.length : 0;
         this._maybeWarnLargeRootSet(stage);
+    };
+
+    // After results are computed, let a row relabel its own stage's
+    // above-input heading via `ca-stage-heading` (item.stageHeading). Used by
+    // step flows (kind's wizard) where one stage represents different steps
+    // over its lifetime — the first row carrying a value wins; none → the
+    // stage keeps its push-time heading.
+    proto._applyDynamicStageMeta = function (stage) {
+        if (!stage || !stage.results) return;
+        for (var i = 0; i < stage.results.length; i++) {
+            var h = stage.results[i] && stage.results[i].stageHeading;
+            if (h) { stage.heading = h; return; }
+        }
     };
 
     // Configured large-root-set threshold (0 / invalid ⇒ disabled, except a

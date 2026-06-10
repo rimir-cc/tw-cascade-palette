@@ -29,6 +29,7 @@ module.exports = function (proto) {
             ? performance : Date;
         var t0 = perfNow.now();
         this.renderBreadcrumb();
+        this.renderHeading();
         this.renderInput();
         this.renderResults();
         // Side preview pane — visible iff a stage on the stack registered
@@ -40,6 +41,46 @@ module.exports = function (proto) {
         this._lastPerf.actionPreviewMs = this._actionPreviewMs || 0;
         this._lastPerf.actionPreviewRows = this._actionPreviewRows || 0;
         this._renderPerfFooter();
+        // Generic auto-open (ca-auto): after the stage's DOM has settled,
+        // open the first armed auto row's editor/picker or fire its actions.
+        this._maybeAutoOpen();
+    };
+
+    // Open / fire the first "armed" ca-auto row on the current stage. An auto
+    // row is armed when its `ca-auto-token` has not yet fired for THIS stage
+    // (tracked in stage._autoFiredTokens). Deferred to the next tick so the
+    // just-rendered input and result rows exist before we focus / drill /
+    // fire. Guard rails: never interrupt an in-progress edit, and bail if the
+    // stack moved underneath the deferred callback. Lets author-defined flows
+    // (kind's creation wizard, etc.) land the user straight in the single
+    // relevant control and advance hands-free — see cp-items `auto`/`autoToken`.
+    proto._maybeAutoOpen = function () {
+        if (this.editMode) return;            // never interrupt an active edit
+        var stage = this.topStage();
+        if (!stage || !stage.results || !stage.results.length) return;
+        var fired = stage._autoFiredTokens || (stage._autoFiredTokens = {});
+        var idx = -1, item = null;
+        for (var i = 0; i < stage.results.length; i++) {
+            var r = stage.results[i];
+            if (r && r.auto && !fired[r.autoToken || ""]) {
+                idx = i; item = r; break;
+            }
+        }
+        if (!item) return;
+        fired[item.autoToken || ""] = true;
+        var mode = item.auto, autoIdx = idx, self = this;
+        setTimeout(function () {
+            if (self.editMode) return;
+            if (self.topStage() !== stage) return;   // stack moved
+            stage.selectedIndex = autoIdx;
+            if (mode === "edit") {
+                self.enterEditMode(item);
+            } else if (mode === "drill") {
+                self.drillSelected();
+            } else if (mode === "fire") {
+                self.fireSelected();
+            }
+        }, 0);
     };
 
     proto._renderPerfFooter = function () {
@@ -70,6 +111,23 @@ module.exports = function (proto) {
             " · render " + rnd +
             " · items " + items + "/" + results +
             extra;
+    };
+
+    // Prominent per-stage heading line above the input. Shown when the top
+    // stage carries a non-empty `heading` (set in buildFilterStage from
+    // ca-next-heading, or refreshed each recompute from a row's
+    // ca-stage-heading — see cp-stack). Hidden otherwise.
+    proto.renderHeading = function () {
+        if (!this.headingEl) return;
+        var stage = this.topStage();
+        var heading = (stage && stage.heading) || "";
+        if (heading) {
+            this.headingEl.textContent = heading;
+            this.headingEl.style.display = "";
+        } else {
+            this.headingEl.textContent = "";
+            this.headingEl.style.display = "none";
+        }
     };
 
     proto.renderBreadcrumb = function () {
@@ -158,7 +216,10 @@ module.exports = function (proto) {
             var g = item.group || "";
             if (!(g in distinct)) { distinct[g] = true; distinctCount++; }
         });
-        var showHeaders = groupingOn && distinctCount > 1;
+        // forceHeaders (a drill opting in via ca-next-force-headers) shows the
+        // section label even for a single group AND regardless of view-level
+        // grouping — it's an explicit "this stage wants its heading shown".
+        var showHeaders = !!stage.forceHeaders || (groupingOn && distinctCount > 1);
         var prevGroup = null;
 
         stage.results.forEach(function (item, i) {

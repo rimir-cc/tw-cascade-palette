@@ -171,7 +171,13 @@ module.exports = function (proto) {
         // `drillSelected` which gates the preflight on the same flag.
         // Ctrl-Enter keeps the palette open so the user can chain picks.
         if (picked.kind === "drill") {
-            if (picked.actions && picked._actionsFromRowTemplate) {
+            // Tree-node semantics: Enter FIRES the row action, Right-arrow
+            // drills into children. Native for view/layer tree rows
+            // (_actionsFromRowTemplate); `ca-enter-fires` opts a synthetic
+            // items-from drill row into the same behavior (e.g. a kind wizard's
+            // navigable parent picker — pick this node on Enter, drill its
+            // children on Right).
+            if (picked.actions && (picked._actionsFromRowTemplate || picked.enterFires)) {
                 this.fireLeafAction(stage, picked, keepOpen);
                 return;
             }
@@ -771,6 +777,32 @@ module.exports = function (proto) {
             }, 0);
             return;
         }
+        // ca-after-fire="pop-to-actions" overrides the default close-on-fire:
+        // invoke the action, then pop every stage down to the nearest
+        // action-menu stage (or root), keeping the palette open. Used by
+        // multi-step create flows (the kind create-wizard's final pick): the
+        // wizard + per-step picker stages are all `filter` stages stacked on
+        // top of the entity's action menu, so this returns the user to the
+        // entity they launched the flow from — with the new instance created
+        // and the menu recomputed — instead of dropping the palette.
+        if (action.afterFire === "pop-to-actions") {
+            var selfPTA = this;
+            selfPTA.invokeViaNavigator(action.actions, vars);
+            setTimeout(function () {
+                if (!selfPTA.open) return;
+                while (selfPTA.stack.length > 1 &&
+                    selfPTA.topStage() &&
+                    selfPTA.topStage().kind !== "actions") {
+                    selfPTA.stack.pop();
+                }
+                var top = selfPTA.topStage();
+                if (top) {
+                    selfPTA.recomputeStage(top);
+                    selfPTA.renderStage();
+                }
+            }, 0);
+            return;
+        }
         this.afterAction(stage, keepOpen, function () {
             this.invokeViaNavigator(action.actions, vars);
         });
@@ -980,8 +1012,11 @@ module.exports = function (proto) {
         // container should be purely structural; firing the template's
         // navigate as a side-effect was a regression introduced when
         // 0.0.66 added the drill-preflight feature.
+        // `enterFires` rows carry their action for ENTER (pick), not as a
+        // drill-enter side effect — exempt them too, else Right-arrow would
+        // fire the pick (e.g. create the instance) instead of descending.
         if (picked && picked.kind === "drill" && picked.actions &&
-            !picked._actionsFromRowTemplate) {
+            !picked._actionsFromRowTemplate && !picked.enterFires) {
             var preVars = this.buildStageVariables(stage, picked.title || "");
             this.invokeViaNavigator(picked.actions, preVars);
         }

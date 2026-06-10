@@ -384,6 +384,15 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.filterStripEl.className = "rcp-filter-strip";
         this.filterStripEl.setAttribute("tabindex", "-1");
 
+        // Optional prominent heading line, shown directly above the input
+        // when the top stage declares one (stage.heading). Used by step flows
+        // (e.g. kind's creation wizard) to tell the user what THIS step is for
+        // — "Name it", "File it under" — right where their eyes are. Unlike a
+        // group header it sits above the input and is not dimmed in edit mode.
+        this.headingEl = this.document.createElement("div");
+        this.headingEl.className = "rcp-heading";
+        this.headingEl.style.display = "none";
+
         this.inputEl = this.document.createElement("input");
         this.inputEl.className = "rcp-input";
         this.inputEl.type = "text";
@@ -433,6 +442,7 @@ See doc/protocol.tid for the full authoring guide and worked examples.
         this.cascadeColEl.appendChild(this.viewStripEl);
         this.cascadeColEl.appendChild(this.viewConfigStripEl);
         this.cascadeColEl.appendChild(this.leaderStripEl);
+        this.cascadeColEl.appendChild(this.headingEl);
         this.cascadeColEl.appendChild(this.inputEl);
         this.cascadeColEl.appendChild(this.resultsEl);
         this.cascadeColEl.appendChild(this.detailEl);

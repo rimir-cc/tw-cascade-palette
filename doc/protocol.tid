@@ -395,6 +395,19 @@ ca-after-fire: pop
 ca-actions: <$action-setfield $tiddler="$:/state/example/draft" $field="parent" $value="My First Node"/>
 ```
 
+! Return-to-entity leaves (`ca-after-fire: pop-to-actions`)
+
+`pop` pops ''one'' stage. A multi-step flow — e.g. `rimir/kind`'s create-wizard, whose step inputs and per-step pickers are several `filter` stages stacked on top of the entity's action menu — needs to pop ''all the way back'' to that entity after committing. `ca-after-fire: pop-to-actions` fires the action, then pops every stage down to the nearest action-menu (`kind: "actions"`) stage, or the root if none, keeping the palette open and recomputing the landing stage. So "create a child of this person" returns the user to the person's action menu (where //Create here…// lives) with the new instance created — instead of the palette vanishing.
+
+```
+ca-name: Here
+ca-kind: leaf
+ca-after-fire: pop-to-actions
+ca-actions: <$transclude $variable="my.finalize-create" .../>
+```
+
+Also recognised on a `drill` row carrying `ca-enter-fires: yes` — Enter fires (and pops-to-actions), Right still drills children.
+
 ! Data-row sorting (`ca-sort-rows`)
 
 ''Plain'' filter stages (`ca-next-scope`, returning tiddler titles) always sort their rows: currently-selected first, then alphanumerically by the displayed (lensed) name. ''Synthetic'' `ca-items-from` stages do NOT sort by default — many are structured menus (field editors, etc.) whose authored emission / `ca-order` layout must be preserved. A picker stage opts in by setting ''`ca-sort-rows: name`'' on the parent drill:
