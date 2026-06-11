@@ -94,6 +94,8 @@ The widget exposes variables to every filter and action wikitext via a synthetic
 
 ''Activation paths.'' `_attachPreviewToStage` recognises (a) per-menu template set; (b) tag-only opt-in (row sets `ca-preview-context` / `ca-preview-per-row` without a template — pane activates from tag candidates only); (c) inheritance from a parent per-row stage.
 
+''Interactive / inline editors.'' The pane hosts fully interactive templates, including ones with inline editors (e.g. rimir/kind's ''Notes'' preview renders an editable sq/streams note-structure). Two requirements make that work: (1) `_renderSidePreview` appends the render container to the live DOM ''before'' calling `render()`, because framed-engine editors read `ownerDocument.defaultView` / focus during render — on a detached node that's `null` and the render throws. (2) `_keydownTargetIsInsidePreviewWidget` (the guard that tells the global keydown handler to leave a keystroke alone) consults BOTH `e.target` AND `document.activeElement`: a framed (iframe) editor keeps its editable in an `<iframe>` and re-dispatches keydowns onto a non-editable parent wrapper (`SPAN.tc-keyboard`), so a `target`-only check would miss it and the type-ahead redirect would steal every character (incl. Space) to the palette input. Candidate pills are excluded from both paths so ←/→ pill-cycling still routes to the cascade.
+
 ! Axis-key memoisation (`cp-axes.js`)
 
 Axis `keyFn` results are memoised per `(axisTitle + paramsHash) × tiddlerTitle`, invalidated on `wiki.getChangeCount()`. First touch of the cache fills it; subsequent re-renders cost O(rows visited at the current depth), not O(source).

@@ -473,6 +473,15 @@ module.exports = function (proto) {
         }
         var container = this.document.createElement("div");
         container.className = "rcp-preview-pane-template";
+        // Attach the container to the live document BEFORE rendering, not
+        // after. Some interactive editors (notably sq/streams' inline
+        // `$streams-edit` textarea, when a note is rebuilt while it is in
+        // edit mode) read `ownerDocument.defaultView` / focus the node
+        // during render() — on a detached node that's null and the whole
+        // preview render throws ("Cannot read properties of null (reading
+        // 'document')") and gets cached as an error until reload. Rendering
+        // into an already-attached node gives those engines a real window.
+        this.sidePreviewBodyEl.appendChild(container);
         var widgetNode = null;
         try {
             var parser = this.wiki.parseTiddler(active.template);
@@ -497,7 +506,7 @@ module.exports = function (proto) {
             container.textContent = "(preview render error: " +
                 (err && err.message) + ")";
         }
-        this.sidePreviewBodyEl.appendChild(container);
+        // (container was appended to sidePreviewBodyEl before render — see above)
         // Stash the widget tree on the cache so the wiki change hook can
         // dispatch refresh into it. The tree is built via wiki.makeWidget
         // — that does NOT auto-subscribe to the rootWidget's refresh
@@ -712,31 +721,65 @@ module.exports = function (proto) {
         }
     };
 
-    // True when a keystroke originates from an interactive widget
-    // inside the side-preview pane (form input, button, link, …) —
-    // the cascade's global keydown handler should let it through so
-    // Enter / Space / arrows reach the widget natively. Escape is
-    // excluded so the user can always pop focus back to the cascade
-    // input from inside the preview. Preview-pane pills are intentionally
-    // NOT excluded here (they're <button>s but the cascade handles ←/→
-    // via _handleKeydownPreview to keep behaviour symmetric with click).
+    // True when a keystroke belongs to an interactive widget inside the
+    // side-preview pane (form input, button, link, inline editor, …) — the
+    // cascade's global keydown handler should let it through so Enter /
+    // Space / arrows / printable chars reach the widget natively instead of
+    // being treated as palette navigation or stolen by the type-ahead
+    // redirect. Escape is excluded so the user can always pop focus back to
+    // the cascade input from inside the preview. Preview-pane pills are
+    // intentionally NOT treated as interactive here (they're <button>s but
+    // the cascade drives them via ←/→ in _handleKeydownPreview, symmetric
+    // with click).
+    //
+    // Two detection paths, because some editors live in an <iframe>:
+    //   (1) e.target — a same-document editable element (simple-engine
+    //       textareas, inputs, buttons, links, contenteditable).
+    //   (2) document.activeElement — a FRAMED editor (sq/streams and the
+    //       core body editor use the framed engine: the editable lives in an
+    //       <iframe>, typing happens inside it, and the framed engine
+    //       RE-DISPATCHES the keydown onto a parent wrapper — e.g. a
+    //       `SPAN.tc-keyboard` — whose tag isn't editable, so path (1)
+    //       misses it). When focus is on an <iframe> / editable inside the
+    //       pane, the keystroke is already being handled by that editor, so
+    //       the cascade must not also handle it (which otherwise type-ahead-
+    //       steals every character — incl. Space — to the palette input).
     proto._keydownTargetIsInsidePreviewWidget = function (e) {
         if (e.key === "Escape") return false;
         if (!this.sidePreviewEl) return false;
+        var isEditableTag = function (el) {
+            if (!el) return false;
+            var tag = (el.tagName || "").toLowerCase();
+            return tag === "input" || tag === "textarea" || tag === "select" ||
+                   tag === "button" || tag === "a" || tag === "iframe" ||
+                   el.isContentEditable === true;
+        };
         var tgt = e.target;
-        if (!tgt || !this.sidePreviewEl.contains(tgt)) return false;
-        if (tgt === this.sidePreviewEl ||
-            tgt === this.sidePreviewBodyEl ||
-            tgt === this.sidePreviewTitleEl ||
-            tgt === this.sidePreviewPillsEl) return false;
-        // Pills are buttons; we drive them via ←/→ in _handleKeydownPreview
-        // rather than letting the native Enter activate them.
-        if (this.sidePreviewPillsEl &&
-            this.sidePreviewPillsEl.contains(tgt)) return false;
-        var tag = (tgt.tagName || "").toLowerCase();
-        return tag === "input" || tag === "textarea" || tag === "select" ||
-               tag === "button" || tag === "a" ||
-               tgt.isContentEditable === true;
+        // Path (1): the event target itself, when it's a pane descendant
+        // that isn't a structural container or a candidate pill.
+        if (tgt && this.sidePreviewEl.contains(tgt) &&
+            tgt !== this.sidePreviewEl && tgt !== this.sidePreviewBodyEl &&
+            tgt !== this.sidePreviewTitleEl && tgt !== this.sidePreviewPillsEl &&
+            !(this.sidePreviewPillsEl && this.sidePreviewPillsEl.contains(tgt)) &&
+            isEditableTag(tgt)) {
+            return true;
+        }
+        // Path (2): focus is on a framed editor / editable inside the pane,
+        // even though e.target was re-dispatched onto a non-editable wrapper.
+        // (Pills are <button>s — excluded above — so this never swallows the
+        // ←/→ pill-cycling: when a pill has focus, activeElement is a button
+        // inside the pills row, which isEditableTag treats as editable, so we
+        // must additionally skip the pills row here.)
+        var ae = this.document.activeElement;
+        if (ae && ae !== this.sidePreviewEl && this.sidePreviewEl.contains(ae) &&
+            !(this.sidePreviewPillsEl && this.sidePreviewPillsEl.contains(ae))) {
+            var atag = (ae.tagName || "").toLowerCase();
+            if (atag === "iframe" || atag === "textarea" || atag === "input" ||
+                atag === "select" || ae.isContentEditable === true) {
+                return true;
+            }
+        }
+        return false;
     };
 
     proto._hideSidePreview = function () {
