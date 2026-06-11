@@ -36,10 +36,11 @@ The active section gets the browser-level focus and a visual cue; keyboard gestu
 |''↑'' |input |Enter the pill group at the bottom-most active pill row (no-op if no pills active) |
 |''(typing)'' |input |Filter the current stage. When the text matches a filter prefix, the input picks up a blue underline ("↵ commit filter: …"); when it matches a visibility prefix, an orange underline ("↵ commit visibility: …"); when it matches a leader key, an amber underline — leader fires after 500ms idle, any keystroke cancels. |
 |''Esc'' |any (in pick-mode) |Cancel pick-mode — return to prior view without committing a filter |
-|''Esc'' |preset / visibility / filter / view / details |Return focus to the input (without closing) |
+|''Esc'' |preset / visibility / filter / view / details / preview |Return focus to the input (without closing) |
 |''Esc'' |menu |Pop one stage (back). At root depth, refocuses input (since there's nothing to pop). Symmetric with ArrowLeft-in-menu. |
 |''← / →'' |visibility / filter |Move focus between pills within the row (clamps at edges) |
 |''← / →'' |view / preset |Move focus between pills ''and apply on landing'' — these are single-select strips, so navigating IS selecting (no Space/Enter needed; clamps at edges). On preset the trailing ''+'' save pill is skipped — it stays an explicit Enter/Space gesture. (Lens choosers now live in the Structure strip's view→channel tree and cycle on ↵/Space, not on ←/→ landing.) |
+|''← / →'' |preview |Cycle between candidate preview templates when ≥ 2 apply at the current context (mirrors clicking the candidate pills). No-op with a single candidate; ↑/↓/PageUp/Down scroll the pane natively. |
 |''Enter / Space'' |lens slot |Apply the focused lens (←/→ also applies on landing). On the ''➕ New…'' pill: start authoring a new lens for this slot (filter editor with a live match-count → name → save). |
 |''e'' |lens slot (focused lens) |Edit the focused lens — reopens its projection filter live (a user lens is overwritten in place; a shipped lens is saved as a new copy). |
 |''DEL / Backspace'' |lens slot (focused lens) |Delete the focused lens via a confirm drill (shipped lenses refuse — press ''e'' to clone instead). To turn a slot ''off'' instead, ← to its ''(off)'' / ''(default)'' head pill. |

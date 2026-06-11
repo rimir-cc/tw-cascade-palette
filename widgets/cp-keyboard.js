@@ -41,18 +41,19 @@ var SECTION_HANDLERS = {
     "viewconfig": "_handleKeydownViewConfig",
     "leader":     "_handleKeydownLeader",
     "preset":     "_handleKeydownPreset",
-    "details":    "_handleKeydownDetails"
-    // NOTE: there is intentionally NO "preview" row. The side-preview pane
-    // IS a focus in the main Tab cycle (see _mainCycle), but it has no
-    // section keydown handler: ↑/↓/PageUp/Down scroll the pane natively
-    // (it's a focusable element), and switching between multiple candidate
-    // templates is done by clicking the candidate pills (each pill stops
-    // propagation in its own click handler). A printable key pressed here
-    // falls through to the Tier-4 type-ahead redirect into the input. A
-    // row pointing at a handler that doesn't exist is a runtime no-op the
-    // Tier-3 dispatch already guards against — and it drifts the
-    // dispatch-table specs (test-keyboard-dispatch.js). Don't add one
-    // without a real `_handleKeydown*` method to back it.
+    "details":    "_handleKeydownDetails",
+    // The side-preview pane IS a focus in the main Tab cycle (see
+    // _mainCycle). Esc returns to input; ←/→ cycle between candidate
+    // preview templates when more than one applies (mirrors clicking the
+    // candidate pills); ↑/↓/PageUp/Down scroll the pane natively. A
+    // printable key falls through to the Tier-4 type-ahead redirect.
+    // NOTE: `_handleKeydownPreview` is defined in cp-side-preview.js, not
+    // here — the handler lives next to the pane it drives. Both modules
+    // are applied to the same prototype at boot (see
+    // cascade-palette-widget.js), so the lookup resolves at runtime. The
+    // drift-detector spec in test-keyboard-dispatch.js applies BOTH
+    // modules to its stub for the same reason.
+    "preview":    "_handleKeydownPreview"
 };
 
 // Resolve the section handler for a focus value. Returns the handler

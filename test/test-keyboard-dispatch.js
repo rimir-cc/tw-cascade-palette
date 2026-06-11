@@ -39,8 +39,10 @@ describe("cascade-palette: keyboard dispatch table", function () {
             expect(keyboard.resolveSectionHandler("details")).toBe("_handleKeydownDetails");
         });
 
-        it("preview focus has NO dispatch entry (side-preview is native-focusable)", function () {
-            expect(keyboard.resolveSectionHandler("preview")).toBeNull();
+        it("preview focus dispatches to _handleKeydownPreview (←/→ candidate switch)", function () {
+            // The handler itself lives in cp-side-preview.js, but the table
+            // row routes to it so arrow keys reach the pill-cycle logic.
+            expect(keyboard.resolveSectionHandler("preview")).toBe("_handleKeydownPreview");
         });
 
         it("returns null for unknown focus values", function () {
@@ -76,7 +78,7 @@ describe("cascade-palette: keyboard dispatch table", function () {
         it("includes every key resolveSectionHandler accepts", function () {
             var snap = keyboard.dispatchTableSnapshot();
             ["input", "menu", "filter", "visibility", "reach", "meta", "field",
-             "view", "viewconfig", "leader", "preset", "details"
+             "view", "viewconfig", "leader", "preset", "details", "preview"
             ].forEach(function (focus) {
                 expect(snap[focus]).toBe(keyboard.resolveSectionHandler(focus));
             });
@@ -93,8 +95,14 @@ describe("cascade-palette: keyboard dispatch table", function () {
         // Apply the patcher to a stub object and verify every named
         // handler is actually a function on the stub. Catches the
         // "added a section row but forgot the handler" mistake.
+        // cp-side-preview is applied too because it owns
+        // `_handleKeydownPreview` — the "preview" dispatch row points at a
+        // method defined in that sibling module, not in cp-keyboard. Both
+        // are applied to the real widget prototype at boot.
+        var sidePreview = require("$:/plugins/rimir/cascade-palette/widgets/cp-side-preview");
         var stub = {};
         keyboard(stub);
+        sidePreview(stub);
 
         Object.keys(keyboard.SECTION_HANDLERS).forEach(function (focus) {
             var name = keyboard.SECTION_HANDLERS[focus];
@@ -139,7 +147,10 @@ describe("cascade-palette: keyboard dispatch table", function () {
         }
 
         it("appends a printable char and prevents default on a non-input focus", function () {
-            var stub = makeStub("preview"); // no section handler → Tier 4 reached
+            // This stub applies only cp-keyboard, so _handleKeydownPreview
+            // is absent and a printable char falls through to Tier 4. (Even
+            // with the real handler present, it ignores printable keys.)
+            var stub = makeStub("preview");
             var e = ev("a");
             stub.handleKeydown(e);
             expect(stub._typeAheadCalls).toEqual(["a"]);
@@ -262,8 +273,8 @@ describe("cascade-palette: keyboard dispatch table", function () {
             var keys = Object.keys(keyboard.dispatchTableSnapshot()).sort();
             expect(keys).toEqual([
                 "context", "details", "field", "filter", "input", "leader",
-                "menu", "meta", "preset", "reach", "view", "viewconfig",
-                "visibility"
+                "menu", "meta", "preset", "preview", "reach", "view",
+                "viewconfig", "visibility"
             ]);
         });
 
