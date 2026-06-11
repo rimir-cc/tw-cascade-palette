@@ -67,11 +67,22 @@ module.exports = function (proto) {
             }
         }
         if (!item) return;
-        fired[item.autoToken || ""] = true;
-        var mode = item.auto, autoIdx = idx, self = this;
+        var token = item.autoToken || "", mode = item.auto, autoIdx = idx, self = this;
+        // Mark fired ONLY when the action actually runs (inside the timeout,
+        // past the editMode/stack guards) — NOT synchronously here. A second
+        // render between this scheduling and the timeout would otherwise see
+        // THIS token already marked and pick the NEXT auto row: e.g. a step
+        // that auto-opens an editor AND (being already valid) carries an
+        // auto-advance row would mark+abort the advance under the editMode
+        // guard, orphaning it so it never fires once the edit commits. By
+        // deferring the mark, this token stays "the first un-fired" until it
+        // is genuinely consumed; the fired-guard dedupes the redundant
+        // timeouts that pile up across renders.
         setTimeout(function () {
             if (self.editMode) return;
             if (self.topStage() !== stage) return;   // stack moved
+            if (fired[token]) return;                 // already consumed
+            fired[token] = true;
             stage.selectedIndex = autoIdx;
             if (mode === "edit") {
                 self.enterEditMode(item);

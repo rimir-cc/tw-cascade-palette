@@ -481,16 +481,24 @@ module.exports = function (proto) {
         this.invokeViaNavigator(item.onCommit, commitVars);
     };
 
+    // Convert a smart-date expression (e.g. "+2w", "today", "2026-07-01") to
+    // the storage string for a given bind-type, or undefined on empty / parse
+    // failure. Shared by daterange seeding and the plain `ca-date-default`
+    // seed (enterEditMode).
+    proto._smartDateToStorage = function (expr, bindType, helpers) {
+        if (!expr || !helpers) return undefined;
+        var d;
+        try { d = helpers.parseSmartDate(String(expr)); } catch (e) { return undefined; }
+        if (!d) return undefined;
+        return (bindType === "application/x-tw-date")
+            ? helpers.toTwDateOnly(d)
+            : helpers.toTwDate(d);
+    };
+
     // Seed one sub-field from a smart-date expression (e.g. "+2w"). Returns
     // true iff it wrote. No-op on empty expression / parse failure.
     proto._seedRangeField = function (subItem, expr, helpers) {
-        if (!expr) return false;
-        var d;
-        try { d = helpers.parseSmartDate(String(expr)); } catch (e) { return false; }
-        if (!d) return false;
-        var storage = (subItem.bindType === "application/x-tw-date")
-            ? helpers.toTwDateOnly(d)
-            : helpers.toTwDate(d);
+        var storage = this._smartDateToStorage(expr, subItem.bindType, helpers);
         if (storage === undefined) return false;
         this._writeRawAtField(subItem, storage);
         return true;
@@ -533,6 +541,21 @@ module.exports = function (proto) {
         if (this.detailsOpen) {
             this.detailsOpen = false;
             this.hideDetail();
+        }
+        // Date kind: lazily seed an offset default (ca-date-default, e.g.
+        // "+2w") into a still-blank field the first time the user lands in its
+        // editor — so a wizard date step opens pre-filled. Runs before the
+        // value is read into the input below.
+        if (item.kind === "date" && item.dateDefault) {
+            var seedRaw = this._readBoundRaw(item);
+            if (seedRaw === undefined || seedRaw === null || seedRaw === "") {
+                var seedStorage = this._smartDateToStorage(
+                    item.dateDefault, item.bindType, this._dateHelpers()
+                );
+                if (seedStorage !== undefined) {
+                    this._writeRawAtField(item, seedStorage);
+                }
+            }
         }
         var initial = "";
         if (item.initialValue !== undefined) {
@@ -596,6 +619,95 @@ module.exports = function (proto) {
         // can also use Home/End/arrows to position the cursor for partial
         // edits.
         setTimeout(function () { self.inputEl.select(); }, 0);
+        // Date kind: optionally attach a calendar popup anchored to the input
+        // (config-named library). No-op when unconfigured / library absent.
+        if (item.kind === "date") this._attachDatePicker(item);
+    };
+
+    // Attach a Pikaday-compatible calendar popup to the edit input for a date
+    // row, when $:/config/rimir/cascade-palette/date-picker-module names an
+    // available library. The popup is anchored to (and writes through) the
+    // palette's own input, so typing / +/- nudge / Enter-commit all keep
+    // working as before — the calendar just adds click-to-pick. Display +
+    // storage go through the scribe date-helpers (no moment-format coupling).
+    // Stored on this.editMode.picker; torn down in exitEditMode.
+    proto._attachDatePicker = function (item) {
+        var modPath = (this.wiki.getTiddlerText(C.DATE_PICKER_MODULE_CONFIG, "") || "").trim();
+        if (!modPath || !this.editMode) return;
+        var Pikaday;
+        try { Pikaday = require(modPath); } catch (err) { return; }
+        if (typeof Pikaday !== "function") return;
+        var helpers = this._dateHelpers();
+        if (!helpers) return;
+        var self = this;
+        var current = this.readDateValue(item);   // JS Date or null
+        try {
+            var picker = new Pikaday({
+                field: this.inputEl,
+                // bound (default) appends the calendar to <body> and positions
+                // it near the input — the palette popup + cascade column both
+                // set overflow:hidden, so an in-popup calendar would be clipped.
+                bound: true,
+                // Pikaday otherwise blurs the field ~100ms after a day-click
+                // (its deferred autoClose/blur timer), stealing focus from the
+                // palette input so ↵ wouldn't advance. Keep focus on the input.
+                blurFieldOnSelect: false,
+                defaultDate: current || undefined,
+                setDefaultDate: !!current,
+                // Format the field text ourselves (storage → display) so we
+                // don't depend on the picker's own moment formatting.
+                toString: function (date) {
+                    var storage = (item.bindType === "application/x-tw-date")
+                        ? helpers.toTwDateOnly(date)
+                        : helpers.toTwDate(date);
+                    return self._formatDateRaw(item, storage);
+                },
+                onSelect: function () {
+                    var d = picker.getDate();
+                    if (!d) return;
+                    var storage = (item.bindType === "application/x-tw-date")
+                        ? helpers.toTwDateOnly(d)
+                        : helpers.toTwDate(d);
+                    if (storage !== undefined) self._writeRawAtField(item, storage);
+                    // Return keyboard focus to the palette input so ↵ advances
+                    // immediately. Deferred: pikaday hides + manages focus AFTER
+                    // onSelect returns, so a synchronous focus() would be undone.
+                    setTimeout(function () {
+                        if (self.editMode) self.inputEl.focus();
+                    }, 0);
+                }
+            });
+            // Tag the popup root so it can float above the backdrop (z-index
+            // 99999) — pikaday's default 9999 would sit behind it.
+            if (picker.el && picker.el.classList) {
+                picker.el.classList.add("rcp-datepicker");
+            }
+            this.editMode.picker = picker;
+            // Show immediately: the input is already focused by the time we
+            // attach, so pikaday's focus-to-show wouldn't fire on its own.
+            setTimeout(function () {
+                try { if (self.editMode && self.editMode.picker === picker) picker.show(); }
+                catch (e) { /* ignore */ }
+            }, 0);
+        } catch (err2) {
+            if (console && console.warn) {
+                console.warn("[cascade-palette] date-picker attach failed —",
+                    err2 && err2.message);
+            }
+        }
+    };
+
+    // Re-sync the edit input (and the calendar popup, if any) to the bound
+    // field after a programmatic change (e.g. a +/- nudge in date edit mode).
+    proto._syncDateEditInput = function (em) {
+        if (!em || !em.item) return;
+        var raw = this._readBoundRaw(em.item);
+        this.inputEl.value = (raw === undefined || raw === null || raw === "")
+            ? "" : this._formatDateRaw(em.item, raw);
+        if (em.picker) {
+            try { em.picker.setDate(this.readDateValue(em.item) || null, true); }
+            catch (e) { /* preventOnSelect=true; ignore picker errors */ }
+        }
     };
 
     proto.exitEditMode = function (commit) {
@@ -629,6 +741,11 @@ module.exports = function (proto) {
                     return;
                 }
             }
+        }
+        // Tear down the calendar popup (if attached) before clearing editMode.
+        if (em.picker) {
+            try { em.picker.destroy(); } catch (e) { /* ignore */ }
+            em.picker = null;
         }
         this.editMode = null;
         this.inputEl.classList.remove("rcp-edit-error");

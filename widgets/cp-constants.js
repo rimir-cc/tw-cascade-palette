@@ -202,6 +202,14 @@ exports.MAX_RESULTS_STEP_CONFIG = "$:/config/rimir/cascade-palette/max-results-s
 exports.DETAILS_ALWAYS_ON_CONFIG = "$:/config/rimir/cascade-palette/details-always-on";
 exports.PIN_PILL_ROWS_CONFIG = "$:/config/rimir/cascade-palette/pin-pill-rows";
 exports.PERF_FOOTER_CONFIG = "$:/config/rimir/cascade-palette/show-perf-footer";
+// Optional date-picker library module to attach as a calendar popup on
+// `ca-kind: date` rows in edit mode. Value = a `module-type: library`
+// tiddler title exporting a Pikaday-compatible constructor (options:
+// field / bound / container / defaultDate / toString / onSelect / setDate
+// / destroy). Empty / missing = keyboard-only date editing (no popup).
+// Kept config-driven so the public plugin carries no hard dependency on a
+// specific date-picker (e.g. my-wiki points it at kixam's pikaday).
+exports.DATE_PICKER_MODULE_CONFIG = "$:/config/rimir/cascade-palette/date-picker-module";
 // Space-separated list of fields scanned by the built-in `url` row-icon.
 // First field on a row's tiddler whose value matches an http/https/ftp/
 // mailto/tel URL prefix wins. Default: "url".

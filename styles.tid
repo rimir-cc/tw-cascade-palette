@@ -13,6 +13,13 @@ type: text/css
     padding-top: 12vh;
 }
 
+/* Calendar popup (optional date-picker-module, e.g. kixam pikaday). It is
+   appended to <body> in `bound` mode, so it must float above the palette
+   backdrop (99999); pikaday's own default is only 9999. */
+.pika-single.rcp-datepicker {
+    z-index: 100001;
+}
+
 .rcp-popup {
     width: min(640px, 90vw);
     max-height: 60vh;

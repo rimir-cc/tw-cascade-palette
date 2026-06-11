@@ -288,6 +288,22 @@ module.exports = function (proto) {
             this.exitEditMode(false);
             return;
         }
+        // Date edit mode: +/- nudge the bound date in place (Shift = month,
+        // Ctrl = year) — same control as the selected-row date path — instead
+        // of typing the literal character. Keeps the input + calendar popup in
+        // sync. Match on e.code so it is keyboard-layout independent.
+        var em = this.editMode;
+        if (em && em.item && em.item.kind === "date") {
+            var isPlus  = e.code === "Equal" || e.code === "NumpadAdd";
+            var isMinus = e.code === "Minus" || e.code === "NumpadSubtract";
+            if (isPlus || isMinus) {
+                e.preventDefault();
+                this.fireDate(this.topStage(), em.item,
+                    this._dateUnitForEvent(e), isPlus ? 1 : -1);
+                this._syncDateEditInput(em);
+                return;
+            }
+        }
         // All other keys (typing, cursor movement) fall through to native
         // input behaviour.
     };

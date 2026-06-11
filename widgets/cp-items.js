@@ -219,6 +219,13 @@ module.exports = function (proto) {
             // `ca-kind: date` row rendering. Default `DD.MM.YYYY` (German);
             // override with e.g. `YYYY-0MM-0DD` or `DDth MMM YYYY`.
             dateFormat: f["ca-date-format"] || "DD.MM.YYYY",
+            // Offset / smart-date expression (e.g. `+2w`, `today`, `2026-07-01`)
+            // used to seed a STILL-BLANK `ca-kind: date` field the first time
+            // its editor is opened — so a wizard date step lands pre-filled.
+            // Parsed via the same smart-date path as daterange seeding. Unlike
+            // daterange's seed (stage-push only) this fires lazily on edit-entry,
+            // so it works for a date row that appears mid-stage (wizard steps).
+            dateDefault: f["ca-date-default"] || "",
             // Confirm-on-fire (P3): when `ca-confirm: yes` is set on a leaf,
             // fireSelected wraps its actions in a confirm-stage instead of
             // firing them directly. consequence-text supports the standard
